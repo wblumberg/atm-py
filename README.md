@@ -12,3 +12,11 @@ Currently, nothing is fixed in stone.  The initial check-in of python packages s
 ## Documentation
 
 At this time, there is no defined documentation standard.  At this point, the docstring is used to provide a short summary while the @ notation is used to define parameters, outputs and sources.
+
+## Dependences
+python ?
+
+numpy
+scipy
+pandas
+matplotlib
