@@ -13,6 +13,8 @@ Currently, nothing is fixed in stone.  The initial check-in of python packages s
 
 At this time, there is no defined documentation standard.  At this point, the docstring is used to provide a short summary while the @ notation is used to define parameters, outputs and sources.
 
+See [NumPy](https://github.com/numpy/numpy/blob/master/doc/HOWTO_BUILD_DOCS.rst.txt) for how to put together documentation.
+
 ## Dependences
 python ?
 
