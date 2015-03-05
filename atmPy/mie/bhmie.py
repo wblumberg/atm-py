@@ -215,7 +215,7 @@ class bhmie_hagen():
         
     def calc_qsca(self):
         """scattering efficiency"""
-        print 'bla'
+        return 0
         
     def calc_qext(self):
         """extinction efficiency. normalized real part of s1 at 0 deg (forward)"""
