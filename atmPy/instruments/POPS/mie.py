@@ -131,7 +131,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             output[1] = scatteringEfficiency
         
     if broadened:
-        return diameter,output,(exWavelengthInUm,normalizer)
+        return diameter,output#,(exWavelengthInUm,normalizer)
     else:
         return diameter, output
     
