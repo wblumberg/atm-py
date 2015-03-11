@@ -55,8 +55,210 @@ def get_label(distType):
     else:
         raise ValueError('%s is not really an option!?!'%distType)
     return label
-
+    
+    
 class aerosolSizeDistribution:
+    """data: pandas dataFrame with 
+                 - column names (each name is something like this: '150-200')
+                 - index is time (at some point this should be arbitrary, convertable to altitude for example?)
+       unit conventions:
+             - diameters: nanometers
+             - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
+       distributionType:  
+             log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
+             natural: 'dNdDp','dSdDp','dVdDp'
+             number: 'dNdlogDp', 'dNdDp'
+             surface: 'dSdlogDp','dSdDp'
+             volume: 'dVdlogDp','dVdDp'
+       bincenters: this is if you actually want to pass the bincenters, if False they will be calculated """
+       
+    def __init__(self,data, bins, distributionType, bincenters = False, fixGaps = True):
+        self.data = data
+        self.bins = bins
+        if type(bincenters) == np.ndarray:
+            self.bincenters = bincenters
+        else:
+            self.bincenters = (bins[1:] + bins[:-1])/2.
+        self.binwidth = (bins[1:] - bins[:-1])
+        self.distributionType = distributionType
+        if fixGaps:
+            self.fillGapsWithZeros()
+#        self.differentialStyle = differentialStyle #I don't think this is still used ... does not make much sence
+            
+    def fillGapsWithZeros(self,scale = 1.1):
+        """Finds gaps in dataset (e.g. when instrument was shut of). 
+        It adds one line of zeros to the beginning and one to the end of the gap. 
+        Therefore the gap is visible as zeros instead of the interpolated values"""
+        diff = self.data.index[1:].values - self.data.index[0:-1].values
+        threshold = np.median(diff)*scale
+        where = np.where(diff>threshold)[0]
+        if len(where) != 0:
+            warnings.warn('The dataset provided had %s gaps'%len(where))
+            gap_start = self.data.index[where]
+            gap_end = self.data.index[where+1]
+            for gap_s in gap_start:
+                self.data.loc[gap_s+threshold] = np.zeros(self.bincenters.shape)
+            for gap_e in gap_end:
+                self.data.loc[gap_e-threshold] = np.zeros(self.bincenters.shape)
+            self.data = self.data.sort_index()
+        return
+        
+        
+    def plot_distribution(self, vmax = None, vmin = None, norm = 'linear',showMinorTickLabels = True, removeTickLabels = ["700", "900"], plotOnTheseAxes = False):
+        """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
+        Optional parameters:
+              norm - ['log','linear']"""
+        f,a = plt.subplots()
+        if norm == 'log':
+            norm = LogNorm()
+        elif norm == 'linear':
+            norm = None
+        a.plot(self.bincenters,self.data.loc[0])
+        a.set_xlabel('Particle diameter (nm)')
+
+        label = get_label(self.distributionType)
+        a.set_ylabel(label)
+        a.set_xscale('log')
+#        if self.distributionType != 'calibration':
+#            a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+#            a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
+#            
+#            f.canvas.draw() # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
+#    #        delList =
+#            ticks = a.yaxis.get_minor_ticks()
+#            for i in ticks:
+#                if i.label.get_text() in removeTickLabels:
+#                    i.label.set_visible(False)           
+        return f,a
+                 
+
+    def _normal2log(self):
+        trans = (self.bincenters * np.log(10.))
+        return trans
+    
+    def _2Surface(self):
+        trans  = 4. * np.pi * (self.bincenters/2.)**2
+        return trans
+        
+    def _2Volume(self):
+        trans  = 4./3. * np.pi * (self.bincenters/2.)**3
+        return trans
+    
+    def _convert2otherDistribution(self,distType):
+        dist = self.copy()
+        if dist.distributionType == distType:
+            warnings.warn('Distribution type is already %s. Output is an unchanged copy of the distribution'%distType)
+            return dist
+        
+        if dist.distributionType == 'numberConcentration':
+            pass        
+        elif distType == 'numberConcentration':
+            pass    
+        elif dist.distributionType in distTypes['log normal']:
+            if distType in distTypes['log normal']:
+                print 'both log normal'
+            else:
+                dist.data = dist.data / self._normal2log()
+                
+        elif dist.distributionType in distTypes['natural']:
+            if distType in distTypes['natural']:
+                print 'both natural'
+            else:
+                dist.data = dist.data * self._normal2log() 
+        else:
+            raise ValueError('%s is not an option'%distType)
+            
+        if dist.distributionType == 'numberConcentration':
+            pass       
+        
+        elif distType == 'numberConcentration':
+            pass                
+        elif dist.distributionType in distTypes['number']:
+            if distType in distTypes['number']:
+                print 'both number'
+            else:
+                if distType in distTypes['surface']:
+                    dist.data = dist.data * self._2Surface() 
+                elif distType in distTypes['volume']:
+                    dist.data = dist.data * self._2Volume()
+                else:
+                    raise ValueError('%s is not an option'%distType)
+
+        elif dist.distributionType in distTypes['surface']:
+            if distType in distTypes['surface']:
+                print 'both surface'
+            else:
+                if distType in distTypes['number']:
+                    dist.data = dist.data / self._2Surface() 
+                elif distType in distTypes['volume']:
+                    dist.data = dist.data * self._2Volume() / self._2Surface()  
+                else:
+                    raise ValueError('%s is not an option'%distType)             
+                    
+        elif dist.distributionType in distTypes['volume']:
+            if distType in distTypes['volume']:
+                print 'both volume'
+            else:
+                if distType in distTypes['number']:
+                    dist.data = dist.data / self._2Volume()
+                elif distType in distTypes['surface']:
+                    dist.data = dist.data * self._2Surface()  / self._2Volume() 
+                else:
+                    raise ValueError('%s is not an option'%distType)
+        else:
+            raise ValueError('%s is not an option'%distType)     
+            
+            
+        
+        if distType == 'numberConcentration':
+            dist = dist.convert2dNdDp()
+            dist.data = dist.data * self.binwidth
+            
+        elif dist.distributionType == 'numberConcentration':
+            dist.data = dist.data/self.binwidth
+            dist.distributionType = 'dNdDp'
+            dist = dist._convert2otherDistribution(distType)          
+        
+        dist.distributionType = distType
+        print 'converted from %s to %s'%(self.distributionType,dist.distributionType)
+        return dist
+        
+    def convert2dNdDp(self):
+        return self._convert2otherDistribution('dNdDp')
+        
+    def convert2dNdlogDp(self):
+        return self._convert2otherDistribution('dNdlogDp')
+        
+    def convert2dSdDp(self):
+        return self._convert2otherDistribution('dSdDp')
+        
+    def convert2dSdlogDp(self):
+        return self._convert2otherDistribution('dSdlogDp')
+        
+    def convert2dVdDp(self):
+        return self._convert2otherDistribution('dVdDp')
+        
+    def convert2dVdlogDp(self):
+        return self._convert2otherDistribution('dVdlogDp')
+        
+    def convert2numberconcentration(self):
+        return self._convert2otherDistribution('numberConcentration')     
+        
+    def copy(self):
+        return deepcopy(self)
+        
+    def save_csv(self, fname):
+        raus = open(fname, 'w')
+        raus.write('bins = %s\n'% self.bins.tolist())
+#        raus.write('bincenter = %s\n'% self.bincenters.tolist())
+#        raus.write('binwidth = %s\n'% self.binwidth.tolist())
+        raus.write('distributionType = %s\n'%self.distributionType)
+        raus.write('#\n')
+        raus.close()
+        self.data.to_csv(fname, mode = 'a')
+        return    
+
+class aerosolSizeDistribution_timeseries:
     """data: pandas dataFrame with 
                  - column names (each name is something like this: '150-200')
                  - index is time (at some point this should be arbitrary, convertable to altitude for example?)
@@ -358,7 +560,7 @@ class aerosolSizeDistribution:
         
 
         
-class aerosolLayers:
+class aerosolSizeDistribution_layerseries:
     """data: pandas dataFrame with 
                  - column names (each name is something like this: '150-200')
                  - altitude (at some point this should be arbitrary, convertable to altitude for example?)
@@ -608,6 +810,47 @@ class aerosolLayers:
         raus.close()
         self.data.to_csv(fname, mode = 'a')
         return
+
+def simulate_sizedistribution(diameter = [.01,2.5],
+                                 numberOfDiameters = 30,
+                                 centerOfAerosolMode = 0.6,
+                                 widthOfAerosolMode = 0.2,
+                                 numberOfParticsInMode = 10000,
+                                 ):
+    """Probably deprecated!?! generates a numberconcentration of an aerosol layer which has a gaussian shape when plottet in dN/log(Dp). 
+    However, returned is a numberconcentrations (simply the number of particles in each bin, no normalization)
+    Returns
+        Number concentration (#)
+        bin edges (nm)"""
+
+
+    start = diameter[0]
+    end = diameter[1]
+    noOfD = numberOfDiameters
+    centerDiameter = centerOfAerosolMode
+    width = widthOfAerosolMode
+    bins = np.linspace(np.log10(start),np.log10(end),noOfD)
+    binwidth = bins[1:]-bins[:-1]
+    bincenters= (bins[1:] + bins[:-1])/2.
+    dNDlogDp = plt.mlab.normpdf(bincenters,np.log10(centerDiameter),width)
+    extraScale = 1
+    scale = 1
+    while 1:
+        NumberConcent = dNDlogDp*binwidth*scale*extraScale
+        if scale!=1:
+            break
+        else:            
+            scale = float(numberOfParticsInMode)/NumberConcent.sum() 
+            
+    binEdges = 10**bins
+    diameterBinwidth = binEdges[1:] - binEdges[:-1]
+    
+    cols = []
+    for e,i in enumerate(binEdges[:-1]):
+            cols.append(str(i)+'-'+str(binEdges[e+1]))
+    
+    data = pd.DataFrame(np.array([NumberConcent/diameterBinwidth]) , columns=cols)
+    return aerosolSizeDistribution(data, binEdges,'dNdDp')
         
 def generate_aerosolLayer(diameter = [.01,2.5],
                                  numberOfDiameters = 30,
@@ -616,7 +859,7 @@ def generate_aerosolLayer(diameter = [.01,2.5],
                                  numberOfParticsInMode = 10000,
                                  layerBoundery = [0.,10000],
                                  ):
-    """generates a numberconcentration of an aerosol layer which has a gaussian shape when plottet in dN/log(Dp). 
+    """Probably deprecated!?! generates a numberconcentration of an aerosol layer which has a gaussian shape when plottet in dN/log(Dp). 
     However, returned is a numberconcentrations (simply the number of particles in each bin, no normalization)
     Returns
         Number concentration (#)
@@ -663,7 +906,7 @@ def generate_aerosolLayer(diameter = [.01,2.5],
 #     atmosAerosolNumberConcentration['numberConcentration'] = pd.Series(NumberConcent)
 #     return atmosAerosolNumberConcentration
 
-    return aerosolLayers(data, binEdges,'dNdDp',layerBoundery)
+    return aerosolSizeDistribution_layerseries(data, binEdges,'dNdDp',layerBoundery)
     
 def test_generate_numberConcentration():
     """result should look identical to Atmospheric Chemistry and Physis page 422"""
