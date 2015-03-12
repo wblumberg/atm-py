@@ -326,7 +326,7 @@ class peaks:
         if distributionType == 'calibration':
             return sizedistribution.aerosolSizeDistribution(dataFrame,bins, 'calibration' )
         else:
-            return sizedistribution.aerosolSizeDistribution(dataFrame,bins, 'dNdDp' )
+            return sizedistribution.aerosolSizeDistribution_timeseries(dataFrame,bins, 'dNdDp' )
         
 #    def peak2numberdistribution_dNdlogDp(self, bins = defaultBins):
 #        return self._peak2Distribution(bins = bins, differentialStyle='dNdlogDp')
