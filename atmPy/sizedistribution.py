@@ -350,7 +350,9 @@ class aerosolSizeDistribution_timeseries(aerosolSizeDistribution):
         for i in xrange(self.data.shape[1]):
             line = self.data.values[:,i]
             singleHist[i] = np.average(line[~np.isnan(line)])
-        return singleHist
+        data = pd.DataFrame(np.array([singleHist]), columns = self.data.columns)
+        avgDist  = aerosolSizeDistribution(data,self.bins,self.distributionType)
+        return avgDist
 
         
 
