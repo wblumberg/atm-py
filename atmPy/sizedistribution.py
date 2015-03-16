@@ -6,6 +6,7 @@ import hagmods as hm
 import pandas as pd
 import warnings
 import datetime
+from atmPy.mie import bhmie
 
 distTypes = {'log normal': ['dNdlogDp','dSdlogDp','dVdlogDp'],
              'natural': ['dNdDp','dSdDp','dVdDp'],
@@ -167,7 +168,8 @@ class aerosolSizeDistribution(object):
     def _convert2otherDistribution(self,distType, verbose = False):
         dist = self.copy()
         if dist.distributionType == distType:
-            warnings.warn('Distribution type is already %s. Output is an unchanged copy of the distribution'%distType)
+            if verbose:
+                warnings.warn('Distribution type is already %s. Output is an unchanged copy of the distribution'%distType)
             return dist
         
         
@@ -395,8 +397,33 @@ class aerosolSizeDistribution_layerseries(aerosolSizeDistribution):
             self.layerbounderies = layerbounderies
             self.layercenters = (layerbounderies[1:] + layerbounderies[:-1])/2.
 
-    def calculate_AOD(self):
-        print('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
+    def calculate_AOD(self, wavelenth = 600., IOR = 1.6):
+        """calculates the extinction crossection and AOD for each layer ... and summs it upo to a overall AOD.
+        plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD"""
+        sdls = self.convert2numberconcentration()
+
+        # sizeDistpre = sizeDist
+        # sizeDist = sizeDistpre.convert2numberconcentration()
+        mie = _perform_Miecalculations(np.array(sdls.bincenters/1000.),wavelenth/1000.,IOR)
+
+        AOD_layer = np.zeros((len(sdls.layercenters)))
+        extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
+        for i,lc in enumerate(sdls.layercenters):
+            laydata = sdls.data.loc[lc].values
+            extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
+            #     scattering_coefficient = get_coefficients(scattering_crossection, numberConcentration)
+            #     absorption_coefficient = get_coefficients(absorption_crossection, numberConcentration)
+            layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
+            AOD_perBin = extinction_coefficient * layerThickness
+            AOD_layer[i] = AOD_perBin.values.sum()
+            extCoeffPerLayer[i] = extinction_coefficient
+        out = {}
+        out['AOD'] = AOD_layer.sum()
+        out['AOD_layer'] = pd.DataFrame(AOD_layer, index = sdls.layercenters, columns = ['AOD per Layer'])
+        out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index = sdls.layercenters, columns = sdls.data.columns )
+        warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
+        return out
+
 
 
 
@@ -418,6 +445,7 @@ class aerosolSizeDistribution_layerseries(aerosolSizeDistribution):
         self.layerbounderies.sort(axis = 0)
         layercenter = np.array(layerboundery).sum()/2.
         self.layercenters = np.append(self.layercenters, layercenter)
+        self.layercenters.sort()
         sd.data.index = np.array([layercenter])
         self.data = self.data.append(sd.data).sort()
         return
@@ -687,4 +715,77 @@ def test_generate_numberConcentration():
     ncLN = nc.convert2dNdlogDp()
     plt.plot(ncLN.bincenters,ncLN.data.values[0].transpose(), label = 'LogNormal')
     plt.legend()
-    plt.semilogx()            
+    plt.semilogx()
+
+
+def _perform_Miecalculations(diameter,wavelength, IOR):
+    """Performs Mie calculations
+
+    Returns
+        panda DataTable with the diameters as the index and the mie results in the different collumns
+        total_extinction_coefficient: this takes the sum of all particles crossections of the particular diameter in a qubic
+                                      meter. This is in principle the AOD of an L
+    Parameters
+        diamter:             array of diameters - unit: um
+        wavelength:          float - unit: um
+        IOR:                 complex number"""
+    noOfAngles = 100.
+    extinction_efficiency = np.zeros(diameter.shape)
+    scattering_efficiency = np.zeros(diameter.shape)
+    absorption_efficiency = np.zeros(diameter.shape)
+
+    extinction_crossection = np.zeros(diameter.shape)
+    scattering_crossection = np.zeros(diameter.shape)
+    absorption_crossection = np.zeros(diameter.shape)
+
+    extinction_coefficient = np.zeros(diameter.shape)
+    scattering_coefficient = np.zeros(diameter.shape)
+    absorption_coefficient = np.zeros(diameter.shape)
+
+
+    sizeParam = lambda r,lamb: 2.*np.pi * r/lamb
+    for e,d in enumerate(diameter):
+        r = d/2.
+        mie = bhmie.bhmie_hagen(sizeParam(r, wavelength),IOR,noOfAngles, diameter = d)
+        values = mie.return_Values_as_dict()
+        extinction_efficiency[e] = values['extinction_efficiency']
+        scattering_efficiency[e] = values['scattering_efficiency']
+        absorption_efficiency[e] = values['extinction_efficiency'] - values['scattering_efficiency']
+
+        extinction_crossection[e] = values['extinction_crosssection']
+        scattering_crossection[e] = values['scattering_crosssection']
+        absorption_crossection[e] = values['extinction_crosssection'] - values['scattering_crosssection']
+
+#     extinction_coefficient = get_coefficients(extinction_crossection, numberConcentration)
+#     scattering_coefficient = get_coefficients(scattering_crossection, numberConcentration)
+#     absorption_coefficient = get_coefficients(absorption_crossection, numberConcentration)
+
+    out = pd.DataFrame(index=diameter)
+    out['extinction_efficiency'] = pd.Series(extinction_efficiency, index=diameter)
+    out['scattering_efficiency'] = pd.Series(scattering_efficiency, index=diameter)
+    out['absorption_efficiency'] = pd.Series(absorption_efficiency, index=diameter)
+
+    out['extinction_crossection'] = pd.Series(extinction_crossection, index = diameter)
+    out['scattering_crossection'] = pd.Series(scattering_crossection, index = diameter)
+    out['absorption_crossection'] = pd.Series(absorption_crossection, index = diameter)
+
+#     out['extinction_coefficient'] = pd.Series(extinction_coefficient, index = diameter)
+#     out['scattering_coefficient'] = pd.Series(scattering_coefficient, index = diameter)
+#     out['absorption_coefficient'] = pd.Series(absorption_coefficient, index = diameter)
+#     if type(numberConcentration) == bool:
+#         pass
+#     else:
+#         raise TypeError('no idea what I wanted to do here')
+    return out
+
+def _get_coefficients(crossection, numberconcentration):
+    """calculates the scattering coefficient
+       Unit convention:
+           crossection - um^2
+           numberconcentration - cc
+           coefficient - m^-1 (output - what percentige of light is scattered out of the path when it passes through a layer with a thickness of 1 m)"""
+
+    crossection = 1e-12 * crossection                  #conversion from um^2 to m^2
+    numberconcentration = 1e6 * numberconcentration   #conversion from cm^-3 to m^-3
+    coefficient = numberconcentration * crossection
+    return coefficient
