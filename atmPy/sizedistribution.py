@@ -67,7 +67,8 @@ def get_label(distType):
     
     
 class aerosolSizeDistribution(object):
-    """data: pandas dataFrame with 
+    """data: - None, will generate an empty pandas data frame with columns defined by bins
+             - pandas dataFrame with
                  - column names (each name is something like this: '150-200')
                  - index is time (at some point this should be arbitrary, convertable to altitude for example?)
        unit conventions:
@@ -82,7 +83,8 @@ class aerosolSizeDistribution(object):
        bincenters: this is if you actually want to pass the bincenters, if False they will be calculated """
        
     def __init__(self,data, bins, distributionType, bincenters = False, fixGaps = True):
-        self.data = data
+
+
         self.bins = bins
         if type(bincenters) == np.ndarray:
             self.bincenters = bincenters
@@ -90,8 +92,17 @@ class aerosolSizeDistribution(object):
             self.bincenters = (bins[1:] + bins[:-1])/2.
         self.binwidth = (bins[1:] - bins[:-1])
         self.distributionType = distributionType
-        if fixGaps:
-            self.fillGapsWithZeros()
+
+        if type(data).__name__ == 'NoneType':
+            cols = []
+            for e,i in enumerate(bins[:-1]):
+                cols.append(str(i)+'-'+str(bins[e+1]))
+            self.data = pd.DataFrame(columns = cols)
+        else:
+            self.data = data
+
+            if fixGaps:
+                self.fillGapsWithZeros()
 #        self.differentialStyle = differentialStyle #I don't think this is still used ... does not make much sence
             
     def fillGapsWithZeros(self,scale = 1.1):
@@ -292,6 +303,9 @@ class aerosolSizeDistribution_timeseries(aerosolSizeDistribution):
         ext = np.array([np.zeros(self.data.index.values.shape)]).transpose()
         Z =  np.append(self.data.values, ext, axis = 1)
         return timeArray,binArray,Z
+
+    def get_timespan(self):
+        return (self.data.index.min(), self.data.index.max())
         
     def plot_distribution(self, vmax = None, vmin = None, norm = 'linear',showMinorTickLabels = True, removeTickLabels = ["700", "900"], plotOnTheseAxes = False):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
@@ -358,7 +372,8 @@ class aerosolSizeDistribution_timeseries(aerosolSizeDistribution):
 
         
 class aerosolSizeDistribution_layerseries(aerosolSizeDistribution):
-    """data: pandas dataFrame with 
+
+    __doc__ = """data: pandas dataFrame with
                  - column names (each name is something like this: '150-200')
                  - altitude (at some point this should be arbitrary, convertable to altitude for example?)
        unit conventions:
@@ -370,7 +385,43 @@ class aerosolSizeDistribution_layerseries(aerosolSizeDistribution):
              number: 'dNdlogDp', 'dNdDp'
              surface: 'dSdlogDp','dSdDp'
              volume: 'dVdlogDp','dVdDp'"""
-        
+
+    def __init__(self,data, bins, distributionType, layerbounderies, bincenters = False, fixGaps = True):
+        super(aerosolSizeDistribution_layerseries, self).__init__(data, bins, distributionType, bincenters = False, fixGaps = True)
+        if type(layerbounderies).__name__ == 'NoneType':
+            self.layerbounderies = np.empty((0,2))
+            self.layercenters = np.array([])
+        else:
+            self.layerbounderies = layerbounderies
+            self.layercenters = (layerbounderies[1:] + layerbounderies[:-1])/2.
+
+    def calculate_AOD(self):
+        print('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
+
+
+
+
+    def add_layer(self,sd, layerboundery):
+        """
+        Adds a sizedistribution instance to the layerseries.
+        layerboundery
+        :return:
+        """
+        if len(layerboundery) != 2:
+            raise ValueError('layerboundery has to be of length 2')
+        sd = sd._convert2otherDistribution(self.distributionType)
+        layerbounderies = np.append(self.layerbounderies, np.array([layerboundery]), axis = 0)
+        layerbounderiesU = np.unique(layerbounderies)
+        if (np.where(layerbounderiesU == layerboundery[1])[0] - np.where(layerbounderiesU == layerboundery[0])[0])[0] != 1:
+            raise ValueError('The new layer is overlapping with an existing layer!')
+        self.layerbounderies = layerbounderies
+        self.layerbounderies.sort(axis = 0)
+        layercenter = np.array(layerboundery).sum()/2.
+        self.layercenters = np.append(self.layercenters, layercenter)
+        sd.data.index = np.array([layercenter])
+        self.data = self.data.append(sd.data).sort()
+        return
+
     def _getXYZ(self):
         """ This will create three arrays, so when plotted with pcolor each pixel will represent the exact bin width"""
         binArray = np.repeat(np.array([self.bins]),self.data.index.shape[0], axis=0)
@@ -542,12 +593,15 @@ def simulate_sizedistribution_layerseries(diameter=[10, 2500],
                                          ):
 
     gaussian = lambda x,mu,sig: np.exp(-(x - mu)**2 / (2 * sig**2))
-    
-    strata = np.linspace(heightlimits[0],heightlimits[1],noOflayers)
 
-    layerArray = np.zeros((noOflayers, numberOfDiameters - 1))
+    layerbounderies = np.linspace(heightlimits[0],heightlimits[1],noOflayers+1)
+    layercenter = (layerbounderies[1:] + layerbounderies[:-1])/2.
 
-    for e, stra in enumerate(strata):
+    # strata = np.linspace(heightlimits[0],heightlimits[1],noOflayers+1)
+
+    layerArray = np.zeros((noOflayers, numberOfDiameters-1))
+
+    for e, stra in enumerate(layercenter):
         for i,lay in enumerate(layerHeight):
 
             sdtmp = simulate_sizedistribution(diameter = diameter,
@@ -557,8 +611,8 @@ def simulate_sizedistribution_layerseries(diameter=[10, 2500],
                                                numberOfParticsInMode=layerDensity[i])
             layerArray[e] += sdtmp.data.values[0] * gaussian(stra, layerHeight[i], layerThickness[i])
 
-    sdls = pd.DataFrame(layerArray, index = strata, columns=sdtmp.data.columns)
-    return aerosolSizeDistribution_layerseries(sdls,sdtmp.bins,sdtmp.distributionType)
+    sdls = pd.DataFrame(layerArray, index = layercenter, columns=sdtmp.data.columns)
+    return aerosolSizeDistribution_layerseries(sdls,sdtmp.bins,sdtmp.distributionType, layerbounderies)
     
     
     
