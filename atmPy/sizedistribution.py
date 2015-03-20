@@ -68,22 +68,38 @@ def get_label(distType):
     
     
 class aerosolSizeDistribution(object):
-    """data: - None, will generate an empty pandas data frame with columns defined by bins
+    """
+    Object defining a log normal aerosol size distribution
+
+
+    Attributes
+    ----------
+    bincenters:         NumPy array, optional
+                        this is if you actually want to pass the bincenters, if False they will be calculated
+    distributionType:
+                        log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
+                        natural: 'dNdDp','dSdDp','dVdDp'
+                        number: 'dNdlogDp', 'dNdDp'
+                        surface: 'dSdlogDp','dSdDp'
+                        volume: 'dVdlogDp','dVdDp'
+    data:   pandas dataFrame, optional
+            None, will generate an empty pandas data frame with columns defined by bins
              - pandas dataFrame with
                  - column names (each name is something like this: '150-200')
                  - index is time (at some point this should be arbitrary, convertable to altitude for example?)
-       unit conventions:
+    unit conventions:
              - diameters: nanometers
              - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
-       distributionType:  
-             log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
-             natural: 'dNdDp','dSdDp','dVdDp'
-             number: 'dNdlogDp', 'dNdDp'
-             surface: 'dSdlogDp','dSdDp'
-             volume: 'dVdlogDp','dVdDp'
-       bincenters: this is if you actually want to pass the bincenters, if False they will be calculated """
+
+
+
+       Notes
+       ------
+       * Diameters are specified in nanometers
+
+       """
        
-    def __init__(self,data, bins, distributionType, bincenters = False, fixGaps = True):
+    def __init__(self, data, bins, distributionType, bincenters=False, fixGaps=True):
 
 
         self.bins = bins

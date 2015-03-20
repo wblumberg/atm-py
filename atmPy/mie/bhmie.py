@@ -2,23 +2,28 @@
 import numpy as np
 
 class bhmie_hagen():
-    """ This file is converted from mie.m, see http://atol.ucsd.edu/scatlib/index.htm
+    """ 
+        
+    This file is converted from mie.m, see http://atol.ucsd.edu/scatlib/index.htm
          Bohren and Huffman originally published the code in their book on light scattering
         
          Calculation based on Mie scattering theory  
-         input:
-              x      - size parameter = k*radius = 2pi/lambda * radius   
+         
+         Parameters
+         ----------
+         x: size parameter = k*radius = 2pi/lambda * radius   
                            (lambda is the wavelength in the medium around the scatterers)
               refrel - refraction index (n in complex form for example:  1.5+0.02*i;
               nang   - number of angles for S1 and S2 function in range from 0 to pi/2
          input optional:
               diameter - to calculate the crosssections this value is needed
-         output:
-                S1, S2 - funtion which correspond to the (complex) phase functions
-                Qext   - extinction efficiency
-                Qsca   - scattering efficiency 
-                Qback  - backscatter efficiency
-                gsca   - asymmetry parameter"""
+         Returns
+         -------
+         S1, S2 - funtion which correspond to the (complex) phase functions
+         Qext   - extinction efficiency
+         Qsca   - scattering efficiency 
+         Qback  - backscatter efficiency
+         gsca   - asymmetry parameter"""
 
     def __init__(self,xold,refrel,noOfAngles, diameter = False):
         self.diameter = diameter
@@ -42,18 +47,10 @@ class bhmie_hagen():
             self.noOfAngles = 2
 
         pii = 4.*np.arctan(1.)
-#        dx = x
-
-#        drefrl = self.indOfRefraction
-
-
 
         self.calc_noOfTerms()
 
-
-
         dang = .5*pii/ (self.noOfAngles-1)
-
 
         amu=np.arange(0.0,self.noOfAngles,1)
         amu=np.cos(amu*dang)
@@ -61,13 +58,14 @@ class bhmie_hagen():
         pi0=np.zeros(self.noOfAngles,dtype=np.complex128)
         pi1=np.ones(self.noOfAngles,dtype=np.complex128)
         
+        # TODO - get rid of this nonsense!  Why rename?
         logDeriv = self.get_logDeriv()
         
 
 
 
-        #*** Riccati-Bessel functions with real argument X
-        #    calculated by upward recurrence
+        # Riccati-Bessel functions with real argument X
+        # calculated by upward recurrence
 
         psi0 = np.cos(self.sizeParameter)
         psi1 = np.sin(self.sizeParameter)
@@ -89,17 +87,21 @@ class bhmie_hagen():
             psi = (2.*en-1.)*psi1/self.sizeParameter - psi0
             chi = (2.*en-1.)*chi1/self.sizeParameter - chi0
             xi = psi-chi*1j
-        #*** Store previous values of AN and BN for use
-        #    in computation of g=<cos(theta)>
+        # Store previous values of AN and BN for use
+        # in computation of g=<cos(theta)>
             if (n > 0):
                 an1 = an
                 bn1 = bn
 
-        #*** Compute AN and BN:
+        
+            '''
+            These are the key parameters for the Mie calculations, an and bn,
+            used to comute the amplitudes of the scattering field.
+            '''
             an = (logDeriv[n]/self.indOfRefraction+en/self.sizeParameter)*psi - psi1
-            an = an/ ((logDeriv[n]/self.indOfRefraction+en/self.sizeParameter)*xi-xi1)
+            an /= ((logDeriv[n]/self.indOfRefraction+en/self.sizeParameter)*xi-xi1)
             bn = (self.indOfRefraction*logDeriv[n]+en/self.sizeParameter)*psi - psi1
-            bn = bn/ ((self.indOfRefraction*logDeriv[n]+en/self.sizeParameter)*xi-xi1)
+            bn /= ((self.indOfRefraction*logDeriv[n]+en/self.sizeParameter)*xi-xi1)
 
         #*** Augment sums for Qsca and g=<cos(theta)>
             qsca += (2.*en+1.)* (abs(an)**2+abs(bn)**2)
@@ -165,9 +167,10 @@ class bhmie_hagen():
             self.csca = 0
 
     def get_logDeriv(self):
-        """ original comment:
-            Logarithmic derivative D(J) calculated by downward recurrence
-            beginning with initial value (0.,0.) at J=NMX"""
+        """ Logarithmic derivative D(J) calculated by downward recurrence
+            beginning with initial value (0.,0.) at J=NMX
+            
+        """
         y = self.sizeParameter * self.indOfRefraction
         nn = int(self.noOfTermses[1]) - 1
         d=np.zeros(nn+1,dtype=np.complex128)
