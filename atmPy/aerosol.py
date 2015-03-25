@@ -94,6 +94,29 @@ def cc(d, gas):
         return 0
 
 
+def kn(dp, gas):
+    """
+    Calculate the Knudsen number of a particle.
+
+    The Knudsen number determines the appropriateness of the continuum assumption.  If Kn >~1, then the continuum
+    assumption is not appropriate for the problem solution.
+
+    Parameters
+    ----------
+    dp:     float
+            particle diameter in nm
+    gas:    gas object
+            Gas object used to determine the mean free path of the gas.
+
+    Returns
+    -------
+    float
+        Knudsen number
+
+    """
+    return 2*gas.l/dp
+
+
 def ndistr(dp, n=-1, t=20):
     """
     Bipolar charge distribution.

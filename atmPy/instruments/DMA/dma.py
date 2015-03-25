@@ -30,6 +30,34 @@ class DMA(object):
         self._ri = ri
         self._l = l
 
+    def omega(self, v, qa, qs):
+        """
+        Calculate the DMA transfer function.
+
+        This is the function as presented in Knutson and Whitby [1975] on the differential mobility analyzer.
+
+        This does not account for instances where Qa ~= Qm or Qs ~= Qe.
+
+        Parameters
+        -----------
+        v:
+        qa:
+        qs:
+
+        """
+        qa = float(qa)/60*0.001
+        qs = float(qs)/60*0.001
+        l = self._l/log(self._ro/self.ri)
+
+        # Electric flux function band
+        dphi = self.l*v/l
+
+        # Mobility centroid
+        zp = (qa+qs)/(4*pi*l*v)
+
+        return 1/qa*max(0, min([qa, qs, qa-abs(2*pi*zp*dphi+qs)]))
+
+
     def v2d(self, v, gas, qc, qm):
         """
         Find selected diameter at a given voltage.

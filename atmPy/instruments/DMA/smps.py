@@ -6,7 +6,6 @@ import pandas as pd
 from datetime import datetime as dt
 from datetime import timedelta
 from math import floor
-
 import matplotlib.pyplot as plt
 
 import sys
@@ -23,10 +22,21 @@ class SMPS(object):
 
     Attributes
     ----------
-    dma:    DMA object
-            Defines the differential mobility analyzer specific to the SMPS
+    dma:            DMA object
+                    Defines the differential mobility analyzer specific to the SMPS
+    dn_interp:
+    diam_interp:
+    cn_raw:
+    cn_smoothed:
+    diam:
+    air:            Air object
+                    Use this object to set the temperature and pressure and do calculations related to the gas
+    files:          list of file objects
+                    These are the files that will be processed
     scan_folder:    String
                     Location of scan data
+
+
     """
     def __init__(self, dma, scan_folder=''):
 
@@ -35,24 +45,38 @@ class SMPS(object):
 
         self.diam_interp = 0
 
-        self.gui = tk.Tk()
+        self._gui = tk.Tk()
 
         # Prompt the user for a file or files to process
         self.files = fd.askopenfiles(initialdi=scan_folder)
 
-        self.gui.destroy()
+        self._gui.destroy()
 
         self.buildGrid()
 
         self.dn_interp = np.zeros((2*len(self.files), len(self.diam_interp)))
         self.date = [None]*2*len(self.files)
+        self.cn_raw = np.zeros((2*len(self.files), 500))
+        self.cn_smoothed = np.zeros((2*len(self.files), 500))
+        self.diam = np.zeros((2*len(self.files), 500))
         self.lag = 0
+
+    def __progress__(self):
+        s = len(self.files)
+        i = 0
+        while True:
+            print('\r[{0}] {1}%'.format('#'*i, i/s*100))
+            yield None
+            i += 1
 
     def __chargecorr__(self, diam, dn, gas, n=3, pos_neg=-1):
         """
         Correct the input concentrations for multiple charges.
 
-        This function does not return anything as it handles array input by reference.
+        When running in SMPS mode, we must keep in mind that each size of particles can carry multiple charges.
+        Particles with more charges will appear to be SMALLER than those with less.  So, we will index through the
+        diameters backwards, get the number of the current selected size that would have charge n, and remove those
+        from the lower bins to the upper bins.
 
         Parameters
         ----------
@@ -73,22 +97,17 @@ class SMPS(object):
         None
 
         """
-
-        #  dn_removed = np.zeros(len(dn))
-
         single_frac = np.zeros(len(dn))
 
         # Flip both the incoming diamter array and the concentration distribution
         rdiam = diam[::-1]
 
-        dn_raw = dn
-        dn_work = dn
-        dn_raw = dn
+        dn_raw = np.copy(dn)  # Alot space for the unaltered concentration of particles
 
         # We are working backwards, so we need to have the length to get this all right...
         l = len(dn)-1
 
-        # Find the value closest to diameter d in the array diam
+        # Inline function for finding the value closest to diameter d in the array diam
         fmin = lambda nd: (np.abs(np.asarray(diam) - nd)).argmin()
 
         for i, d in enumerate(rdiam):
@@ -103,32 +122,29 @@ class SMPS(object):
                 # Ratio of singly charge particles to particles with charge ne
                 c_rat = single_frac[l-i]/aerosol.ndistr(d, ne, gas.t)
 
-
+                # Mobility of multiply charged particles
                 z_mult = abs(ne*aerosol.z(d, gas, pos_neg))
 
+                # Diameter bin which contains the multiply charged particles
                 d_mult = aerosol.z2d(z_mult, gas, 1)
 
-                #  Do NOT try to move particles for which we don't have a diameter
-
-
-                # Find the index of the multiple charges
-                k = fmin(d_mult)
-
-                # Calculate the number of particles to move from the upper bin to the lower
-                n2move = min(dn_raw[l-i]/c_rat, dn_work[k])
-
+                # Continue while the diameter specified is larger than the minimum diameter
                 if d_mult >= diam[0]:
-                    dn[k] += n2move
-                    dn_work[k] -= n2move
 
-                dn[l-i] -= n2move
+                    # Find the index of the multiple charges
+                    k = fmin(d_mult)
+
+                    # Calculate the number of particles to move from the upper bin to the lower
+                    n2move = min(dn_raw[l-i]/c_rat, dn[k])
+                    dn[l-i] += n2move   # Move the specified number in
+                    dn[k] -= n2move     # Remove the same from the lower bin
 
         # Correct for single charging
         dn /= single_frac
 
         return single_frac
 
-    def procFiles(self):
+    def proc_files(self):
         """
         Process the files that are contained by the SMPS class attribute 'files'
         :return:
@@ -147,16 +163,15 @@ class SMPS(object):
             try:
 
                 print(i.name)
-                meta_data = self.__readMeta(i.name)
-                up_data = self.__readData(i.name)
+                meta_data = self.__readmeta__(i.name)
+                up_data = self.__readdata__(i.name)
 
                 tscan = meta_data['Scan_Time'].values[0]
                 tdwell = meta_data['Dwell_Time'].values[0]
                 
-                self.date[2*e] = dt.strptime(str(meta_data.Date[0]) + ','
-                                        + str(meta_data.Time[0])
-                                        , '%m/%d/%y,%H:%M:%S')
-                self.date[2*e + 1] = self.date[2*e] + timedelta(0,tscan + tdwell)
+                self.date[2*e] = dt.strptime(str(meta_data.Date[0]) + ',' + str(meta_data.Time[0])
+                                             , '%m/%d/%y,%H:%M:%S')
+                self.date[2*e + 1] = self.date[2*e] + timedelta(0, tscan + tdwell)
 
                 # DO NOT truncate the data yet
                 down_data = up_data[::-1]
@@ -175,14 +190,14 @@ class SMPS(object):
                 cpc_up[np.where(np.isinf(cpc_up))] = 0.0
                 cpc_up[np.where(np.isnan(cpc_up))] = 0.0
 
+                self.cn_raw[2*e, 0:cpc_up.size] = cpc_up
+
                 # Calculate diameters from voltages
                 dup = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM, mup.Sh_Q_VLPM) for i in up_data.DMA_Set_Volts.values]
+                self.diam[2*e, 0:np.asarray(dup).size] = np.asarray(dup)
 
                 smooth_p = 0.3
                 smooth_up = sm.nonparametric.lowess(cpc_up, up_data.DMA_Diam.values, frac=smooth_p, it=1, missing='none')
-
-
-
 
                 # Padding the down scan is trickier - if the parameter f (should be the lag in the correlation)
                 # is larger than the dwell time, we will have a negative resize parameter - this is no good.
@@ -198,24 +213,22 @@ class SMPS(object):
                                   down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-(f+pad))],
                                   [0, pad], 'constant', constant_values=(0, 0))
 
+
                 # Finished padding - truncate data now
                 down_data = down_data.iloc[:tscan]
 
+                # Remove NaNs and Infs
                 cpc_down[np.where(np.isinf(cpc_down))] = 0.0
                 cpc_down[np.where(np.isnan(cpc_down))] = 0.0
                 down_data = down_data.iloc[:tscan]
                 smooth_down = sm.nonparametric.lowess(cpc_down, down_data['DMA_Diam'].values,
                                                       frac=smooth_p, missing='none')
 
-
-
+                # Remove NaNs and Infs from smoothed data
                 smooth_down[np.where(np.isinf(smooth_down))] = 0.0
                 smooth_down[np.where(np.isnan(smooth_down))] = 0.0
                 smooth_up[np.where(np.isinf(smooth_up))] = 0.0
                 smooth_up[np.where(np.isnan(smooth_up))] = 0.0
-
-
-
 
                 # Get the mean of all the columns in down_data
                 mdown = down_data.mean(axis=0)
@@ -223,8 +236,14 @@ class SMPS(object):
                 # Calculate diameters from voltages
                 ddown = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM, mup.Sh_Q_VLPM) for i in down_data.DMA_Set_Volts.values]
 
+                # Store raw data for the down scan
+                self.cn_raw[2*e+1, 0:cpc_down.size] = cpc_down
+                self.diam[2*e, 0:np.asarray(ddown).size] = np.asarray(ddown)
+
                 up_interp_dn = self.__fwhm__(dup, smooth_up[:, 1], mup)
 
+                self.cn_smoothed[2*e, 0:smooth_up[:, 1].size] = smooth_up[:, 1]
+                self.cn_smoothed[2*e+1, 0:smooth_up[:, 1].size] = smooth_down[:, 1]
                 down_interp_dn = self.__fwhm__(ddown, smooth_down[:, 1], mdown)
 
                 up_interp_dn[np.where(up_interp_dn < 0)] = 0
@@ -239,7 +258,7 @@ class SMPS(object):
 
 
 
-    def __readMeta(self, file):
+    def __readmeta__(self, file):
 
         """
         Parameters
@@ -253,7 +272,7 @@ class SMPS(object):
         """
         return pd.read_csv(file, header=0, lineterminator='\n', nrows=1)
 
-    def __readData(self, file):
+    def __readdata__(self, file):
         """
         Read the data from the file.
 
@@ -270,7 +289,7 @@ class SMPS(object):
         """
         return pd.read_csv(file, parse_dates='Date_Time', index_col=0, header=2, lineterminator='\n')
 
-    def getLag(self, index, delta=0):
+    def getLag(self, index, delta=0, p=True):
         """
         This function can be called to guide the user in how to set the lag attribute.
 
@@ -280,9 +299,11 @@ class SMPS(object):
                 Index of file in attribute files to determine the lag
         delta:  int, optional
                 Fudge factor for aligning the two scans; default is 0
+        p:      Boolean, optional
+                Plot the output if True
         """
-        meta_data = self.__readMeta(self.files[index].name)
-        up_data = self.__readData(self.files[index].name)
+        meta_data = self.__readmeta__(self.files[index].name)
+        up_data = self.__readdata__(self.files[index].name)
 
         tscan = meta_data.Scan_Time.values[0]
         tdwell = meta_data.Dwell_Time.values[0]
@@ -293,13 +314,11 @@ class SMPS(object):
 
         # Truncate the upward trajectory
         up = cpc_cnt[0:tscan]
-        #up_data = up_data.iloc[:tscan]
 
         # Get the counts for the decreasing voltage and truncate them
         down = cpc_cnt[::-1]                    # Flip the variable cpc_cnt
         down = cpc_cnt[tdwell:(tscan+tdwell)]     # Truncate the data
         down_data = up_data[::-1]
-        #down_data = down_data.iloc[:tscan]
 
         # LAG CORRELATION #
         corr = np.correlate(up, down, mode="full")
@@ -308,7 +327,6 @@ class SMPS(object):
         self.lag = floor(corr.argmax(axis=0)/2+delta)
 
         f = self.lag
-
 
         # GET CPC DATA FOR PLOTTING #
         # Shift the up data with the number of zeros padding on the end equal to the lag
@@ -322,7 +340,6 @@ class SMPS(object):
         smooth_p = 0.3
         smooth_up = sm.nonparametric.lowess(up, up_data.DMA_Diam.values, frac=smooth_p, it=1, missing='none')
 
-
         # Padding the down scan is trickier - if the parameter f (should be the lag in the correlation)
         # is larger than the dwell time, we will have a negative resize parameter - this is no good.
         # Pad the front with the number of zeros that goes beyond the end (front in the reveresed array).
@@ -332,8 +349,6 @@ class SMPS(object):
         if f > tdwell:
             pad = f-tdwell
             f = tdwell
-
-
 
         # Shift the down data so that we pad the front and back appropriately
         down = np.pad(down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-(f+pad))] /
@@ -345,12 +360,13 @@ class SMPS(object):
         down_data = down_data.iloc[:tscan]
         smooth_down = sm.nonparametric.lowess(down, down_data.DMA_Diam.values, frac=smooth_p, missing='none')
 
-        f2 = plt.figure(2)
+        if p:
+            f2 = plt.figure(2)
 
-        plt.plot(up, 'r.', down, 'b.', smooth_up[:, 1], 'r+', smooth_down[:, 1], 'b+')
-        output = "Lag is estimated to be " + str(self.lag) + " with a delta of " + str(delta) + "."
-        plt.title(output)
-        plt.show()
+            plt.plot(up, 'r.', down, 'b.', smooth_up[:, 1], 'r+', smooth_down[:, 1], 'b+')
+            output = "Lag is estimated to be " + str(self.lag) + " with a delta of " + str(delta) + "."
+            plt.title(output)
+            plt.show()
 
     def buildGrid(self, type="log10", min=1, max=1000, n=300):
         """
@@ -368,22 +384,66 @@ class SMPS(object):
                 number of bins over which to divide the grid; default is 300
         """
         if type == "log10":
-            self.diam_interp = np.logspace(np.log10(min),np.log10(max), n)
+            self.diam_interp = np.logspace(np.log10(min), np.log10(max), n)
         else:
-            self.diam_interp = np.logspace(np.log10(min),np.log10(max), n, base=np.exp(1))
+            self.diam_interp = np.logspace(np.log10(min), np.log10(max), n, base=np.exp(1))
 
         return None
 
     def __fwhm__(self, diam, dn, mean_data):
+        """
+        Retrieve the full width at half max and return an interpolated concentration dN/dlogdp array
+
+        Parameters
+        -----------
+        diam:       NumPy array of floats
+                    Diameters calculated from the setpoint voltage of the scan.  Units are nm
+        dn:         NumPy array of floats
+                    CPC concentration at each diameter.  Units are cc^-1.
+        mean_data:  pandas DataFrame
+                    DataFrame containing mean data from the scan.
+        :return:
+        """
         ls = len(dn)
         dlogd = np.zeros(ls)    # calculate dlogd
         fwhm = np.zeros(ls)     # hold width
         self.air.t = mean_data.Aer_Temp_C
         self.air.p = mean_data.Aer_Pres_PSI
 
+        def xfer(dp, qa, qs):
+            """
+            Return the full-width, half-max of the transfer function in diameter space.
+            This implementation ignores diffusion broadening.
+
+            Parameters
+            -----------
+            dp: float
+                particle size in nm
+            qa: float
+                aerosol flow rate in lpm
+            qs: float
+                aerosol flow rate in lpm
+
+            Returns
+            -------
+            Width of transfer function in nm.
+            """
+            beta = float(qa)/float(qs)
+
+            # Retrieve the center mobility
+            zc = aerosol.z(dp, self.air, 1)
+
+            # Upper bound of the mobility
+            zm = (1-beta/2)*zc
+
+            # Lower bound of the mobility
+            zp = (1+beta/2)*zc
+
+            return aerosol.z2d(zm, self.air, 1)-aerosol.z2d(zp, self.air, 1)
+
         for e, i in enumerate(diam):
             try:
-                fwhm[e] = self.__xferFWHM(i, mean_data.Aer_Q_VLPM, mean_data.Sh_Q_VLPM)
+                fwhm[e] = xfer(i, mean_data.Aer_Q_VLPM, mean_data.Sh_Q_VLPM)
                 dlogd[e] = np.log10(i+fwhm[e]/2)-np.log10(i-fwhm[e]/2)
             except (ValueError, ZeroDivisionError):
                 fwhm[e] = np.nan
@@ -392,37 +452,21 @@ class SMPS(object):
                 fwhm[e] = np.nan
                 print('Handling unknown error: ' + str(sys.exc_info()[0]))
 
-        output_sd = np.copy(dn)  # Space for the size distribution
+        # Correct for multiple charging.  We will use the array dn by reference and stuff this
+        # into another array
+        self.__chargecorr__(diam, dn, self.air)
 
-        self.__chargecorr__(diam, output_sd, self.air)
+        output_sd = np.copy(dn)
+
+        # Divide the concentration by dlogdp from the transfer function
         output_sd /= dlogd
+
+        # Use the 1D interpolation scheme to project the current concentrations
+        # onto the array defined by diam_interp
         f = interp1d(diam, output_sd, bounds_error=False, kind='linear')
-        #print(output_sd)
 
         return f(self.diam_interp)
 
-    def __xferFWHM(self, dp, qa, qs):
-        """
-        Return the full-width, half-max of the transfer function in diameter space.
-        This implementation ignores diffusion broadening.
-        @param dp: particle size in nm
-        @param qa: aerosol flow rate in lpm
-        @param qs: aerosol flow rate in lpm
-        @param T: temperature in degrees Celsius
-        @param P: pressure in millibars
-        @return: Width of transfer function in nm.
-        """
-        beta = float(qa)/float(qs)
 
-        # Retrieve the center mobility
-        Zc = aerosol.z(dp,self.air,1)
-
-        # Upper bound of the mobility
-        Zm = (1-beta/2)*Zc
-
-        # Lower bound of the mobility
-        Zp = (1+beta/2)*Zc
-
-        return aerosol.z2d(Zm, self.air, 1)-aerosol.z2d(Zp, self.air, 1)
 
 
