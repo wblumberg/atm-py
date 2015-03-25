@@ -28,7 +28,7 @@ def load_raw(fname):
 
 
         if e == -1:
-            print entry
+            # print entry
             break
         raus[e] = float(entry)
 

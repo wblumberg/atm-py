@@ -3,7 +3,7 @@
 from scipy.interpolate import UnivariateSpline
 import numpy as np
 import pylab as plt
-from StringIO import StringIO as io
+# from StringIO import StringIO as io
 import pandas as pd
 import warnings
 

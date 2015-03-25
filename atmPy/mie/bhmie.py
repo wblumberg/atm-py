@@ -1,4 +1,4 @@
-#from numpy import *
+# from numpy import *
 import numpy as np
 
 class bhmie_hagen():
@@ -76,7 +76,7 @@ class bhmie_hagen():
         gsca = 0.
         p = -1
 
-        for n in xrange(0,self.noOfTermses[0]):
+        for n in range(0, self.noOfTermses[0]):
             en = n+1.0
             fn = (2.*en+1.)/(en* (en+1.))
 
@@ -277,7 +277,7 @@ def bhmie(x,refrel,nang):
     tau=zeros(nang,dtype=complex128)
 
     if (nang > 1000):
-        print ('error: nang > mxnang=1000 in bhmie')
+        print('error: nang > mxnang=1000 in bhmie')
         return
 
     # Require NANG>1 in order to calculate scattering intensities
@@ -310,7 +310,7 @@ def bhmie(x,refrel,nang):
     nstop = int(xstop)
 
     if (nmx > nmxx):
-        print ( "error: nmx > nmxx=%f for |m|x=%f" % ( nmxx, ymod) )
+        print( "error: nmx > nmxx=%f for |m|x=%f" % ( nmxx, ymod) )
         return
 
     dang = .5*pii/ (nang-1)
@@ -429,6 +429,6 @@ if __name__ == "__main__":
     bhh = bhmie_hagen(x_sizePara, n_refraction, nang_no)
     s1,s2,qext,qsca,qback,gsca = bhh.return_Values()   
     
-    s1,s2,qext,qsca,qback,gsca = bhmie(x_sizePara,n_refraction,nang_no)    
-    
-    print 'done'
+    s1,s2,qext,qsca,qback,gsca = bhmie(x_sizePara,n_refraction,nang_no)
+
+print('done')

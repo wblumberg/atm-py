@@ -3,7 +3,7 @@ from struct import unpack, calcsize
 import pandas as pd
 import datetime
 import os
-import miscellaneous as misc
+from atmPy.tools import miscell_tools as misc
 import pylab as plt
 from atmPy import sizedistribution
 import warnings
@@ -46,7 +46,7 @@ def read_cal_process_peakFile_allInFolder(cal,concatWithOther = False, other = F
         if 'Peak.bin' in i:
             if i in skip:
                 continue
-            print "file: ",i
+            print("file: %s" % i)
 #            start = time.time()
 #            peakdf = peaks.read_PeakFile_Binary(i,deltaTime = deltaTime)
 #            peakdf.apply_calibration(cal)
@@ -75,7 +75,7 @@ def _BinaryFile2Array(fname):
 
     data = np.zeros((entry_count , field_names.shape[0]))
 
-    for i in xrange(entry_count):
+    for i in range(entry_count):
         record = rein.read(entry_size)
         entry = np.array(unpack(entry_format, record))
         data[i] = entry
@@ -279,13 +279,8 @@ class peaks:
             else:
                 process = self.data.Diameter.values[condi]
             n,edg = np.histogram(process, bins = bins)
-        #     print bins
-        #     print process
-        #     print N
-        #     break
             N[e] = n
     
-    #     N,edg = np.histogram(peakInstance.data.Diameter.values[notMasked], bins = bins)
         N = N.astype(np.float)
     
         deltaT = (unique[1:]-unique[:-1]) / np.timedelta64(1,'s')
@@ -324,9 +319,9 @@ class peaks:
             cols.append(i+'-'+binstr[e+1])
         dataFrame = pd.DataFrame(N, columns=cols, index = unique)
         if distributionType == 'calibration':
-            return sizedistribution.aerosolSizeDistribution(dataFrame,bins, 'calibration' )
+            return sizedistribution.SizeDist(dataFrame, bins, 'calibration')
         else:
-            return sizedistribution.aerosolSizeDistribution_timeseries(dataFrame,bins, 'dNdDp' )
+            return sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp')
         
 #    def peak2numberdistribution_dNdlogDp(self, bins = defaultBins):
 #        return self._peak2Distribution(bins = bins, differentialStyle='dNdlogDp')

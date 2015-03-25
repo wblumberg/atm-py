@@ -14,10 +14,10 @@ This temporary script file is located here:
 # Check using http://omlc.ogi.edu/calc/mie_calc.html
 
 
-import bhmie
+from atmPy.mie import bhmie
 import numpy as np
 import pylab as plt
-import tools
+from atmPy.instruments.POPS import tools
 import os
 import sys
 import types
@@ -110,7 +110,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
     output = np.zeros((exWavelengthInUm.shape[0]+1,dRange.shape[0]))
 #     return exWavelengthInUm,normalizer
     for e,i in enumerate(exWavelengthInUm):
-        print "%s/%s wavelength"%(e+1,noOfwl)
+        print("%s/%s wavelength" % (e + 1, noOfwl))
 #         print e,int(len(exWavelengthInUm)/2), normalizer[e]
         event.set_wavelength(i)
         perpInt = []
@@ -194,13 +194,16 @@ class Mie():
             self.POPSdimensions['polarization (laser)'] = 'perpendicular'
             
         if not self.silent:
-            print "You are using %s"%design
-            print "self.POPSdimensions['mirror(top)-jet distance (mm)']", self.POPSdimensions['mirror(top)-jet distance (mm)']
-            print "self.POPSdimensions['mirror diameter (mm)']",self.POPSdimensions['mirror diameter (mm)']
-            print "self.POPSdimensions['angle: jet-mirrorNormal (rad)']", self.POPSdimensions['angle: jet-mirrorNormal (rad)']
-            print "(not used yet) self.POPSdimensions['polarization (laser)']", self.POPSdimensions['polarization (laser)'] 
-            
-            print 'Distance from top to bottom of mirror', tools.segment_hight(rMirror,mDiameter)
+            print("You are using %s" % design)
+            print("self.POPSdimensions['mirror(top)-jet distance (mm)']",
+                  self.POPSdimensions['mirror(top)-jet distance (mm)'])
+            print("self.POPSdimensions['mirror diameter (mm)']", self.POPSdimensions['mirror diameter (mm)'])
+            print("self.POPSdimensions['angle: jet-mirrorNormal (rad)']",
+                  self.POPSdimensions['angle: jet-mirrorNormal (rad)'])
+            print(
+            "(not used yet) self.POPSdimensions['polarization (laser)']", self.POPSdimensions['polarization (laser)'] )
+
+            print('Distance from top to bottom of mirror', tools.segment_hight(rMirror, mDiameter))
         
         if self.POPSdimensions['angle: jet-mirrorNormal (rad)'] != np.pi/2:
             raw_input("angle is not 90 deg, you better check everythin, it might not work right")
@@ -208,7 +211,7 @@ class Mie():
         
     def set_r(self, r):
         if not r:
-            print r
+            print(r)
             self.r = 0.5 * float(raw_input('please define particle diameter in um: '))
         elif np.all(r > 10) and not self.dontAskAgain:
             antwort = raw_input("""This is probably an error, are you sure you are giving the particle radius in um?!? (y)""")
@@ -251,7 +254,7 @@ class Mie():
                     else:
                         found = True
             if not found:
-                raise KeyError('%s is not in the list of available materials'%smaterial)
+                raise KeyError('%s is not in the list of available materials' % self.material)
         elif not n:
             self.n = complex(raw_input('please define refractive index: '))
         elif n:
@@ -312,10 +315,10 @@ class Mie():
             
             #self.set_xAxes()
             if not self.silent:
-                print 'updated'
+                print('updated')
         else:
             if not self.silent:
-                print 'no update needed'
+                print('no update needed')
                 
     def update_geometry(self):
         if not self.upToDate_geometry:
@@ -331,11 +334,11 @@ class Mie():
     
     def print_current_parameter(self):
         """prints all relevant parameters"""
-        print 'particle diameter: \t\t', 2 * self.r 
-        print 'particle size parameter: \t', self.x
-        print 'wavelength: \t\t\t', self.wavelength
-        print 'refractive index: \t\t', self.n 
-        print 'design:  \t\t\t', self.design
+        print('particle diameter: \t\t', 2 * self.r)
+        print('particle size parameter: \t', self.x)
+        print('wavelength: \t\t\t', self.wavelength)
+        print('refractive index: \t\t', self.n)
+        print('design:  \t\t\t', self.design)
               
 #     def do_bhmie(self):
 #         self.s1,self.s2,self.qext,self.qsca,self.qback,self.gsca = bhmie.bhmie(self.x, self.n, self.nang)
@@ -354,7 +357,7 @@ class Mie():
 
     def print_Data(self):
         for i in self.xAxis:
-            print i, ' , ',self.YNatural[i]
+            print(i, ' , ', self.YNatural[i])
             
     def get_mirror_grid(self):
         np.set_printoptions(threshold=np.nan)
@@ -387,7 +390,7 @@ class Mie():
         yArcLenghtMatrix[:] = 0
 #         print 'nn', nn
 #         print 'stepWidth', stepWidth
-        ArcLengthArray=abs(np.array(range(-nn/2,0,1) + range(0,nn/2,1)))
+        ArcLengthArray = abs(np.array(list(range(int(-nn / 2), 0, 1)) + list(range(0, int(nn / 2), 1))))
         ArcLengthMatrix = np.ones((nn,nn))
         ArcLengthMatrix = (ArcLengthMatrix * ArcLengthArray).transpose() * stepWidth
         
@@ -546,7 +549,7 @@ def plot_POPS_calib(dataList, log = (0,0), title=False):
 def save(dataList, name ='test', nameAddOn = 'label',extension = '.dat'):
     if not os.path.exists('output'):
         os.makedirs('output')
-        print 'new directory with name "output" created'
+        print('new directory with name "output" created')
         
     for e,i in enumerate(dataList):
         finalName = 'output/'+name
@@ -555,7 +558,7 @@ def save(dataList, name ='test', nameAddOn = 'label',extension = '.dat'):
         finalName += extension
         np.savetxt(finalName,np.array([i['x'],i['y']]).transpose())
         if len(finalName) > 35:
-            print "Warning!!! filename is longer than 35 characters and therefore might cause trouble with Iogr!"
+            print("Warning!!! filename is longer than 35 characters and therefore might cause trouble with Iogr!")
         
     
 ##############################################################################################
@@ -569,10 +572,10 @@ def default():
     event.set_n(1.5)
     event.set_nang(100)
     event.calc_Natural()
-    
-    print 'qext: ', event.qext
-    print 'qsca: ', event.qsca
-    print 'qback: ', event.qback
+
+    print('qext: ', event.qext)
+    print('qsca: ', event.qsca)
+    print('qback: ', event.qback)
     
     plot_polar([(event.xAxis, event.YNatural)], log = False)
 
@@ -584,11 +587,11 @@ def steptest():
     event.set_n(1.5 + 0.1j)
     event.set_nang(10)
     event.calc_Natural()
-    
-    print 'qext: ', event.qext
-    print 'qsca: ', event.qsca
-    print 'qback: ', event.qback
-    print 'natural: ', event.natural
+
+    print('qext: ', event.qext)
+    print('qsca: ', event.qsca)
+    print('qback: ', event.qback)
+    print('natural: ', event.natural)
     
     eventII = Mie()
     eventII.set_r(.500)
@@ -596,10 +599,10 @@ def steptest():
     eventII.set_n(1.5 + 0.1j)
     eventII.set_nang(50)
     eventII.calc_Natural()
-    
-    print 'qext: ', event.qext
-    print 'qsca: ', event.qsca
-    print 'qback: ', event.qback
+
+    print('qext: ', event.qext)
+    print('qsca: ', event.qsca)
+    print('qback: ', event.qback)
     
     plot_polar([event,eventII])
 
@@ -615,11 +618,11 @@ def bhmie_hagen_test():
     event.set_n(n)
     event.set_nang(noOfPts)
     event.calc_Natural()
-    
-    print 'qext: ', event.qext
-    print 'qsca: ', event.qsca
-    print 'qback: ', event.qback
-    print 'natural: ', event.natural
+
+    print('qext: ', event.qext)
+    print('qsca: ', event.qsca)
+    print('qback: ', event.qback)
+    print('natural: ', event.natural)
     
     eventII = Mie()
     eventII.set_r(r)
@@ -627,12 +630,11 @@ def bhmie_hagen_test():
     eventII.set_n(n)
     eventII.set_nang(noOfPts)
     eventII.calc_Natural_hagen()
-    
-    
-    print 'qext: ', eventII.qext
-    print 'qsca: ', eventII.qsca
-    print 'qback: ', eventII.qback
-    print 'natural: ', eventII.natural
+
+    print('qext: ', eventII.qext)
+    print('qsca: ', eventII.qsca)
+    print('qback: ', eventII.qback)
+    print('natural: ', eventII.natural)
     
     plot_polar([event,eventII])
     
@@ -644,13 +646,13 @@ def test_comparison_to_internet():
     y_ref_nat = []
     for line in f.readlines():
         if 'radius' in line:
-            print line
+            print(line)
         elif 'n_real' in line:
-            print line
+            print(line)
         elif 'size parameter' in line:
-            print line
+            print(line)
         elif 'wavelength' in line:
-            print line
+            print(line)
         elif line[0] != '#':
             values = line.split()
             x_ref.append(np.deg2rad(float(values[0])))
@@ -662,10 +664,10 @@ def test_comparison_to_internet():
     #sys.exit('ende gut alles gut')    
     event = Mie(wavelength = 0.6328, diameter = 1.0, indexOfRef = 1.5, nang = 100)
     event.calc_Natural_hagen()
-    print "length", len(event.xAxis), len(x_ref)
-    print " first x", event.xAxis[25], x_ref[0]
-    print 'first y', event.YNatural[0], y_ref_nat[0]
-    print 'max',event.YNatural.max(), y_ref_nat.max()
+    print("length", len(event.xAxis), len(x_ref))
+    print(" first x", event.xAxis[25], x_ref[0])
+    print('first y', event.YNatural[0], y_ref_nat[0])
+    print('max', event.YNatural.max(), y_ref_nat.max())
     plot_polar([(x_ref,y_ref_nat/y_ref_nat.max()),(event.xAxis, event.YNatural/event.YNatural.max())], log = True)
     #plot_polar([(x_ref,y_ref_nat/y_ref_nat.max())])
     
@@ -899,7 +901,7 @@ def gaussian_broadening():
         dataList.append(data)
         
         gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
-        print gaussianScaling
+        print(gaussianScaling)
         sumArray += gaussianScaling * data['y']
         
     data={}
@@ -1043,7 +1045,7 @@ def dioctyl_sebacate_netrual_v_paraPerp_exactAngleDependence():
     sumArray_perpendicular = np.zeros(len(noOfPts))
     
     for e,l in enumerate(wavelengthArray):
-        print 'start wavelength %s of %s'%(e, len(wavelengthArray))
+        print('start wavelength %s of %s' % (e, len(wavelengthArray)))
         xList = []
         yList_natural = []
         yList_parallel = []
@@ -1113,7 +1115,7 @@ def dioctyl_sebacate_variousIndices():
     sumArray_perpendicular = np.zeros(len(noOfPts))
     
     for e,l in enumerate(wavelengthArray):
-        print 'start wavelength %s of %s'%(e, len(wavelengthArray))
+        print('start wavelength %s of %s' % (e, len(wavelengthArray)))
         xList = []
         yList_natural = []
         yList_parallel = []
@@ -1184,7 +1186,7 @@ def different_MirrorDistance():
     sumArray_perpendicular = np.zeros(len(noOfPts))
     
     for e,l in enumerate(wavelengthArray):
-        print 'start wavelength %s of %s'%(e, len(wavelengthArray))
+        print('start wavelength %s of %s' % (e, len(wavelengthArray)))
         xList = []
         yList_natural = []
         yList_parallel = []
@@ -1327,7 +1329,7 @@ def DOSversusNHSO(IOR):
 ##################################################################################################################################################################
 ##################################################################################################################################################################
 if __name__ == "__main__":
-    print 'los gehts'
+    print('los gehts')
 #    test_comparison_to_internet()
 #     test_calc_nintyOnly()
 #     default()

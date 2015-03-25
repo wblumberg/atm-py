@@ -41,7 +41,6 @@ def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[
         if 'HK.csv' in i:
             if i in skip:
                 continue
-            print i
             hkdf_tmp = read_housekeeping(i)
             if not counter:
                 hkdf = hkdf_tmp
