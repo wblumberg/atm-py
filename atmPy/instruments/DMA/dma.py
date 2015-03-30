@@ -25,7 +25,7 @@ class DMA(object):
     l:  float
         Length of DMA column in meters
     """
-    def __init__(self, l, ro,ri):
+    def __init__(self, l, ro, ri):
         self._ro = ro
         self._ri = ri
         self._l = l

@@ -79,11 +79,11 @@ def get_colorMap_intensity():
     
 def get_colorMap_intensity_r():
     """ according to the colorweel intensity II"""
-    color5 = [0.0,4./255,76./255] 
+    color5 = [0.0, 4./255, 76./255]
     color4 = [49./255., 130./255., 0.0]
-    color3 = [1.,197./255.,98./255.]
+    color3 = [1.,197./255., 98./255.]
     color2 = [245./255., 179./255., 223./255.]
-    color1 = [ 216./255., 1.0,1.0]
+    color1 = [216./255., 1.0, 1.0]
     cdict = {'red':   ((0.0, color1[0], color1[0]),
                        (0.25,color2[0] ,color2[0]),
                        (0.5,color3[0] ,color3[0]),
@@ -103,7 +103,7 @@ def get_colorMap_intensity_r():
                        (1.0,color5[2] ,color5[2]))
             }
     
-    hag_cmap  = LinearSegmentedColormap('hag_cmap',cdict)
+    hag_cmap = LinearSegmentedColormap('hag_cmap',cdict)
     hag_cmap.set_bad('black')
     return hag_cmap
 

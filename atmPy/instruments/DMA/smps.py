@@ -96,11 +96,34 @@ class SMPS(object):
         -------
         None
 
+        Notes
+        ------
+        The charge correction loops from top to bottom in the size distribution.
+        This assumes that there are no particles beyond the probed distribution.
+        If there are, there will be noticeable steps in the charge corrected distribution.
+
+        Regarding the algorithm, we can solve for each bin by using the charging efficiency
+        ala Gunn or Wiedensohler.  To solve, we use the following algorithm:
+
+        1. Assume that the current bin holds ONLY singly charged particles.
+
+        2. Calculate the fraction of particles that are expected to be singly charged
+        at the current diameter, :math:'f_1\left(D_p\right)'.
+
+        3. For each charge beyond 1:
+
+            a) Get the charging efficiency of the current particle size for :math:'i' charges
+            :math:'f_i \left(D_p\right)'
+
+            b)
+
         """
-        single_frac = np.zeros(len(dn))
+        f0 = 0
+        f1 = 0
+
 
         # Flip both the incoming diamter array and the concentration distribution
-        rdiam = diam[::-1]
+        rdiam = np.copy(diam[::-1])
 
         dn_raw = np.copy(dn)  # Alot space for the unaltered concentration of particles
 
@@ -113,14 +136,18 @@ class SMPS(object):
         for i, d in enumerate(rdiam):
 
             # Get the fraction of particles that are singly charged
-            single_frac[l-i] = aerosol.ndistr(d, pos_neg, gas.t)
+            f1 = aerosol.ndistr(d, pos_neg, gas.t)
+            f0 = aerosol.ndistr(d, 0, gas.t)
+            sum_fi = f1
 
-            for j in reversed(range(2, n+1)):  # Loop through charges 2 and higher
+            # WE DO NOT NEED TO LOOP BACKWARDS!!!
+            for j in range(2, n+1):  # Loop through charges 2 and higher backwards
 
                 ne = j*pos_neg
-
+                fi = aerosol.ndistr(d, ne, gas.t)
+                sum_fi += fi
                 # Ratio of singly charge particles to particles with charge ne
-                c_rat = single_frac[l-i]/aerosol.ndistr(d, ne, gas.t)
+                c_rat = f1/fi
 
                 # Mobility of multiply charged particles
                 z_mult = abs(ne*aerosol.z(d, gas, pos_neg))
@@ -136,18 +163,24 @@ class SMPS(object):
 
                     # Calculate the number of particles to move from the upper bin to the lower
                     n2move = min(dn_raw[l-i]/c_rat, dn[k])
-                    dn[l-i] += n2move   # Move the specified number in
                     dn[k] -= n2move     # Remove the same from the lower bin
+                else:
+                    n2move = dn_raw[l-i]/c_rat
+
+                dn[l-i] += n2move   # Move the specified number in
+
+            # Account for the zero fraction
+            dn[l-i] = dn_raw[l-i]*f1/f0+dn[l-i]
+
 
         # Correct for single charging
-        dn /= single_frac
+        #dn /= zero_frac
 
-        return single_frac
+        return None
 
     def proc_files(self):
         """
         Process the files that are contained by the SMPS class attribute 'files'
-        :return:
         """
 
         # TODO: Some of the processes here can be parallelized using the multiprocessing library
@@ -181,8 +214,10 @@ class SMPS(object):
                 f = self.lag
 
                 # Shift the up data with the number of zeros padding on the end equal to the lag
-                cpc_up = np.pad(up_data['CPC_1_Cnt'].values[f:tscan]/up_data['CPC_Flw'].values[f:tscan],
-                                [0, f], 'constant', constant_values=(0, 0))
+                cpc_up = up_data['CPC_1_Cnt'].values[f:tscan+f]/up_data['CPC_Flw'].values[f:tscan+f]
+
+                #cpc_up = np.pad(up_data['CPC_1_Cnt'].values[f:tscan]/up_data['CPC_Flw'].values[f:tscan],
+                #               [0, f], 'constant', constant_values=(0, 0))
 
                 up_data = up_data.iloc[:tscan]
 
@@ -205,17 +240,15 @@ class SMPS(object):
                 # This makes sense.  I guess.
                 if f > tdwell:
                     f = tdwell
-
-                pad = abs(f-tdwell)
-
-                # Shift the down data so that we pad the front and back appropriately
-                cpc_down = np.pad(down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-(f+pad))] /
-                                  down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-(f+pad))],
-                                  [0, pad], 'constant', constant_values=(0, 0))
-
+                    cpc_down = np.pad(down_data['CPC_1_Cnt'].values[0:tscan] /
+                                      down_data['CPC_Flw'].values[0:tscan],
+                                      pad_width={tdwell-f, 0}, constant_values={0, 0})
+                else:
+                    cpc_down = (down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-f)] /
+                                down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-f)])
 
                 # Finished padding - truncate data now
-                down_data = down_data.iloc[:tscan]
+                down_data = down_data.iloc[tdwell:tscan+tdwell]
 
                 # Remove NaNs and Infs
                 cpc_down[np.where(np.isinf(cpc_down))] = 0.0
@@ -238,12 +271,13 @@ class SMPS(object):
 
                 # Store raw data for the down scan
                 self.cn_raw[2*e+1, 0:cpc_down.size] = cpc_down
-                self.diam[2*e, 0:np.asarray(ddown).size] = np.asarray(ddown)
+                self.diam[2*e+1, 0:np.asarray(ddown).size] = np.asarray(ddown)
 
-                up_interp_dn = self.__fwhm__(dup, smooth_up[:, 1], mup)
 
                 self.cn_smoothed[2*e, 0:smooth_up[:, 1].size] = smooth_up[:, 1]
-                self.cn_smoothed[2*e+1, 0:smooth_up[:, 1].size] = smooth_down[:, 1]
+                self.cn_smoothed[2*e+1, 0:smooth_down[:, 1].size] = smooth_down[:, 1]
+
+                up_interp_dn = self.__fwhm__(dup, smooth_up[:, 1], mup)
                 down_interp_dn = self.__fwhm__(ddown, smooth_down[:, 1], mdown)
 
                 up_interp_dn[np.where(up_interp_dn < 0)] = 0
@@ -330,7 +364,7 @@ class SMPS(object):
 
         # GET CPC DATA FOR PLOTTING #
         # Shift the up data with the number of zeros padding on the end equal to the lag
-        up = np.pad(up_data['CPC_1_Cnt'].values[f:tscan]/up_data['CPC_Flw'].values[f:tscan], [0, self.lag], 'constant', constant_values=(0, 0))
+        up = up_data['CPC_1_Cnt'].values[f:tscan+f]/up_data['CPC_Flw'].values[f:tscan+f]
 
         # Remove NaNs and infs
         up[np.where(np.isinf(up))] = 0.0
@@ -345,15 +379,14 @@ class SMPS(object):
         # Pad the front with the number of zeros that goes beyond the end (front in the reveresed array).
         # This makes sense.  I guess.
 
-        pad = 0
         if f > tdwell:
-            pad = f-tdwell
             f = tdwell
-
-        # Shift the down data so that we pad the front and back appropriately
-        down = np.pad(down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-(f+pad))] /
-                      down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-(f+pad))],
-                      [0, pad], 'constant', constant_values=(0, 0))
+            down = np.pad(down_data['CPC_1_Cnt'].values[0:tscan] /
+                          down_data['CPC_Flw'].values[0:tscan],
+                          pad_width={tdwell-f, 0}, constant_values={0, 0})
+        else:
+            down = (down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-f)] /
+                    down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-f)])
 
         down[np.where(np.isinf(down))] = 0.0
         down[np.where(np.isnan(down))] = 0.0

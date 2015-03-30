@@ -152,10 +152,8 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-
     def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"],
-             plotOnTheseAxes=False):
+             removeTickLabels=["700", "900"], plotOnTheseAxes=False):
         """
         Plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar).
 
@@ -173,6 +171,9 @@ class SizeDist(object):
         label = get_label(self.distributionType)
         a.set_ylabel(label)
         a.set_xscale('log')
+
+        if norm == 'log':
+            a.set_yscale('log')
 
         return f, a
 
@@ -343,8 +344,9 @@ class SizeDist_TS(SizeDist):
     def get_timespan(self):
         return self.data.index.min(), self.data.index.max()
 
+    # TODO: Fix plot options such as showMinorTickLabels
     def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], plotOnTheseAxes=False):
+             removeTickLabels=["700", "900"], plotOnTheseAxes=False, cmap=plt_tools.get_colorMap_intensity()):
         """
         plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
         Optional parameters:
@@ -356,7 +358,7 @@ class SizeDist_TS(SizeDist):
             norm = LogNorm()
         elif norm == 'linear':
             norm = None
-        pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=plt_tools.get_colorMap_intensity())
+        pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('log')
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
@@ -372,15 +374,15 @@ class SizeDist_TS(SizeDist):
 
         f.autofmt_xdate()
         if self.distributionType != 'calibration':
-            a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
             a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
 
             f.canvas.draw()  # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
-
-            ticks = a.yaxis.get_minor_ticks()
-            for i in ticks:
-                if i.label.get_text() in removeTickLabels:
-                    i.label.set_visible(False)
+            if showMinorTickLabels:
+                a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+                ticks = a.yaxis.get_minor_ticks()
+                for i in ticks:
+                    if i.label.get_text() in removeTickLabels:
+                        i.label.set_visible(False)
         return f, a, pc, cb
 
     def zoom_time(self, start=None, end=None):
