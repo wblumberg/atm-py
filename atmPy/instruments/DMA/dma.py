@@ -94,7 +94,7 @@ class NoaaWide(DMA):
     """
 
     def __init__(self):
-        super(NoaaWide, self).__init__(0.34054,0.03613, 0.0312)
+        super(NoaaWide, self).__init__(0.34054, 0.03613, 0.0312)
 
 
 class Tsi3071(DMA):
