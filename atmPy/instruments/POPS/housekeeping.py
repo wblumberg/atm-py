@@ -8,6 +8,8 @@ import pandas as pd
 import datetime
 import os
 import pylab as plt
+from atmPy import housekeeping
+from atmPy.tools import conversion_tools as ct
 
 def read_housekeeping(fname):
     """Reads housekeeping file (fname; csv-format) returns a pandas data frame instance."""
@@ -17,12 +19,18 @@ def read_housekeeping(fname):
 #    dateString = fname.split('_')[0]
     dt = datetime.datetime.strptime('19700101', "%Y%m%d") - datetime.datetime.strptime('19040101', "%Y%m%d") 
     dts = dt.total_seconds()
+    # todo: (low) what is that delta t for, looks fishi (Hagen)
     dtsPlus = datetime.timedelta(hours = 8).total_seconds()
     # Time_s = data[:,0]
     # data = data[:,1:]
     df.index = pd.Series(pd.to_datetime(df.Time_s-dts-dtsPlus, unit = 's'), name = 'Time_UTC')
-    return df
+    df['barometric_pressure'] = df.P_Baro
+    df.drop('P_Baro', 1, inplace=True)
+    df['altitude'] = ct.p2h(df.barometric_pressure)
+    return housekeeping.HouseKeeping(df)
 
+
+# todo: (low) this has never been actually implemented
 def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[]):
     """Read all housekeeping files in current folder and concatinates them.
     Output: pandas dataFrame instance
@@ -48,9 +56,4 @@ def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[
                 hkdf = pd.concat([hkdf,hkdf_tmp])
             counter = True
     return hkdf
-    
-def plot_all(hk):
-    for k in hk.keys():
-        f,a = plt.subplots()
-        hk[k].plot(ax = a)
-        a.set_title(k)
+
