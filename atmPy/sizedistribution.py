@@ -152,10 +152,18 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-    def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], plotOnTheseAxes=False):
+    def plot(self, showMinorTickLabels=True, removeTickLabels=["700", "900"], ax=None):
         """
-        Plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar).
+        Plots and returns f,a (figure, axis).
+
+        Arguments
+        ---------
+        showMinorTickLabels: bool [True], optional
+            if minor tick labels are labled
+        removeTickLabels: list of string ["700", "900"], optional
+            list of tick labels aught to be removed (in case there are overlapping)
+        ax: axis object [None], optional
+            option to provide axis to plot on
 
         Returns
         -------
@@ -163,7 +171,11 @@ class SizeDist(object):
 
 
         """
-        f, a = plt.subplots()
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
 
         a.plot(self.bincenters, self.data.loc[0])
         a.set_xlabel('Particle diameter (nm)')
@@ -171,9 +183,6 @@ class SizeDist(object):
         label = get_label(self.distributionType)
         a.set_ylabel(label)
         a.set_xscale('log')
-
-        if norm == 'log':
-            a.set_yscale('log')
 
         return f, a
 
@@ -346,18 +355,29 @@ class SizeDist_TS(SizeDist):
 
     # TODO: Fix plot options such as showMinorTickLabels
     def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], plotOnTheseAxes=False, cmap=plt_tools.get_colorMap_intensity()):
+             removeTickLabels=["700", "900"], ax=None, cmap=plt_tools.get_colorMap_intensity(), colorbar=True):
         """
         plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
         Optional parameters:
               norm - ['log','linear']
         """
         X, Y, Z = self._getXYZ()
-        f, a = plt.subplots()
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
+            f.autofmt_xdate()
+
         if norm == 'log':
             norm = LogNorm()
         elif norm == 'linear':
             norm = None
+
+        if not vmax:
+            vmax = Z.max()
+        if not vmin:
+            vmin = Z.min()
         pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('log')
         a.set_ylim((self.bins[0], self.bins[-1]))
@@ -368,11 +388,13 @@ class SizeDist_TS(SizeDist):
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
             a.set_ylabel('Diameter (nm)')
-        cb = f.colorbar(pc)
-        label = get_label(self.distributionType)
-        cb.set_label(label)
+        if colorbar:
+            cb = f.colorbar(pc)
+            label = get_label(self.distributionType)
+            cb.set_label(label)
+        else:
+            cb = get_label(self.distributionType)
 
-        f.autofmt_xdate()
         if self.distributionType != 'calibration':
             a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
 

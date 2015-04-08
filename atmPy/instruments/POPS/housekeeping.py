@@ -20,7 +20,7 @@ def read_housekeeping(fname):
     dt = datetime.datetime.strptime('19700101', "%Y%m%d") - datetime.datetime.strptime('19040101', "%Y%m%d") 
     dts = dt.total_seconds()
     # todo: (low) what is that delta t for, looks fishi (Hagen)
-    dtsPlus = datetime.timedelta(hours = 8).total_seconds()
+    dtsPlus = datetime.timedelta(hours=0).total_seconds()
     # Time_s = data[:,0]
     # data = data[:,1:]
     df.index = pd.Series(pd.to_datetime(df.Time_s-dts-dtsPlus, unit = 's'), name = 'Time_UTC')
