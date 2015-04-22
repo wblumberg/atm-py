@@ -52,5 +52,5 @@ def read_file(fname):
 #
 # class AutoPilot(object):
 # def __init__(self, data, info):
-#         self.data = data
-#         self.info = info
+# self.data = data
+# self.info = info
