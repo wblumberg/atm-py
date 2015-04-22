@@ -374,17 +374,19 @@ class SizeDist_TS(SizeDist):
         elif norm == 'linear':
             norm = None
 
-        if not vmax:
-            vmax = Z.max()
-        if not vmin:
-            vmin = Z.min()
+        # ToDo: The following screws up log-plotting, Is that stuff neaded anywhere else?
+        # if not vmax:
+        # vmax = Z.max()
+        # if not vmin:
+        #     vmin = Z.min()
+
         pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('log')
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
 
         # TODO: Fix the spelling of calibration
-        if self.distributionType == 'claibration':
+        if self.distributionType == 'calibration':
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
             a.set_ylabel('Diameter (nm)')

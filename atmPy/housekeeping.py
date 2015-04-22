@@ -19,8 +19,9 @@ class HouseKeeping(object):
     data:  pandas DataFrame with index=DateTime and columns = housekeeping parameters
     """
 
-    def __init__(self, data):
+    def __init__(self, data, info=None):
         self._data = data
+        self.info = info
 
     @property
     def data(self):
@@ -121,3 +122,14 @@ class HouseKeeping(object):
             a.grid(True)
             axes.append(a)
         return axes
+
+    def get_timespan(self):
+        """
+        Returns the first and last value of the index, which should be the first and last timestamp
+
+        Returns
+        -------
+        numpy array of datetime64 objects
+        """
+        return self.data.index.values[[0, -1]]
+

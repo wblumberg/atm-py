@@ -11,10 +11,13 @@ import pylab as plt
 from atmPy import housekeeping
 from atmPy.tools import conversion_tools as ct
 
-def read_housekeeping(fname):
-    """Reads housekeeping file (fname; csv-format) returns a pandas data frame instance."""
-    df = pd.read_csv(fname,error_bad_lines=False)
 
+def _read_housekeeping(fname):
+    """Reads housekeeping file (fname; csv-format) returns a pandas data frame instance."""
+    try:
+        df = pd.read_csv(fname, error_bad_lines=False)
+    except ValueError:
+        return False
 #    data = df.values
 #    dateString = fname.split('_')[0]
     dt = datetime.datetime.strptime('19700101', "%Y%m%d") - datetime.datetime.strptime('19040101', "%Y%m%d") 
@@ -24,11 +27,43 @@ def read_housekeeping(fname):
     # Time_s = data[:,0]
     # data = data[:,1:]
     df.index = pd.Series(pd.to_datetime(df.Time_s-dts-dtsPlus, unit = 's'), name = 'Time_UTC')
-    df['barometric_pressure'] = df.P_Baro
-    df.drop('P_Baro', 1, inplace=True)
-    df['altitude'] = ct.p2h(df.barometric_pressure)
+    if 'P_Baro' in df.keys():
+        df['barometric_pressure'] = df.P_Baro
+        df.drop('P_Baro', 1, inplace=True)
+        df['altitude'] = ct.p2h(df.barometric_pressure)
     return housekeeping.HouseKeeping(df)
 
+
+def read_housekeeping(fname):
+    """
+    Parameters
+    ----------
+    fname: string or list of strings.
+
+    Returns
+    -------
+    HouseKeeping instance
+    """
+    fname = os.listdir()
+    # fname = '20150419_000_POPS_HK.csv'
+    first = True
+    if type(fname).__name__ == 'list':
+        for file in fname:
+            if 'HK.csv' in file:
+                hktmp = _read_housekeeping(file)
+                if not hktmp:
+                    print('%s is empty ... next one' % file)
+                elif first:
+                    data = hktmp.data.copy()
+                    first = False
+                    continue
+
+                else:
+                    data = pd.concat((data, hktmp.data))
+                    hk = housekeeping.HouseKeeping(data)
+    else:
+        hk = _read_housekeeping(fname)
+    return hk
 
 # todo: (low) this has never been actually implemented
 def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[]):
