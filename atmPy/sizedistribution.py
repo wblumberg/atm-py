@@ -362,6 +362,8 @@ class SizeDist_TS(SizeDist):
               norm - ['log','linear']
         """
         X, Y, Z = self._getXYZ()
+        Z = np.ma.masked_invalid(Z)
+
         if type(ax).__name__ == 'AxesSubplot':
             a = ax
             f = a.get_figure()
@@ -440,6 +442,41 @@ class SizeDist_TS(SizeDist):
         avgDist = SizeDist(data, self.bins, self.distributionType)
 
         return avgDist
+
+    def convert2layerseries(self, hk, layer_thickness=10):
+        """convertes the time series to a layer series
+
+        Note
+        ----
+        The the housekeeping instance has to have a column called "Height" and which is monotonicly in- or decreasing
+
+        Arguments
+        ---------
+        hk: housekeeping instance
+        layer_thickness (optional): [10] thickness of each generated layer in meter"""
+
+        if ((hk.data.Height.values[1:] - hk.data.Height.values[:-1]).min() < 0) and (
+            (hk.data.Height.values[1:] - hk.data.Height.values[:-1]).max() > 0):
+            raise ValueError('Given altitude data is not monotonic. This is not possible (yet).')
+
+        start_h = round(hk.data.Height.values.min() / layer_thickness) * layer_thickness
+        end_h = round(hk.data.Height.values.max() / layer_thickness) * layer_thickness
+
+        layer_edges = np.arange(start_h, end_h, layer_thickness)
+        empty_frame = pd.DataFrame(columns=self.data.columns)
+        lays = SizeDist_LS(empty_frame, self.bins, self.distributionType, None)
+
+        for e, end_h_l in enumerate(layer_edges[1:]):
+            start_h_l = layer_edges[e]
+            layer = hk.data.Height.iloc[
+                np.where(np.logical_and(start_h_l < hk.data.Height.values, hk.data.Height.values < end_h_l))]
+            start_t = layer.index.min()
+            end_t = layer.index.max()
+            dist_tmp = self.zoom_time(start=start_t, end=end_t)
+            avrg = dist_tmp.average_overAllTime()
+            lays.add_layer(avrg, (start_h_l, end_h_l))
+
+        return lays
 
 
 class SizeDist_LS(SizeDist):
@@ -573,21 +610,33 @@ class SizeDist_LS(SizeDist):
 
     def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
              removeTickLabels=["700", "900"],
-             plotOnTheseAxes=False):
+             plotOnTheseAxes=False,
+             cmap=plt_tools.get_colorMap_intensity(),
+             ax=None):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
         Optional parameters:
               norm - ['log','linear']"""
         X, Y, Z = self._getXYZ()
-        f, a = plt.subplots()
+        Z = np.ma.masked_invalid(Z)
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
+            # f.autofmt_xdate()
+
+
         if norm == 'log':
             norm = LogNorm()
         elif norm == 'linear':
             norm = None
-        pc = a.pcolormesh(Y, X, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=plt_tools.get_colorMap_intensity())
+
+        pc = a.pcolormesh(Y, X, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('linear')
         a.set_xscale('log')
         a.set_xlim((self.bins[0], self.bins[-1]))
         a.set_ylabel('Height (m)')
+        a.set_ylim((self.layercenters[0], self.layercenters[-1]))
 
         a.set_xlabel('Diameter (nm)')
         cb = f.colorbar(pc)

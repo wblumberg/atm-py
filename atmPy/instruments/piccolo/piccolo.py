@@ -1,6 +1,7 @@
 import pandas as pd
 from atmPy.tools import time_tools
 from atmPy import housekeeping
+import numpy as np
 
 
 def _drop_some_columns(data):
@@ -46,7 +47,7 @@ def read_file(fname):
     # convert from rad to deg
     data.Lat.values[:] = np.rad2deg(data.Lat.values)
     data.Lon.values[:] = np.rad2deg(data.Lon.values)
-
+    data.sort_index(inplace=True)
     return housekeeping.HouseKeeping(data, {'original header': header})
 
 #
