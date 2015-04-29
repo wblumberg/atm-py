@@ -66,29 +66,29 @@ def read_housekeeping(fname):
     return hk
 
 # todo: (low) this has never been actually implemented
-def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[]):
-    """Read all housekeeping files in current folder and concatinates them.
-    Output: pandas dataFrame instance
-    Parameters
-        concatWithOther: bool, if you want to concat the created data with an older set given by other
-        other: dataframe to concat the generated one
-        skip: list of file which you want to exclude"""
-        
-    files = os.listdir('./')
-    if concatWithOther:
-        counter = True
-        hkdf = other.copy()
-    else:
-        counter = False
-    for e,i in enumerate(files):
-        if 'HK.csv' in i:
-            if i in skip:
-                continue
-            hkdf_tmp = read_housekeeping(i)
-            if not counter:
-                hkdf = hkdf_tmp
-            else:
-                hkdf = pd.concat([hkdf,hkdf_tmp])
-            counter = True
-    return hkdf
+# def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[]):
+# """Read all housekeeping files in current folder and concatinates them.
+#     Output: pandas dataFrame instance
+#     Parameters
+#         concatWithOther: bool, if you want to concat the created data with an older set given by other
+#         other: dataframe to concat the generated one
+#         skip: list of file which you want to exclude"""
+#
+#     files = os.listdir('./')
+#     if concatWithOther:
+#         counter = True
+#         hkdf = other.copy()
+#     else:
+#         counter = False
+#     for e,i in enumerate(files):
+#         if 'HK.csv' in i:
+#             if i in skip:
+#                 continue
+#             hkdf_tmp = read_housekeeping(i)
+#             if not counter:
+#                 hkdf = hkdf_tmp
+#             else:
+#                 hkdf = pd.concat([hkdf,hkdf_tmp])
+#             counter = True
+#     return hkdf
 

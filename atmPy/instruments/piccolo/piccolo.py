@@ -14,7 +14,7 @@ def _drop_some_columns(data):
     data.drop('Seconds', axis=1, inplace=True)
 
 
-def read_file(fname):
+def _read_file(fname):
     picof = open(fname, 'r')
     header = picof.readline()
     picof.close()
@@ -50,6 +50,29 @@ def read_file(fname):
     data.sort_index(inplace=True)
     return housekeeping.HouseKeeping(data, {'original header': header})
 
+
+def read_csv(fname):
+    """ reads in a piccolo log file or list of log files and returns a housekeeping instance
+    """
+    picco = None
+    if type(fname).__name__ == 'list':
+        first = True
+        for file in fname:
+            if '.log' not in file:
+                print('%s is not a piccolo log file ... skipped' % file)
+                continue
+            print('%s ... processed' % file)
+            picco_t = _read_file(file)
+            if first:
+                picco = picco_t
+                first = False
+            else:
+                picco.data = pd.concat((picco.data, picco_t.data))
+
+    else:
+        picco = _read_file(fname)
+
+    return picco
 #
 # class AutoPilot(object):
 # def __init__(self, data, info):
