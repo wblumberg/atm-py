@@ -17,7 +17,7 @@ blabla = """asdfasdfasdf"""
 
 #######
 #### Peak file
-def read_PeakFile_Binary(fname, deltaTime = 0):
+def _read_PeakFile_Binary(fname, deltaTime=0):
     """returns a peak instance
     fname: ...
     deltaTime: if you want to apply a timedelay in seconds"""
@@ -27,6 +27,37 @@ def read_PeakFile_Binary(fname, deltaTime = 0):
     peakInstance = peaks(dataFrame)
     return peakInstance
 
+
+def read_binary(fname):
+    """Generates a single Peak instance from a file or list of files
+
+    Arguments
+    ---------
+    fname: string or list of strings
+    """
+
+    m = None
+    if type(fname).__name__ == 'list':
+        first = True
+        for file in fname:
+            if 'Peak.bin' not in file:
+                print('%s is not a peak file ... skipped' % file)
+                continue
+            print('%s ... processed' % file)
+            mt = _read_PeakFile_Binary(file)
+            if first:
+                m = mt
+                first = False
+            else:
+                m.data = pd.concat((m.data, mt.data))
+
+    else:
+        m = _read_PeakFile_Binary(fname)
+
+    return m
+
+
+# todo (low): not workings
 def read_cal_process_peakFile(fname, cal, averageOverTime = '60S', deltaTime = 0):
     peakdf = read_PeakFile_Binary(fname,deltaTime = deltaTime)
     peakdf.apply_calibration(cal)

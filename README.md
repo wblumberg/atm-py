@@ -16,9 +16,9 @@ At this time, there is no defined documentation standard.  At this point, the do
 See [NumPy](https://github.com/numpy/numpy/blob/master/doc/HOWTO_BUILD_DOCS.rst.txt) for how to put together documentation.
 
 ## Dependences
-python ?
-
-numpy
-scipy
-pandas
-matplotlib
+- python 3.x
+- numpy
+- scipy
+- pandas
+- matplotlib
+- pint

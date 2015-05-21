@@ -15,7 +15,8 @@ def _string2Dataframe(data):
     dataFrame = pd.read_csv(sb, sep = ' ', names = ('d','amp')).sort('d')
     return dataFrame
 
-def read_Calibration_fromString(data):
+
+def read_str(data):
     '''unit of diameter must be nm
     e.g.:
 data = """140 88
@@ -46,7 +47,8 @@ data = """140 88
     calibrationInstance = calibration(dataFrame)
     return calibrationInstance
 
-def read_Calibration_fromFile(fname):
+
+def read_csv(fname):
     """ most likely found here"""
     calDataFrame = pd.read_csv(fname)
     calibrationInstance = calibration(calDataFrame)

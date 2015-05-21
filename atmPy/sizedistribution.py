@@ -7,6 +7,8 @@ import pandas as pd
 import warnings
 import datetime
 from atmPy.mie import bhmie
+from atmPy.tools import math_functions
+import scipy.optimize as optimization
 
 # TODO: Get rid of references to hagmods so we don't need them.
 
@@ -19,7 +21,22 @@ distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
              'volume': ['dVdlogDp', 'dVdDp']}
 
 
-def read_distribution_csv(fname, fixGaps=True):
+def fit_normal_dist(x, y, p0=None):
+    """Fits a normal distribution to a """
+    x = np.log10(x)[~ np.isnan(y)]
+    y = y[~ np.isnan(y)]
+    if not p0:
+        p0 = [y.max(), x[y.argmax()], 0.2]
+    para = optimization.curve_fit(math_functions.gauss, x, y, p0=[10, 2, 0.2])
+    amp = para[0][0]
+    pos = 10 ** para[0][1]
+    sigma = para[0][2]
+    sigma_high = 10 ** (para[0][1] + para[0][2])
+    sigma_low = 10 ** (para[0][1] - para[0][2])
+    return [amp, pos, sigma, sigma_high, sigma_low]
+
+
+def read_csv(fname, fixGaps=True):
     headerNo = 50
     rein = open(fname, 'r')
     nol = ['distributionType', 'objectType']
@@ -52,6 +69,8 @@ def read_distribution_csv(fname, fixGaps=True):
 
 
 def get_label(distType):
+    """ Return the appropriate label for a particular distribution type
+    """
     if distType == 'dNdDp':
         label = '$\mathrm{d}N\,/\,\mathrm{d}D_{P}$ (nm$^{-1}\,$cm$^{-3}$)'
     elif distType == 'dNdlogDp':
@@ -152,10 +171,18 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-    def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], plotOnTheseAxes=False):
+    def plot(self, showMinorTickLabels=True, removeTickLabels=["700", "900"], ax=None):
         """
-        Plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar).
+        Plots and returns f,a (figure, axis).
+
+        Arguments
+        ---------
+        showMinorTickLabels: bool [True], optional
+            if minor tick labels are labled
+        removeTickLabels: list of string ["700", "900"], optional
+            list of tick labels aught to be removed (in case there are overlapping)
+        ax: axis object [None], optional
+            option to provide axis to plot on
 
         Returns
         -------
@@ -163,7 +190,11 @@ class SizeDist(object):
 
 
         """
-        f, a = plt.subplots()
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
 
         a.plot(self.bincenters, self.data.loc[0])
         a.set_xlabel('Particle diameter (nm)')
@@ -171,9 +202,6 @@ class SizeDist(object):
         label = get_label(self.distributionType)
         a.set_ylabel(label)
         a.set_xscale('log')
-
-        if norm == 'log':
-            a.set_yscale('log')
 
         return f, a
 
@@ -346,33 +374,50 @@ class SizeDist_TS(SizeDist):
 
     # TODO: Fix plot options such as showMinorTickLabels
     def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], plotOnTheseAxes=False, cmap=plt_tools.get_colorMap_intensity()):
+             removeTickLabels=["700", "900"], ax=None, cmap=plt_tools.get_colorMap_intensity(), colorbar=True):
         """
         plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
         Optional parameters:
               norm - ['log','linear']
         """
         X, Y, Z = self._getXYZ()
-        f, a = plt.subplots()
+        Z = np.ma.masked_invalid(Z)
+
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
+            f.autofmt_xdate()
+
         if norm == 'log':
             norm = LogNorm()
         elif norm == 'linear':
             norm = None
+
+        # ToDo: The following screws up log-plotting, Is that stuff neaded anywhere else?
+        # if not vmax:
+        # vmax = Z.max()
+        # if not vmin:
+        #     vmin = Z.min()
+
         pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('log')
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
 
         # TODO: Fix the spelling of calibration
-        if self.distributionType == 'claibration':
+        if self.distributionType == 'calibration':
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
             a.set_ylabel('Diameter (nm)')
-        cb = f.colorbar(pc)
-        label = get_label(self.distributionType)
-        cb.set_label(label)
+        if colorbar:
+            cb = f.colorbar(pc)
+            label = get_label(self.distributionType)
+            cb.set_label(label)
+        else:
+            cb = get_label(self.distributionType)
 
-        f.autofmt_xdate()
         if self.distributionType != 'calibration':
             a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
 
@@ -416,6 +461,44 @@ class SizeDist_TS(SizeDist):
         avgDist = SizeDist(data, self.bins, self.distributionType)
 
         return avgDist
+
+    def convert2layerseries(self, hk, layer_thickness=10, force=False):
+        """convertes the time series to a layer series
+
+        Note
+        ----
+        The the housekeeping instance has to have a column called "Height" and which is monotonicly in- or decreasing
+
+        Arguments
+        ---------
+        hk: housekeeping instance
+        layer_thickness (optional): [10] thickness of each generated layer in meter"""
+
+        if ((hk.data.Height.values[1:] - hk.data.Height.values[:-1]).min() < 0) and (
+            (hk.data.Height.values[1:] - hk.data.Height.values[:-1]).max() > 0):
+            if force:
+                hk.data = hk.data.sort(columns='Height')
+            else:
+                raise ValueError('Given altitude data is not monotonic. This is not possible (yet).')
+
+        start_h = round(hk.data.Height.values.min() / layer_thickness) * layer_thickness
+        end_h = round(hk.data.Height.values.max() / layer_thickness) * layer_thickness
+
+        layer_edges = np.arange(start_h, end_h, layer_thickness)
+        empty_frame = pd.DataFrame(columns=self.data.columns)
+        lays = SizeDist_LS(empty_frame, self.bins, self.distributionType, None)
+
+        for e, end_h_l in enumerate(layer_edges[1:]):
+            start_h_l = layer_edges[e]
+            layer = hk.data.Height.iloc[
+                np.where(np.logical_and(start_h_l < hk.data.Height.values, hk.data.Height.values < end_h_l))]
+            start_t = layer.index.min()
+            end_t = layer.index.max()
+            dist_tmp = self.zoom_time(start=start_t, end=end_t)
+            avrg = dist_tmp.average_overAllTime()
+            lays.add_layer(avrg, (start_h_l, end_h_l))
+
+        return lays
 
 
 class SizeDist_LS(SizeDist):
@@ -547,25 +630,52 @@ class SizeDist_LS(SizeDist):
         return f, a
 
 
-    def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"],
-             plotOnTheseAxes=False):
+    def plot(self, vmax=None, vmin=None, scale='linear', show_minor_tickLabels=True,
+             removeTickLabels=["500", "700", "800", "900"],
+             plotOnTheseAxes=False,
+             cmap=plt_tools.get_colorMap_intensity(),
+             fit_pos=True,
+             ax=None):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
-        Optional parameters:
-              norm - ['log','linear']"""
+
+        Arguments
+        ---------
+        scale (optional): ('log',['linear']) - defines how the z-direction is scaled
+        vmax
+        vmin
+        show_minor_tickLabels:
+        cma:
+        fit_pos (optional): bool [True] - plots the position of a fitted normal distribution onto the plot.
+                                          in order for this to work execute fit_normal
+        ax (optional):  axes instance [None] - option to plot on existing axes
+
+        """
         X, Y, Z = self._getXYZ()
-        f, a = plt.subplots()
-        if norm == 'log':
-            norm = LogNorm()
-        elif norm == 'linear':
-            norm = None
-        pc = a.pcolormesh(Y, X, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=plt_tools.get_colorMap_intensity())
+        Z = np.ma.masked_invalid(Z)
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots()
+            # f.autofmt_xdate()
+
+        if scale == 'log':
+            scale = LogNorm()
+        elif scale == 'linear':
+            scale = None
+
+        pc = a.pcolormesh(Y, X, Z, vmin=vmin, vmax=vmax, norm=scale, cmap=cmap)
         a.set_yscale('linear')
         a.set_xscale('log')
         a.set_xlim((self.bins[0], self.bins[-1]))
         a.set_ylabel('Height (m)')
+        a.set_ylim((self.layercenters[0], self.layercenters[-1]))
 
         a.set_xlabel('Diameter (nm)')
+
+        a.get_yaxis().set_tick_params(direction='out', which='both')
+        a.get_xaxis().set_tick_params(direction='out', which='both')
+
         cb = f.colorbar(pc)
         label = get_label(self.distributionType)
         cb.set_label(label)
@@ -579,7 +689,34 @@ class SizeDist_LS(SizeDist):
             for i in ticks:
                 if i.label.get_text() in removeTickLabels:
                     i.label.set_visible(False)
+
+        if fit_pos:
+            if 'data_fit_normal' in dir(self):
+                a.plot(self.data_fit_normal.Pos, self.layercenters, color='m', linewidth=2, label='normal dist. center')
+                leg = a.legend(fancybox=True, framealpha=0.5)
+                leg.draw_frame(True)
+
         return f, a, pc, cb
+
+    def plot_fitres(self):
+
+        f, a = plt.subplots()
+        a.fill_between(self.layercenters, self.data_fit_normal.Sigma_high, self.data_fit_normal.Sigma_low,
+                       color=plt_tools.color_cycle[0],
+                       alpha=0.5,
+                       )
+
+        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        a.legend(loc=2)
+        a.set_ylabel('Particle diameter (nm)')
+        a.set_xlabel('Altitude (m)')
+
+        a2 = a.twinx()
+        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        a2.legend()
+        a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
+
+        return f, a, a2
 
     def zoom_altitude(self, start=None, end=None):
         """'2014-11-24 16:02:30'"""
@@ -605,6 +742,36 @@ class SizeDist_LS(SizeDist):
     def average_overAllAltitudes(self):
         print('need fixn')
         return False
+
+
+    def fit_normal(self):
+        """ Fits a single normal distribution to each layer.
+        """
+        amp = np.zeros(self.layercenters.shape[0])
+        pos = np.zeros(self.layercenters.shape[0])
+        sigma = np.zeros(self.layercenters.shape[0])
+        sigma_high = np.zeros(self.layercenters.shape[0])
+        sigma_low = np.zeros(self.layercenters.shape[0])
+        for e, lay in enumerate(self.data.values):
+            try:
+                fit_res = fit_normal_dist(self.bincenters, lay)
+            except (ValueError, RuntimeError):
+                fit_res = [np.nan, np.nan, np.nan, np.nan, np.nan]
+            amp[e] = fit_res[0]
+            pos[e] = fit_res[1]
+            sigma[e] = fit_res[2]
+            sigma_high[e] = fit_res[3]
+            sigma_low[e] = fit_res[4]
+
+        df = pd.DataFrame()
+        df['Amp'] = pd.Series(amp)
+        df['Pos'] = pd.Series(pos)
+        df['Sigma'] = pd.Series(sigma)
+        df['Sigma_high'] = pd.Series(sigma_high)
+        df['Sigma_low'] = pd.Series(sigma_low)
+        df.index = self.layercenters
+        self.data_fit_normal = df
+        return
 
 
 #        singleHist = np.zeros(self.data.shape[1])
