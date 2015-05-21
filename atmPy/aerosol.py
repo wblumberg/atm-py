@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
-
-
 from atmPy import constants
 from scipy.optimize import fsolve
-from math import pi
-from math import exp
-from math import log10
-from math import sqrt
-from math import log
+from math import pi,exp,log10,sqrt,log
 
 
 def z(d, gas, n):
