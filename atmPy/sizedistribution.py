@@ -305,6 +305,24 @@ class SizeDist(object):
             print('converted from %s to %s' % (self.distributionType, dist.distributionType))
         return dist
 
+
+    def get_particle_rate(self):
+        """ Returns the sum of particles per line in data
+
+        Returns
+        -------
+        int: if data has only one line
+        pandas.DataFrame: else """
+
+        particles = np.zeros(self.data.shape[0])
+        for e, line in enumerate(self.data.values):
+            particles[e] = line.sum()
+        if self.data.shape[0] == 1:
+            return particles[0]
+        else:
+            df = pd.DataFrame(particles, index=self.data.index, columns=['Count_rate'])
+            return df
+
     def convert2dNdDp(self):
         return self._convert2otherDistribution('dNdDp')
 
@@ -429,6 +447,37 @@ class SizeDist_TS(SizeDist):
                     if i.label.get_text() in removeTickLabels:
                         i.label.set_visible(False)
         return f, a, pc, cb
+
+    def plot_particle_rate(self, ax=None, label=None):
+        """Plots the particle rate as a function of time.
+
+        Parameters
+        ----------
+        ax: matplotlib.axes instance, optional
+            perform plot on these axes.
+
+        Returns
+        -------
+        matplotlib.axes instance
+
+        """
+        if type(ax).__name__ == 'AxesSubplot':
+            color = plt_tools.color_cycle[len(ax.get_lines())]
+        else:
+            # f,ax = plt.subplots()
+            color = plt_tools.color_cycle[0]
+        layers = self.convert2numberconcentration()
+
+        particles = self.get_particle_rate()
+        ax = particles.plot(color=color, linewidth=2, ax=ax, legend=False)
+
+        if label:
+            ax.get_lines()[-1].set_label(label)
+            ax.legend()
+
+        ax.set_xlabel('Time (UTC)')
+        ax.set_ylabel('Particle rate (cm$^{-3})$')
+        return ax
 
     def zoom_time(self, start=None, end=None):
         """
@@ -697,6 +746,23 @@ class SizeDist_LS(SizeDist):
                 leg.draw_frame(True)
 
         return f, a, pc, cb
+
+    def plot_particle_rate(self, ax=None, label=None):
+        """Plots the particle rate as a function of altitude.
+
+        Parameters
+        ----------
+        ax: matplotlib.axes instance, optional
+            perform plot on these axes.
+
+        Returns
+        -------
+        matplotlib.axes instance
+
+        """
+        ax = SizeDist_TS.plot_particle_rate(self, ax, label=label)
+        ax.set_xlabel('Altitude (m)')
+        return ax
 
     def plot_fitres(self):
 

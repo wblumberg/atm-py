@@ -40,10 +40,11 @@ def setRcParams(plt, style = 'paper'):
     plt.rcParams['ytick.major.width'] = 1.2
     plt.rcParams['legend.frameon'] = False
     plt.rcParams['legend.fontsize'] = 'medium'
-    plt.rcParams['figure.autolayout'] =  True
+    # plt.rcParams['figure.autolayout'] =  True
     plt.rcParams['text.usetex'] = False
 #    plt.rcParams['mathtext.rm'] =  'sans' 
 #    plt.rcParams['mathtext.fontset'] = 'custom'
+    plt.rcParams['font.sans-serif'] = 'Helvetica'
     plt.rcParams['mathtext.default']='regular'
   
 
