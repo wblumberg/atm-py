@@ -136,9 +136,18 @@ def ndistr(dp, n=-1, t=20):
     
     dp = float(dp)
     a = [0, 0, 0, 0, 0]
-    if dp < 1000 and abs(n) <= 2:
+    if (abs(n) > 1 and dp < 20) or (dp <= 70 and abs(n) > 2):
+
+        # Particles less than 20 nm can carry at most 1 charge.
+        # Particles less than 70 nm can carry at most 2 charges.
+        return 0
+
+    # Use Wiedensohler if the particle size is less than a micron and the number of
+    # charges is less than or equal to 2.
+    elif dp <= 1000 and abs(n) <= 2:
         if n == -2:
             a = [-26.3328, 35.9044, -21.4608, 7.0867, -1.3088, 0.1051]
+
         elif n == -1:
             a = [-2.3197, 0.6175, 0.6201, -0.1105, -0.1260, 0.0297]
         elif n == 0:
@@ -159,6 +168,7 @@ def ndistr(dp, n=-1, t=20):
 
         return 10**power
 
+    # Use Gunn if the particle size is > 1 micron or the number of charges is > 2
     else:
 
         #  convert [°C] to [K]
