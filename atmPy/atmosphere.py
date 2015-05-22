@@ -12,7 +12,6 @@ from math import tanh
 from math import log
 from math import exp
 import abc
- 
 
 class Esat:
     """

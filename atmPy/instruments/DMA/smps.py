@@ -7,14 +7,10 @@ from datetime import datetime as dt
 from datetime import timedelta
 from math import floor
 import matplotlib.pyplot as plt
-
 import sys
-
-
 import numpy as np
 from scipy.interpolate import interp1d
 import statsmodels.api as sm
-
 
 class SMPS(object):
     """
@@ -38,28 +34,39 @@ class SMPS(object):
 
 
     """
-    def __init__(self, dma, scan_folder=''):
+    def __init__(self, dma):
 
         self.air = Air()
         self.dma = dma
+        self.files = []
 
         self.diam_interp = 0
 
-        self._gui = tk.Tk()
+        self.buildGrid()
+
+        self.dn_interp = None
+        self.date = []
+        self.cn_raw = None
+        self.cn_smoothed = None
+        self.diam = None
+        self.lag = 10
+        # Smoothing parameter for the LOWESS smoothing
+        self.alpha = 0.3
+
+    def openFiles(self, scan_folder=''):
+        """
+        Launches a dialog to selct files for SMPS processing.
+
+        Parameters
+        -----------
+        scan_folder:    string, optional
+                        Starting folder for searching for files to process.  Default is empty.
+        """
+        _gui = tk.Tk()
 
         # Prompt the user for a file or files to process
         self.files = fd.askopenfiles(initialdi=scan_folder)
-
-        self._gui.destroy()
-
-        self.buildGrid()
-
-        self.dn_interp = np.zeros((2*len(self.files), len(self.diam_interp)))
-        self.date = [None]*2*len(self.files)
-        self.cn_raw = np.zeros((2*len(self.files), 500))
-        self.cn_smoothed = np.zeros((2*len(self.files), 500))
-        self.diam = np.zeros((2*len(self.files), 500))
-        self.lag = 0
+        _gui.destroy()
 
     def __progress__(self):
         s = len(self.files)
@@ -69,7 +76,8 @@ class SMPS(object):
             yield None
             i += 1
 
-    def __chargecorr__(self, diam, dn, gas, n=3, pos_neg=-1):
+    @staticmethod
+    def __chargecorr__(diam, dn, gas, n=3, pos_neg=-1):
         """
         Correct the input concentrations for multiple charges.
 
@@ -118,14 +126,8 @@ class SMPS(object):
             b)
 
         """
-        f0 = 0
-        f1 = 0
-
-
-        # Flip both the incoming diamter array and the concentration distribution
+        # Flip the incoming diamter array
         rdiam = np.copy(diam[::-1])
-
-        dn_raw = np.copy(dn)  # Alot space for the unaltered concentration of particles
 
         # We are working backwards, so we need to have the length to get this all right...
         l = len(dn)-1
@@ -137,17 +139,11 @@ class SMPS(object):
 
             # Get the fraction of particles that are singly charged
             f1 = aerosol.ndistr(d, pos_neg, gas.t)
-            f0 = aerosol.ndistr(d, 0, gas.t)
-            sum_fi = f1
 
-            # WE DO NOT NEED TO LOOP BACKWARDS!!!
-            for j in range(2, n+1):  # Loop through charges 2 and higher backwards
+            for j in reversed(range(2, n+1)):  # Loop through charges 2 and higher backwards
 
                 ne = j*pos_neg
                 fi = aerosol.ndistr(d, ne, gas.t)
-                sum_fi += fi
-                # Ratio of singly charge particles to particles with charge ne
-                c_rat = f1/fi
 
                 # Mobility of multiply charged particles
                 z_mult = abs(ne*aerosol.z(d, gas, pos_neg))
@@ -161,20 +157,13 @@ class SMPS(object):
                     # Find the index of the multiple charges
                     k = fmin(d_mult)
 
-                    # Calculate the number of particles to move from the upper bin to the lower
-                    n2move = min(dn_raw[l-i]/c_rat, dn[k])
-                    dn[k] -= n2move     # Remove the same from the lower bin
-                else:
-                    n2move = dn_raw[l-i]/c_rat
+                    # Remove the particles in bin k that belong in the current bin, but don't remove more
+                    # particles than there are in the bin
+                    dn[k] -= min(dn[l-i]*fi/f1, dn[k])
 
-                dn[l-i] += n2move   # Move the specified number in
-
-            # Account for the zero fraction
-            dn[l-i] = dn_raw[l-i]*f1/f0+dn[l-i]
-
-
-        # Correct for single charging
-        #dn /= zero_frac
+                # The total number of particlesi n the current bin is simply the number of singly charged
+                # particles divided by the singly charged charging efficiency.
+            dn[l-i] /= f1
 
         return None
 
@@ -183,6 +172,7 @@ class SMPS(object):
         Process the files that are contained by the SMPS class attribute 'files'
         """
 
+        e_count = 0
         # TODO: Some of the processes here can be parallelized using the multiprocessing library
         #       Reading of the data and determing the lag will require a proper sequence, but
         #       we can parallelize:
@@ -191,108 +181,140 @@ class SMPS(object):
         #       WARNING:    Need to ensure that the different processes don't step on each other.
         #                   Likely we would need to make some of the instance variables local (air.t and air.p
         #                   come to mind).
+
+        self.dn_interp = np.zeros((2*len(self.files), len(self.diam_interp)))
+        self.date = [None]*2*len(self.files)
+
+        self.cn_raw = np.zeros((2*len(self.files), len(self.diam_interp)))
+        self.cn_smoothed = np.zeros((2*len(self.files), len(self.diam_interp)))
+        self.diam = np.zeros((2*len(self.files), len(self.diam_interp)))
+
         for e, i in enumerate(self.files):
 
             try:
 
                 print(i.name)
-                meta_data = self.__readmeta__(i.name)
-                up_data = self.__readdata__(i.name)
 
+                # Get the data in the file header
+                meta_data = self.__readmeta__(i.name)
+
+                # Retrieve the scan and dwell times from the meta data.
                 tscan = meta_data['Scan_Time'].values[0]
                 tdwell = meta_data['Dwell_Time'].values[0]
-                
-                self.date[2*e] = dt.strptime(str(meta_data.Date[0]) + ',' + str(meta_data.Time[0])
-                                             , '%m/%d/%y,%H:%M:%S')
-                self.date[2*e + 1] = self.date[2*e] + timedelta(0, tscan + tdwell)
 
-                # DO NOT truncate the data yet
-                down_data = up_data[::-1]
+                # This is the data in the scan file
+                data = self.__readdata__(i.name)
+
+                # Get the CPC data of interest and pad the end with zeros for the sake of
+                # readability.
+                cpc_data = np.pad(data.CPC_1_Cnt.values[self.lag:], (0, self.lag),
+                                  mode="constant", constant_values=(0, 0))
+
+                # This is the CPC concentration
+                cpc_data /= data.CPC_Flw.values
+
+                # Remove NaNs and infs from the cpc data
+                cpc_data[np.where(np.isnan(cpc_data))] = 0.0
+                cpc_data[np.where(np.isinf(cpc_data))] = 0.0
+
+                # In the following section, we will take the two variables, 'data' and
+                # 'cpc_data' to produce the data that will be run through the core of
+                # the processing code.  The steps are as follows to prepare the data:
+                #   1. If the data is the downward data, flip the arrays.
+                #   2. Truncate the data to get the scanned data.
+                #       a. If the data is the up data, we simply want the first 'tscan'
+                #          elements.
+                #       b. If the data is the down data, we will account for the final
+                #          dwell time ('tdwell'), and take the portion of the arrays
+                #          from tdwell to tscan + tdwell.
+                #   3. Get the mean values of all the data in the scan array from the
+                #      respective data array.  We will use the mean values for inversion.
+
+                # PRODUCE UP DATA FOR PROCESSING #
+                # Extract the portion of the CPC data of interest for the upward scan
+                cpc_up = cpc_data[:tscan]
+                up_data = data.iloc[:tscan]
+                smooth_up = sm.nonparametric.lowess(cpc_up, up_data.DMA_Diam.values,
+                                                    frac=self.alpha, it=1, missing='none',
+                                                    return_sorted=False)
+
+                smooth_up[np.where(np.isnan(smooth_up))] = 0.0
+                smooth_up[np.where(np.isinf(smooth_up))] = 0.0
 
                 # Retrieve mean up data
                 mup = up_data.mean(axis=0)
-                f = self.lag
-
-                # Shift the up data with the number of zeros padding on the end equal to the lag
-                cpc_up = up_data['CPC_1_Cnt'].values[f:tscan+f]/up_data['CPC_Flw'].values[f:tscan+f]
-
-                #cpc_up = np.pad(up_data['CPC_1_Cnt'].values[f:tscan]/up_data['CPC_Flw'].values[f:tscan],
-                #               [0, f], 'constant', constant_values=(0, 0))
-
-                up_data = up_data.iloc[:tscan]
-
-                # Remove NaNs and infs
-                cpc_up[np.where(np.isinf(cpc_up))] = 0.0
-                cpc_up[np.where(np.isnan(cpc_up))] = 0.0
-
-                self.cn_raw[2*e, 0:cpc_up.size] = cpc_up
 
                 # Calculate diameters from voltages
-                dup = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM, mup.Sh_Q_VLPM) for i in up_data.DMA_Set_Volts.values]
-                self.diam[2*e, 0:np.asarray(dup).size] = np.asarray(dup)
+                dup = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM,
+                                    mup.Sh_Q_VLPM) for i in up_data.DMA_Set_Volts.values]
 
-                smooth_p = 0.3
-                smooth_up = sm.nonparametric.lowess(cpc_up, up_data.DMA_Diam.values, frac=smooth_p, it=1, missing='none')
+                # UP DATA PRODUCTION COMPLETE #
 
-                # Padding the down scan is trickier - if the parameter f (should be the lag in the correlation)
-                # is larger than the dwell time, we will have a negative resize parameter - this is no good.
-                # Pad the front with the number of zeros that goes beyond the end (front in the reveresed array).
-                # This makes sense.  I guess.
-                if f > tdwell:
-                    f = tdwell
-                    cpc_down = np.pad(down_data['CPC_1_Cnt'].values[0:tscan] /
-                                      down_data['CPC_Flw'].values[0:tscan],
-                                      pad_width={tdwell-f, 0}, constant_values={0, 0})
-                else:
-                    cpc_down = (down_data['CPC_1_Cnt'].values[(tdwell-f):(tscan+tdwell-f)] /
-                                down_data['CPC_Flw'].values[(tdwell-f):(tscan+tdwell-f)])
+                # BEGIN DOWN DATA PRODUCTION #
+                # Flip the cpc data and extricate the portion of interest
+                cpc_down = cpc_data[::-1]
+                cpc_down = cpc_down[tdwell:tscan+tdwell]
 
-                # Finished padding - truncate data now
-                down_data = down_data.iloc[tdwell:tscan+tdwell]
+                # Flip the down data and slice it
+                down_data = data.iloc[::-1]
+                down_data = down_data.iloc[int(tdwell):int(tscan+tdwell)]
 
-                # Remove NaNs and Infs
-                cpc_down[np.where(np.isinf(cpc_down))] = 0.0
-                cpc_down[np.where(np.isnan(cpc_down))] = 0.0
-                down_data = down_data.iloc[:tscan]
-                smooth_down = sm.nonparametric.lowess(cpc_down, down_data['DMA_Diam'].values,
-                                                      frac=smooth_p, missing='none')
+                smooth_down = sm.nonparametric.lowess(cpc_down, down_data.DMA_Diam.values,
+                                                      frac=self.alpha, it=1, missing='none',
+                                                      return_sorted=False)
 
-                # Remove NaNs and Infs from smoothed data
-                smooth_down[np.where(np.isinf(smooth_down))] = 0.0
-                smooth_down[np.where(np.isnan(smooth_down))] = 0.0
-                smooth_up[np.where(np.isinf(smooth_up))] = 0.0
-                smooth_up[np.where(np.isnan(smooth_up))] = 0.0
+                smooth_down[np.where(np.isnan(smooth_up))] = 0.0
+                smooth_down[np.where(np.isinf(smooth_up))] = 0.0
 
-                # Get the mean of all the columns in down_data
+                # Retrieve mean down data
                 mdown = down_data.mean(axis=0)
 
                 # Calculate diameters from voltages
-                ddown = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM, mup.Sh_Q_VLPM) for i in down_data.DMA_Set_Volts.values]
+                ddown = [self.dma.v2d(i, self.air, mdown.Sh_Q_VLPM,
+                                      mdown.Sh_Q_VLPM) for i in down_data.DMA_Set_Volts.values]
 
-                # Store raw data for the down scan
-                self.cn_raw[2*e+1, 0:cpc_down.size] = cpc_down
-                self.diam[2*e+1, 0:np.asarray(ddown).size] = np.asarray(ddown)
+                # plt.plot(smooth_up, 'r', cpc_up, 'b')
+                # plt.show()
 
-
-                self.cn_smoothed[2*e, 0:smooth_up[:, 1].size] = smooth_up[:, 1]
-                self.cn_smoothed[2*e+1, 0:smooth_down[:, 1].size] = smooth_down[:, 1]
-
-                up_interp_dn = self.__fwhm__(dup, smooth_up[:, 1], mup)
-                down_interp_dn = self.__fwhm__(ddown, smooth_down[:, 1], mdown)
+                up_interp_dn = self.__fwhm__(dup, smooth_up, mup)
+                down_interp_dn = self.__fwhm__(ddown, smooth_down, mdown)
 
                 up_interp_dn[np.where(up_interp_dn < 0)] = 0
                 down_interp_dn[np.where(down_interp_dn < 0)] = 0
-                self.dn_interp[2*e, :] = up_interp_dn
-                self.dn_interp[2*e+1, :] = down_interp_dn
 
-            except:
+            except ValueError:
+                print("Unexpected error:", sys.exc_info()[0])
                 print("Issue processing file " + str(i.name))
+                e_count += 1
+                continue
+            except TypeError:
+                print("Error processing file.")
+                e_count += 1
+                continue
 
+            else:
+                n_e = e-e_count
+                # Stuff the data for the attributes down here.  If an error is thrown, we will not contaminate
+                # member data.
 
+                self.date[2*n_e] = dt.strptime(str(meta_data.Date[0]) + ',' + str(meta_data.Time[0]),
+                                               '%m/%d/%y,%H:%M:%S')
+                self.date[2*n_e + 1] = self.date[2*n_e] + timedelta(0, tscan + tdwell)
 
+                self.diam[2*n_e, 0:np.asarray(dup).size] = np.asarray(dup)
+                self.cn_raw[2*n_e, 0:cpc_up.size] = cpc_up
 
+                # Store raw data for the down scan
+                self.cn_raw[2*n_e+1, 0:cpc_down.size] = cpc_down
+                self.diam[2*n_e+1, 0:np.asarray(ddown).size] = np.asarray(ddown)
 
-    def __readmeta__(self, file):
+                self.cn_smoothed[2*n_e, 0:smooth_up.size] = smooth_up
+                self.cn_smoothed[2*n_e+1, 0:smooth_down.size] = smooth_down
+                self.dn_interp[2*n_e, :] = up_interp_dn
+                self.dn_interp[2*n_e+1, :] = down_interp_dn
+
+    @staticmethod
+    def __readmeta__(file):
 
         """
         Parameters
@@ -306,7 +328,8 @@ class SMPS(object):
         """
         return pd.read_csv(file, header=0, lineterminator='\n', nrows=1)
 
-    def __readdata__(self, file):
+    @staticmethod
+    def __readdata__(file):
         """
         Read the data from the file.
 
@@ -401,7 +424,7 @@ class SMPS(object):
             plt.title(output)
             plt.show()
 
-    def buildGrid(self, type="log10", min=1, max=1000, n=300):
+    def buildGrid(self, logtype="ln", gmin=1, gmax=1000, n=300):
         """
         Define a logarithmic grid over which to interpolate output values
 
@@ -416,10 +439,10 @@ class SMPS(object):
         n:      int, optional
                 number of bins over which to divide the grid; default is 300
         """
-        if type == "log10":
-            self.diam_interp = np.logspace(np.log10(min), np.log10(max), n)
+        if logtype == "log10":
+            self.diam_interp = np.logspace(np.log10(gmin), np.log10(gmax), n, endpoint=True)
         else:
-            self.diam_interp = np.logspace(np.log10(min), np.log10(max), n, base=np.exp(1))
+            self.diam_interp = np.logspace(np.log(gmin), np.log(gmax), n, base=np.exp(1), endpoint=True)
 
         return None
 
@@ -477,7 +500,7 @@ class SMPS(object):
         for e, i in enumerate(diam):
             try:
                 fwhm[e] = xfer(i, mean_data.Aer_Q_VLPM, mean_data.Sh_Q_VLPM)
-                dlogd[e] = np.log10(i+fwhm[e]/2)-np.log10(i-fwhm[e]/2)
+                dlogd[e] = np.log(i+fwhm[e]/2)-np.log(i-fwhm[e]/2)
             except (ValueError, ZeroDivisionError):
                 fwhm[e] = np.nan
                 print('Handling divide by zero error')
