@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Dec 11 10:10:55 2014
-
-@author: htelg
+@author: Hagen Telg
 """
 import pandas as pd
 import datetime
 import os
 import pylab as plt
-from atmPy import housekeeping
+from atmPy import timeseries
 from atmPy.tools import conversion_tools as ct
 
 
@@ -31,7 +29,7 @@ def _read_housekeeping(fname):
         df['barometric_pressure'] = df.P_Baro
         df.drop('P_Baro', 1, inplace=True)
         df['altitude'] = ct.p2h(df.barometric_pressure)
-    return housekeeping.HouseKeeping(df)
+    return timeseries.TimeSeries(df)
 
 
 def read_housekeeping(fname):
@@ -42,9 +40,9 @@ def read_housekeeping(fname):
 
     Returns
     -------
-    HouseKeeping instance
+    TimeSeries instance
     """
-    fname = os.listdir()
+    # fname = os.listdir()
     # fname = '20150419_000_POPS_HK.csv'
     first = True
     if type(fname).__name__ == 'list':
@@ -60,7 +58,7 @@ def read_housekeeping(fname):
 
                 else:
                     data = pd.concat((data, hktmp.data))
-                    hk = housekeeping.HouseKeeping(data)
+                    hk = timeseries.TimeSeries(data)
     else:
         hk = _read_housekeeping(fname)
     return hk

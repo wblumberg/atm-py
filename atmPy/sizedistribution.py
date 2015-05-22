@@ -171,7 +171,73 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-    def plot(self, showMinorTickLabels=True, removeTickLabels=["700", "900"], ax=None):
+
+    def fit_normal(self):
+        """ Fits a single normal distribution to each line in the data frame.
+
+        Returns
+        -------
+        pandas DataFrame instance (also added to namespace as data_fit_normal)
+
+        """
+        sd = self.copy()
+
+        if sd.distributionType != 'dNdlogDp':
+            warnings.warn(
+                "Size distribution is not in 'dNdlogDp'. I temporarily converted the distribution to conduct the fitting. If that is not what you want, change the code!")
+            sd = sd.convert2dNdlogDp()
+
+        n_lines = sd.data.shape[0]
+        amp = np.zeros(n_lines)
+        pos = np.zeros(n_lines)
+        sigma = np.zeros(n_lines)
+        sigma_high = np.zeros(n_lines)
+        sigma_low = np.zeros(n_lines)
+        for e, lay in enumerate(sd.data.values):
+            try:
+                fit_res = fit_normal_dist(sd.bincenters, lay)
+            except (ValueError, RuntimeError):
+                fit_res = [np.nan, np.nan, np.nan, np.nan, np.nan]
+            amp[e] = fit_res[0]
+            pos[e] = fit_res[1]
+            sigma[e] = fit_res[2]
+            sigma_high[e] = fit_res[3]
+            sigma_low[e] = fit_res[4]
+
+        df = pd.DataFrame()
+        df['Amp'] = pd.Series(amp)
+        df['Pos'] = pd.Series(pos)
+        df['Sigma'] = pd.Series(sigma)
+        df['Sigma_high'] = pd.Series(sigma_high)
+        df['Sigma_low'] = pd.Series(sigma_low)
+        # df.index = self.layercenters
+        self.data_fit_normal = df
+        return self.data_fit_normal
+
+
+    def get_particle_rate(self):
+        """ Returns the sum of particles per line in data
+
+        Returns
+        -------
+        int: if data has only one line
+        pandas.DataFrame: else """
+
+        particles = np.zeros(self.data.shape[0])
+        for e, line in enumerate(self.data.values):
+            particles[e] = line.sum()
+        if self.data.shape[0] == 1:
+            return particles[0]
+        else:
+            df = pd.DataFrame(particles, index=self.data.index, columns=['Count_rate'])
+            return df
+
+    def plot(self,
+             showMinorTickLabels=True,
+             removeTickLabels=["700", "900"],
+             fit_res=True,
+             ax=None,
+             ):
         """
         Plots and returns f,a (figure, axis).
 
@@ -181,6 +247,8 @@ class SizeDist(object):
             if minor tick labels are labled
         removeTickLabels: list of string ["700", "900"], optional
             list of tick labels aught to be removed (in case there are overlapping)
+        fit_res: bool [True], optional
+            allows plotting of fitresults if fit_normal was previously executed
         ax: axis object [None], optional
             option to provide axis to plot on
 
@@ -196,17 +264,61 @@ class SizeDist(object):
         else:
             f, a = plt.subplots()
 
-        a.plot(self.bincenters, self.data.loc[0])
+        g, = a.plot(self.bincenters, self.data.loc[0], color=plt_tools.color_cycle[0], linewidth=2, label='exp.')
+        g.set_drawstyle('steps-mid')
+
         a.set_xlabel('Particle diameter (nm)')
 
         label = get_label(self.distributionType)
         a.set_ylabel(label)
         a.set_xscale('log')
 
+        if fit_res:
+            if 'data_fit_normal' in dir(self):
+                amp, pos, sigma = self.data_fit_normal.values[0, :3]
+                normal_dist = math_functions.gauss(np.log10(self.bincenters), amp, np.log10(pos), sigma)
+                a.plot(self.bincenters, normal_dist, color=plt_tools.color_cycle[1], linewidth=2,
+                       label='fit with norm. dist.')
+                a.legend()
+
         return f, a
 
-    def _normal2log(self):
 
+    def convert2dNdDp(self):
+        return self._convert2otherDistribution('dNdDp')
+
+    def convert2dNdlogDp(self):
+        return self._convert2otherDistribution('dNdlogDp')
+
+    def convert2dSdDp(self):
+        return self._convert2otherDistribution('dSdDp')
+
+    def convert2dSdlogDp(self):
+        return self._convert2otherDistribution('dSdlogDp')
+
+    def convert2dVdDp(self):
+        return self._convert2otherDistribution('dVdDp')
+
+    def convert2dVdlogDp(self):
+        return self._convert2otherDistribution('dVdlogDp')
+
+    def convert2numberconcentration(self):
+        return self._convert2otherDistribution('numberConcentration')
+
+    def copy(self):
+        return deepcopy(self)
+
+    def save_csv(self, fname):
+        raus = open(fname, 'w')
+        raus.write('bins = %s\n' % self.bins.tolist())
+        raus.write('distributionType = %s\n' % self.distributionType)
+        raus.write('objectType = %s\n' % (type(self).__name__))
+        raus.write('#\n')
+        raus.close()
+        self.data.to_csv(fname, mode='a')
+        return
+
+    def _normal2log(self):
         trans = (self.bincenters * np.log(10.))
         return trans
 
@@ -215,7 +327,6 @@ class SizeDist(object):
         return trans
 
     def _2Volume(self):
-
         trans = 4. / 3. * np.pi * (self.bincenters / 2.) ** 3
         return trans
 
@@ -305,40 +416,6 @@ class SizeDist(object):
             print('converted from %s to %s' % (self.distributionType, dist.distributionType))
         return dist
 
-    def convert2dNdDp(self):
-        return self._convert2otherDistribution('dNdDp')
-
-    def convert2dNdlogDp(self):
-        return self._convert2otherDistribution('dNdlogDp')
-
-    def convert2dSdDp(self):
-        return self._convert2otherDistribution('dSdDp')
-
-    def convert2dSdlogDp(self):
-        return self._convert2otherDistribution('dSdlogDp')
-
-    def convert2dVdDp(self):
-        return self._convert2otherDistribution('dVdDp')
-
-    def convert2dVdlogDp(self):
-        return self._convert2otherDistribution('dVdlogDp')
-
-    def convert2numberconcentration(self):
-        return self._convert2otherDistribution('numberConcentration')
-
-    def copy(self):
-        return deepcopy(self)
-
-    def save_csv(self, fname):
-        raus = open(fname, 'w')
-        raus.write('bins = %s\n' % self.bins.tolist())
-        raus.write('distributionType = %s\n' % self.distributionType)
-        raus.write('objectType = %s\n' % (type(self).__name__))
-        raus.write('#\n')
-        raus.close()
-        self.data.to_csv(fname, mode='a')
-        return
-
 
 class SizeDist_TS(SizeDist):
     """
@@ -359,6 +436,20 @@ class SizeDist_TS(SizeDist):
 
        """
 
+    def fit_normal(self):
+        """ Fits a single normal distribution to each line in the data frame.
+
+        Returns
+        -------
+        pandas DataFrame instance (also added to namespace as data_fit_normal)
+
+        """
+
+        super(SizeDist_TS, self).fit_normal()
+        self.data_fit_normal.index = self.data.index
+        return self.data_fit_normal
+
+
     def _getXYZ(self):
         """
         This will create three arrays, so when plotted with pcolor each pixel will represent the exact bin width
@@ -373,12 +464,36 @@ class SizeDist_TS(SizeDist):
         return self.data.index.min(), self.data.index.max()
 
     # TODO: Fix plot options such as showMinorTickLabels
-    def plot(self, vmax=None, vmin=None, norm='linear', showMinorTickLabels=True,
-             removeTickLabels=["700", "900"], ax=None, cmap=plt_tools.get_colorMap_intensity(), colorbar=True):
-        """
-        plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
-        Optional parameters:
-              norm - ['log','linear']
+    def plot(self,
+             vmax=None,
+             vmin=None,
+             norm='linear',
+             showMinorTickLabels=True,
+             removeTickLabels=["700", "900"],
+             ax=None,
+             fit_pos=True,
+             cmap=plt_tools.get_colorMap_intensity(),
+
+             colorbar=True):
+
+        """ plots an intensity plot of all data
+
+        Arguments
+        ---------
+        scale (optional): ('log',['linear']) - defines how the z-direction is scaled
+        vmax
+        vmin
+        show_minor_tickLabels:
+        cma:
+        fit_pos: bool[True]. Optional
+            plots the position of a fitted normal distribution onto the plot.
+            in order for this to work execute fit_normal
+        ax (optional):  axes instance [None] - option to plot on existing axes
+
+        Returns
+        -------
+        f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
+
         """
         X, Y, Z = self._getXYZ()
         Z = np.ma.masked_invalid(Z)
@@ -406,7 +521,6 @@ class SizeDist_TS(SizeDist):
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
 
-        # TODO: Fix the spelling of calibration
         if self.distributionType == 'calibration':
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
@@ -428,7 +542,67 @@ class SizeDist_TS(SizeDist):
                 for i in ticks:
                     if i.label.get_text() in removeTickLabels:
                         i.label.set_visible(False)
+
+        if fit_pos:
+            if 'data_fit_normal' in dir(self):
+                a.plot(self.data.index, self.data_fit_normal.Pos, color='m', linewidth=2, label='normal dist. center')
+                leg = a.legend(fancybox=True, framealpha=0.5)
+                leg.draw_frame(True)
+
         return f, a, pc, cb
+
+    def plot_fitres(self):
+        """ Plots the results from fit_normal"""
+
+        f, a = plt.subplots()
+        data = self.data_fit_normal.dropna()
+        a.fill_between(data.index, data.Sigma_high, data.Sigma_low,
+                       color=plt_tools.color_cycle[0],
+                       alpha=0.5,
+                       )
+
+        data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        a.legend(loc=2)
+        a.set_ylabel('Particle diameter (nm)')
+        a.set_xlabel('Altitude (m)')
+
+        a2 = a.twinx()
+        data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        a2.legend()
+        a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
+
+        return f, a, a2
+
+    def plot_particle_rate(self, ax=None, label=None):
+        """Plots the particle rate as a function of time.
+
+        Parameters
+        ----------
+        ax: matplotlib.axes instance, optional
+            perform plot on these axes.
+
+        Returns
+        -------
+        matplotlib.axes instance
+
+        """
+        if type(ax).__name__ == 'AxesSubplot':
+            color = plt_tools.color_cycle[len(ax.get_lines())]
+        else:
+            # f,ax = plt.subplots()
+            color = plt_tools.color_cycle[0]
+        layers = self.convert2numberconcentration()
+
+        particles = self.get_particle_rate()
+        ax = particles.plot(color=color, linewidth=2, ax=ax, legend=False)
+
+        if label:
+            ax.get_lines()[-1].set_label(label)
+            ax.legend()
+
+        ax.set_xlabel('Time (UTC)')
+        ax.set_ylabel('Particle rate (cm$^{-3})$')
+        return ax
 
     def zoom_time(self, start=None, end=None):
         """
@@ -440,6 +614,20 @@ class SizeDist_TS(SizeDist):
 
 
     def average_overTime(self, window='1S'):
+        """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
+
+        Arguments
+        ---------
+        window: str ['1S']. Optional
+            window over which to average. For aliases see
+            http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+
+        Returns
+        -------
+        SizeDistribution_TS instance
+            copy of current instance with resampled data frame
+        """
+
         dist = self.copy()
         window = window
         dist.data = dist.data.resample(window, closed='right', label='right')
@@ -698,7 +886,25 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
+    def plot_particle_rate(self, ax=None, label=None):
+        """Plots the particle rate as a function of altitude.
+
+        Parameters
+        ----------
+        ax: matplotlib.axes instance, optional
+            perform plot on these axes.
+
+        Returns
+        -------
+        matplotlib.axes instance
+
+        """
+        ax = SizeDist_TS.plot_particle_rate(self, ax, label=label)
+        ax.set_xlabel('Altitude (m)')
+        return ax
+
     def plot_fitres(self):
+        """ Plots the results from fit_normal"""
 
         f, a = plt.subplots()
         a.fill_between(self.layercenters, self.data_fit_normal.Sigma_high, self.data_fit_normal.Sigma_low,
@@ -745,34 +951,17 @@ class SizeDist_LS(SizeDist):
 
 
     def fit_normal(self):
-        """ Fits a single normal distribution to each layer.
+        """ Fits a single normal distribution to each line in the data frame.
+
+        Returns
+        -------
+        pandas DataFrame instance (also added to namespace as data_fit_normal)
+
         """
-        amp = np.zeros(self.layercenters.shape[0])
-        pos = np.zeros(self.layercenters.shape[0])
-        sigma = np.zeros(self.layercenters.shape[0])
-        sigma_high = np.zeros(self.layercenters.shape[0])
-        sigma_low = np.zeros(self.layercenters.shape[0])
-        for e, lay in enumerate(self.data.values):
-            try:
-                fit_res = fit_normal_dist(self.bincenters, lay)
-            except (ValueError, RuntimeError):
-                fit_res = [np.nan, np.nan, np.nan, np.nan, np.nan]
-            amp[e] = fit_res[0]
-            pos[e] = fit_res[1]
-            sigma[e] = fit_res[2]
-            sigma_high[e] = fit_res[3]
-            sigma_low[e] = fit_res[4]
 
-        df = pd.DataFrame()
-        df['Amp'] = pd.Series(amp)
-        df['Pos'] = pd.Series(pos)
-        df['Sigma'] = pd.Series(sigma)
-        df['Sigma_high'] = pd.Series(sigma_high)
-        df['Sigma_low'] = pd.Series(sigma_low)
-        df.index = self.layercenters
-        self.data_fit_normal = df
-        return
-
+        super(SizeDist_LS, self).fit_normal()
+        self.data_fit_normal.index = self.layercenters
+        return self.data_fit_normal
 
 #        singleHist = np.zeros(self.data.shape[1])
 #        for i in xrange(self.data.shape[1]):

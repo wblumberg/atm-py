@@ -1,14 +1,25 @@
 __author__ = 'htelg'
 
 import pylab as plt
-# import pandas as pd
+import pandas as pd
 from mpl_toolkits.basemap import Basemap
 from geopy.distance import vincenty
 import numpy as np
 from copy import deepcopy
 from atmPy.tools import time_tools
 
-class HouseKeeping(object):
+
+def merge_timeseries(ts_list):
+    ts_data_list = [i.data for i in ts_list]
+    try:
+        merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
+    except ValueError:
+        raise ValueError(
+            'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+    return TimeSeries(merged.iloc[1:-1])
+
+
+class TimeSeries(object):
     """
     This class simplifies the handling of housekeeping information from measurements.
     Typically this class is created by a housekeeping function of the particular instrument.
@@ -91,25 +102,6 @@ class HouseKeeping(object):
         else:
             return
 
-    # def zoom(self, before=None, after=None, axis=None, copy=True):
-    # """Returns a truncated version of the housekeeping data
-    #
-    #     Arguments
-    #     ---------
-    #     see pandas truncate function for details
-    #
-    #     Returns
-    #     -------
-    #     HouseKeeping instance
-    #
-    #     Example
-    #     -------
-    #     >>> from atmPy.instruments.POPS import housekeeping
-    #     >>> hk = housekeeping.read_housekeeping('19700101_003_POPS_HK.csv')
-    #     >>> hkFlightOnly = hk.zoom(before= '1969-12-31 16:08:55', after = '1969-12-31 18:30:00')
-    #     """
-    #
-    #     return HouseKeeping(self.data.truncate(before=before, after=after, axis=axis, copy=copy))
 
     def plot_versus_pressure_sep_axes(self, what):
         what = self.data[what]
@@ -151,27 +143,70 @@ class HouseKeeping(object):
         ax2.legend(loc=4)
         return ax, ax2
 
-    def plot_versus_altitude(self, what, ax=False):
-        what = self.data[what]
+    def plot_versus_altitude(self, what, ax=False, figsize=None):
+        """ Plots selected columns versus altitude
 
-        if ax:
-            a = ax
+        Arguments
+        ---------
+        what: {'all', key, list of keys}
+
+        Returns
+        -------
+        matplotlib.axes instance
+        """
+
+        allowed = ['altitude', 'Altitude', 'Height']
+
+        if what == 'all':
+            what = self.data.keys()
+
+        found = False
+        for i in allowed:
+            try:
+                x = self.data[i]
+                found = True
+                # print('found %s'%i)
+                break
+            except KeyError:
+                continue
+
+        if not found:
+            txt = 'TimeSeries instance has no attribute associated with altitude (%s)' % allowed
+            raise AttributeError(txt)
+
+        f, ax = plt.subplots(len(what), sharex=True, gridspec_kw={'hspace': 0.1})
+
+        if not figsize:
+            f.set_figwidth(4 * len(what))
         else:
-            f, a = plt.subplots()
-        a.plot(self.data.altitude.values, what)
-        a.set_xlabel('Altitude (m)')
+            f.set_size_inches(figsize)
+
+        for e, a in enumerate(ax):
+            a.plot(x, self.data[what[e]], label=what[e])
+            a.legend()
+
+        # a = data[what].plot(subplots = True, figsize = figsize)
+        # a[-1].set_xlabel('Altitude (m)')
+        # what = self.data[what]
+        #
+        # if ax:
+        # a = ax
+        # else:
+        #     f, a = plt.subplots()
+        # a.plot(self.data.altitude.values, what)
+        # a.set_xlabel('Altitude (m)')
 
         return a
 
-    def plot_versus_altitude_all(self):
-        axes = []
-        for key in self.data.keys():
-            f, a = plt.subplots()
-            a.plot(self.data.altitude, self.data[key], label=key)
-            a.legend()
-            a.grid(True)
-            axes.append(a)
-        return axes
+    # def plot_versus_altitude_all(self):
+    # axes = []
+    #     for key in self.data.keys():
+    #         f, a = plt.subplots()
+    #         a.plot(self.data.altitude, self.data[key], label=key)
+    #         a.legend()
+    #         a.grid(True)
+    #         axes.append(a)
+    #     return axes
 
     def get_timespan(self):
         """

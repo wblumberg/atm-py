@@ -1,6 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+@author: Hagen Telg
+"""
+
 import pandas as pd
 from atmPy.tools import time_tools
-from atmPy import housekeeping
+from atmPy import timeseries
 import numpy as np
 
 
@@ -37,10 +42,10 @@ def _read_file(fname):
 
     data.drop(range(20), inplace=True)  # dropping the first x lines, since the time is often dwrong
 
-    timeseries = data.Year.astype(str) + '-' + data.Month.astype(str) + '-' + data.Day.astype(
+    time_series = data.Year.astype(str) + '-' + data.Month.astype(str) + '-' + data.Day.astype(
         str) + ' ' + data.Hours.apply(lambda x: '%02i' % x) + ':' + data.Minutes.apply(
         lambda x: '%02i' % x) + ':' + data.Seconds.apply(lambda x: '%05.2f' % x)
-    data.index = pd.Series(pd.to_datetime(timeseries, format=time_tools.get_time_formate()))
+    data.index = pd.Series(pd.to_datetime(time_series, format=time_tools.get_time_formate()))
 
     _drop_some_columns(data)
 
@@ -48,7 +53,7 @@ def _read_file(fname):
     data.Lat.values[:] = np.rad2deg(data.Lat.values)
     data.Lon.values[:] = np.rad2deg(data.Lon.values)
     data.sort_index(inplace=True)
-    return housekeeping.HouseKeeping(data, {'original header': header})
+    return timeseries.TimeSeries(data, {'original header': header})
 
 
 def read_csv(fname):
