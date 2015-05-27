@@ -57,7 +57,6 @@ class DMA(object):
 
         return 1/qa*max(0, min([qa, qs, qa-abs(2*pi*zp*dphi+qs)]))
 
-
     def v2d(self, v, gas, qc, qm):
         """
         Find selected diameter at a given voltage.
@@ -67,10 +66,14 @@ class DMA(object):
         
         Parameters
         ----------
-        v:   Voltage in Volts
-        gas: Carrier gas object for performing calculations
-        qc:  Input sheath flow in lpm
-        qm:  Output sheath flow in lpm
+        v:      float
+                Voltage in Volts
+        gas:    gas object
+                Carrier gas object for performing calculations
+        qc:     float
+                Input sheath flow in lpm
+        qm:     float
+                Output sheath flow in lpm
         
         Returns
         -------

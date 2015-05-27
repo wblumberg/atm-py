@@ -244,6 +244,9 @@ class SMPS(object):
                 # Retrieve mean up data
                 mup = up_data.mean(axis=0)
 
+                self.air.t = mup.Aer_Temp_C
+                self.air.p = mup.Aer_Pres_PSI
+
                 # Calculate diameters from voltages
                 dup = [self.dma.v2d(i, self.air, mup.Sh_Q_VLPM,
                                     mup.Sh_Q_VLPM) for i in up_data.DMA_Set_Volts.values]
@@ -269,12 +272,12 @@ class SMPS(object):
                 # Retrieve mean down data
                 mdown = down_data.mean(axis=0)
 
+                self.air.t = mdown.Aer_Temp_C
+                self.air.p = mdown.Aer_Pres_PSI
+
                 # Calculate diameters from voltages
                 ddown = [self.dma.v2d(i, self.air, mdown.Sh_Q_VLPM,
                                       mdown.Sh_Q_VLPM) for i in down_data.DMA_Set_Volts.values]
-
-                # plt.plot(smooth_up, 'r', cpc_up, 'b')
-                # plt.show()
 
                 up_interp_dn = self.__fwhm__(dup, smooth_up, mup)
                 down_interp_dn = self.__fwhm__(ddown, smooth_down, mdown)
@@ -501,6 +504,7 @@ class SMPS(object):
             try:
                 fwhm[e] = xfer(i, mean_data.Aer_Q_VLPM, mean_data.Sh_Q_VLPM)
                 dlogd[e] = np.log(i+fwhm[e]/2)-np.log(i-fwhm[e]/2)
+
             except (ValueError, ZeroDivisionError):
                 fwhm[e] = np.nan
                 print('Handling divide by zero error')
