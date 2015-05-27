@@ -430,5 +430,3 @@ if __name__ == "__main__":
     s1,s2,qext,qsca,qback,gsca = bhh.return_Values()   
     
     s1,s2,qext,qsca,qback,gsca = bhmie(x_sizePara,n_refraction,nang_no)
-
-print('done')

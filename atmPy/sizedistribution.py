@@ -593,7 +593,7 @@ class SizeDist_TS(SizeDist):
             color = plt_tools.color_cycle[0]
         layers = self.convert2numberconcentration()
 
-        particles = self.get_particle_rate()
+        particles = self.get_particle_rate().dropna()
         ax = particles.plot(color=color, linewidth=2, ax=ax, legend=False)
 
         if label:
@@ -717,40 +717,52 @@ class SizeDist_LS(SizeDist):
             self.layerbounderies = layerbounderies
             self.layercenters = (layerbounderies[1:] + layerbounderies[:-1]) / 2.
 
-    def calculate_AOD(self, wavelenth=600., n=1.6):
+    def calculate_AOD(self, wavelength=500., n=1.455):
         """
         Calculates the extinction crossection and AOD for each layer.
         plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
 
         Parameters
         ----------
-        wavelength: float, optional
-                    default is 600 nm
-        n:          float, optional
-                    Index of refraction; default is 1.6
+        wavelength: float [500], optional
+            wavelength of the scattered light, unit: nm
+        n: float [1.455], optional
+            Index of refraction of the scattering particles
 
         Returns
         -------
-        Aerosol optical depth over all layers.
+        dict
+            Dictionary containing the results:
+                'AOD': overal AOD (float)
+                'AOD_layer': AOD per layer (pandas DataFrame)
+                'AOD_cum': cumulative AOD per layer (pandas DataFrame)
+                'extCoeffPerLayer': extingction coefficient per Layer (pandas DataFrame)
 
         """
+        out = {}
+        out['n'] = n
+        out['wavelength'] = wavelength
         sdls = self.convert2numberconcentration()
 
-        mie = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelenth / 1000., n)
+        mie = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n)
+        out['mie_curve'] = mie
 
         AOD_layer = np.zeros((len(sdls.layercenters)))
         extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
         for i, lc in enumerate(sdls.layercenters):
             laydata = sdls.data.loc[lc].values
+            # print(laydata)
             extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
             layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
             AOD_perBin = extinction_coefficient * layerThickness
             AOD_layer[i] = AOD_perBin.values.sum()
             extCoeffPerLayer[i] = extinction_coefficient
-        out = {}
-        out['AOD'] = AOD_layer.sum()
+            #     print(mie.extinction_crossection)
+        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
         out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
         out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
+
         warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
         return out
 
@@ -856,7 +868,7 @@ class SizeDist_LS(SizeDist):
         a.set_yscale('linear')
         a.set_xscale('log')
         a.set_xlim((self.bins[0], self.bins[-1]))
-        a.set_ylabel('Height (m)')
+        a.set_ylabel('Altitude (m)')
         a.set_ylim((self.layercenters[0], self.layercenters[-1]))
 
         a.set_xlabel('Diameter (nm)')
@@ -970,6 +982,60 @@ class SizeDist_LS(SizeDist):
 #        return singleHist
 
 
+#Todo: bins are redundand
+# Todo: some functions should be switched of
+class OpticalProperties(object):
+    def __init__(self, data, bins):
+        self.data = data['extCoeffPerLayer']
+        self.data_orig = data
+        self.AOD = data['AOD']
+        self.bins = bins
+        self.layercenters = self.data.index.values
+
+        # ToDo: to define a distribution type does not really make sence ... just to make the stolen plot function happy
+        self.distributionType = 'dNdlogDp'
+
+
+    def plot_AOD_cum(self):
+        a = self.data_orig['AOD_cum'].plot(color=plt_tools.color_cycle[0], linewidth=2)
+        g = a.get_lines()[-1]
+        g.set_label('cumulative AOD')
+        a.legend()
+        a.set_xlim(0, 3000)
+        a.set_xlabel('Altitude (m)')
+        a.set_ylabel('AOD')
+        txt = '''$\lambda = %s$ nm
+n = %s
+AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_orig['AOD'])
+        a.text(0.7, 0.7, txt, transform=a.transAxes)
+        return a
+
+    def _getXYZ(self):
+        out = SizeDist_LS._getXYZ(self)
+        return out
+
+    def plot_extCoeffPerLayer(self,
+                              vmax=None,
+                              vmin=None,
+                              scale='linear',
+                              show_minor_tickLabels=True,
+                              removeTickLabels=['500', '700', '800', '900'],
+                              plotOnTheseAxes=False, cmap=plt_tools.get_colorMap_intensity(),
+                              fit_pos=True,
+                              ax=None):
+        f, a, pc, cb = SizeDist_LS.plot(self,
+                                        vmax=vmax,
+                                        vmin=vmin,
+                                        scale=scale,
+                                        show_minor_tickLabels=show_minor_tickLabels,
+                                        removeTickLabels=removeTickLabels,
+                                        plotOnTheseAxes=plotOnTheseAxes,
+                                        cmap=cmap,
+                                        fit_pos=fit_pos,
+                                        ax=ax)
+        cb.set_label('Extinction coefficient ($m^{-1}$)')
+
+        return f, a, pc, cb
 
 
 def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, centerOfAerosolMode=200,
@@ -1193,10 +1259,9 @@ def _get_coefficients(crossection, cn):
 
     Returns
     --------
-    Scattering coefficient in m^-1.  This is the percentage of light that is scattered out of the
-    path when it passes through a layer with a thickness of 1 m
+    Extinction coefficient in m^-1.  This is the differential AOD.
     """
-
+    crossection = crossection.copy()
     crossection *= 1e-12  # conversion from um^2 to m^2
     cn *= 1e6  # conversion from cm^-3 to m^-3
     coefficient = cn * crossection
