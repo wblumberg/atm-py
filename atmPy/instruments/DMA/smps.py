@@ -20,8 +20,11 @@ class SMPS(object):
     ----------
     dma:            DMA object
                     Defines the differential mobility analyzer specific to the SMPS
-    dn_interp:
-    diam_interp:
+    dn_interp:      numpy array of floats, 2D
+                    Charge and lag corrected dndlogDp distributions
+    diam_interp:    numpy array of floats, 1D
+                    Diameters over which the dndlogDp distributions are interpolated.  This value is determined by the
+                    method buildGrid
     cn_raw:
     cn_smoothed:
     diam:
@@ -525,6 +528,7 @@ class SMPS(object):
         # onto the array defined by diam_interp
         f = interp1d(diam, output_sd, bounds_error=False, kind='linear')
 
+        # Return the interpolated dNdlogDp distribution
         return f(self.diam_interp)
 
 
