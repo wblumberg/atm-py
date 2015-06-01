@@ -11,11 +11,13 @@ from atmPy.tools import time_tools
 
 def merge_timeseries(ts_list):
     ts_data_list = [i.data for i in ts_list]
-    try:
-        merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
-    except ValueError:
-        raise ValueError(
-            'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+    # try:
+    # merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
+    # except ValueError:
+    #     raise ValueError(
+    #         'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+    catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     return TimeSeries(merged.iloc[1:-1])
 
 

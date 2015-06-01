@@ -560,14 +560,15 @@ class SizeDist_TS(SizeDist):
                        color=plt_tools.color_cycle[0],
                        alpha=0.5,
                        )
-
-        data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        a.plot(data.index.values, data.Pos.values, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        # data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
         a.legend(loc=2)
         a.set_ylabel('Particle diameter (nm)')
         a.set_xlabel('Altitude (m)')
 
         a2 = a.twinx()
-        data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        # data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
         a2.legend()
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
 
@@ -586,15 +587,19 @@ class SizeDist_TS(SizeDist):
         matplotlib.axes instance
 
         """
+
         if type(ax).__name__ == 'AxesSubplot':
             color = plt_tools.color_cycle[len(ax.get_lines())]
+            ax.get_figure()
         else:
-            # f,ax = plt.subplots()
+            f, ax = plt.subplots()
             color = plt_tools.color_cycle[0]
+
         layers = self.convert2numberconcentration()
 
-        particles = self.get_particle_rate().dropna()
-        ax = particles.plot(color=color, linewidth=2, ax=ax, legend=False)
+        particles = layers.get_particle_rate().dropna()
+
+        ax.plot(particles.index.values, particles.Count_rate.values, color=color, linewidth=2)
 
         if label:
             ax.get_lines()[-1].set_label(label)
@@ -602,6 +607,8 @@ class SizeDist_TS(SizeDist):
 
         ax.set_xlabel('Time (UTC)')
         ax.set_ylabel('Particle rate (cm$^{-3})$')
+        if particles.index.dtype.type.__name__ == 'datetime64':
+            f.autofmt_xdate()
         return ax
 
     def zoom_time(self, start=None, end=None):
@@ -911,7 +918,7 @@ class SizeDist_LS(SizeDist):
         matplotlib.axes instance
 
         """
-        ax = SizeDist_TS.plot_particle_rate(self, ax, label=label)
+        ax = SizeDist_TS.plot_particle_rate(self, ax=ax, label=label)
         ax.set_xlabel('Altitude (m)')
         return ax
 
@@ -996,10 +1003,11 @@ class OpticalProperties(object):
         self.distributionType = 'dNdlogDp'
 
 
-    def plot_AOD_cum(self):
-        a = self.data_orig['AOD_cum'].plot(color=plt_tools.color_cycle[0], linewidth=2)
+    def plot_AOD_cum(self, color=plt_tools.color_cycle[0], linewidth=2, ax=None, label='cumulative AOD',
+                     extra_info=True):
+        a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
         g = a.get_lines()[-1]
-        g.set_label('cumulative AOD')
+        g.set_label(label)
         a.legend()
         a.set_xlim(0, 3000)
         a.set_xlabel('Altitude (m)')
@@ -1007,7 +1015,8 @@ class OpticalProperties(object):
         txt = '''$\lambda = %s$ nm
 n = %s
 AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_orig['AOD'])
-        a.text(0.7, 0.7, txt, transform=a.transAxes)
+        if extra_info:
+            a.text(0.7, 0.7, txt, transform=a.transAxes)
         return a
 
     def _getXYZ(self):

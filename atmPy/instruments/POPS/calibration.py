@@ -33,36 +33,72 @@ def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8):
 
     cal = read_csv(fname)
     bin_ed = np.linspace(imin, imax, n_bins + 1)
-    bin_center = 10 ** ((bin_ed[:-1] + bin_ed[1:]) / 2.)
+    bin_center_log = 10 ** ((bin_ed[:-1] + bin_ed[1:]) / 2.)
+    bin_center_lin = ((10 ** bin_ed[:-1] + 10 ** bin_ed[1:]) / 2.)
     bin_ed = 10 ** bin_ed
     bin_ed_cal = cal.calibrationFunction(bin_ed)
+    bin_center_lin_cal = cal.calibrationFunction(bin_center_lin)
+    bin_center_log_cal = cal.calibrationFunction(bin_center_log)
 
     print('''
 bin edges (digitizer bins)
 --------------------------''')
     for e, i in enumerate(bin_ed):
         print(i)
-    bin_center_cal = cal.calibrationFunction(bin_center)
+    # bin_center_cal = cal.calibrationFunction(bin_center)
+
+
     print('''
 bin centers (digitizer bins)
 ----------------------------''')
-    for e, i in enumerate(bin_center):
+    for e, i in enumerate(bin_center_lin):
         print(i)
 
     print('''
+bin centers of logarithms (digitizer bins)
+----------------------------''')
+    for e, i in enumerate(bin_center_log):
+        print(i)
+
+    print('''
+
 bin edges (nm)
 --------------''')
     for e, i in enumerate(bin_ed_cal):
         print(i)
-    bin_center_cal = cal.calibrationFunction(bin_center)
+    # bin_center_cal = cal.calibrationFunction(bin_center)
+
+
     print('''
 bin centers (nm)
 ----------------''')
-    for e, i in enumerate(bin_center_cal):
+    for e, i in enumerate(bin_center_lin_cal):
         print(i)
 
-    df = pd.DataFrame(bin_center_cal, index=bin_center, columns=['Bin_centers'])
-    a = df.Bin_centers.plot()
+    print('''
+bin centers of logarithms (nm)
+----------------''')
+    for e, i in enumerate(bin_center_log_cal):
+        print(i)
+
+    df = pd.DataFrame(bin_center_lin_cal, index=bin_center_log, columns=['Bin_centers'])
+    # a = df.Bin_centers.plot()
+
+    f, a = plt.subplots()
+    d = df.Bin_centers.values[1:-1]
+    g, = a.plot(np.arange(len(d)) + 2, d)
+    g.set_linestyle('')
+    g.set_marker('o')
+    # g.set_label('')
+    a.set_yscale('log')
+    a.set_xlim((1, 16))
+    a.set_ylim((100, 3000))
+    a.set_ylabel('Bin center (nm)')
+    a.grid(which='both')
+    a.set_xlabel('POPS bin')
+
+
+    # a.set_title('Bin')
     return a, df
 
 

@@ -61,6 +61,7 @@ def read_housekeeping(fname):
                     hk = timeseries.TimeSeries(data)
     else:
         hk = _read_housekeeping(fname)
+    hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
     return hk
 
 # todo: (low) this has never been actually implemented
