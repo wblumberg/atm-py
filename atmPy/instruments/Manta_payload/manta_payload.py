@@ -12,6 +12,7 @@ def read_csv(fname):
 
 class MantaPayload(timeseries.TimeSeries):
     def calculate_height(self, p0=1000):
+        """Calculates the altitude (Height) based on pressure and temperature"""
         height = thermodynamics.p2h(self.data.PRESS,
                                     T=273 + self.data.PROBT,
                                     P0=p0

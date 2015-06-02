@@ -11,7 +11,7 @@ from atmPy.tools import math_functions
 import scipy.optimize as optimization
 
 # TODO: Get rid of references to hagmods so we don't need them.
-
+# Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
 # TODO: Fix distrTypes so they are consistent with our understanding.
 distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
@@ -574,7 +574,7 @@ class SizeDist_TS(SizeDist):
 
         return f, a, a2
 
-    def plot_particle_rate(self, ax=None, label=None):
+    def plot_particle_concetration(self, ax=None, label=None):
         """Plots the particle rate as a function of time.
 
         Parameters
@@ -606,7 +606,7 @@ class SizeDist_TS(SizeDist):
             ax.legend()
 
         ax.set_xlabel('Time (UTC)')
-        ax.set_ylabel('Particle rate (cm$^{-3})$')
+        ax.set_ylabel('Particle number concentration (cm$^{-3})$')
         if particles.index.dtype.type.__name__ == 'datetime64':
             f.autofmt_xdate()
         return ax
@@ -770,8 +770,10 @@ class SizeDist_LS(SizeDist):
         out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
         out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
 
+        # out['OptPropInstance']= OpticalProperties(out, self.bins)
+
         warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
-        return out
+        return OpticalProperties(out, self.bins)
 
 
     def add_layer(self, sd, layerboundery):
@@ -905,8 +907,8 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    def plot_particle_rate(self, ax=None, label=None):
-        """Plots the particle rate as a function of altitude.
+    def plot_particle_concentration(self, ax=None, label=None):
+        """Plots the particle concentration as a function of altitude.
 
         Parameters
         ----------
@@ -918,7 +920,7 @@ class SizeDist_LS(SizeDist):
         matplotlib.axes instance
 
         """
-        ax = SizeDist_TS.plot_particle_rate(self, ax=ax, label=label)
+        ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
         ax.set_xlabel('Altitude (m)')
         return ax
 
@@ -931,13 +933,18 @@ class SizeDist_LS(SizeDist):
                        alpha=0.5,
                        )
 
-        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2)
+        g = a.get_lines()[-1]
+        g.set_label('Center of norm. dist.')
         a.legend(loc=2)
+
         a.set_ylabel('Particle diameter (nm)')
         a.set_xlabel('Altitude (m)')
 
         a2 = a.twinx()
-        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
+        g = a2.get_lines()[-1]
+        g.set_label('Amplitude of norm. dist.')
         a2.legend()
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
 
@@ -1009,7 +1016,7 @@ class OpticalProperties(object):
         g = a.get_lines()[-1]
         g.set_label(label)
         a.legend()
-        a.set_xlim(0, 3000)
+        # a.set_xlim(0, 3000)
         a.set_xlabel('Altitude (m)')
         a.set_ylabel('AOD')
         txt = '''$\lambda = %s$ nm
