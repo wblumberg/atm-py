@@ -1,5 +1,6 @@
 __author__ = 'htelg'
 
+import numpy as np
 
 def find_closest(array, value):
     """Finds the element of an array which is the closest to a given number and returns its index

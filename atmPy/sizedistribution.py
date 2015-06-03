@@ -2,12 +2,11 @@ import numpy as np
 from matplotlib.colors import LogNorm
 import pylab as plt
 from copy import deepcopy
-from atmPy.tools import plt_tools
+from atmPy.tools import plt_tools, math_functions, array_tools
 import pandas as pd
 import warnings
 import datetime
 from atmPy.mie import bhmie
-from atmPy.tools import math_functions
 import scipy.optimize as optimization
 
 # TODO: Get rid of references to hagmods so we don't need them.
@@ -215,21 +214,21 @@ class SizeDist(object):
         return self.data_fit_normal
 
 
-    def get_particle_rate(self):
+    def get_particle_concentration(self):
         """ Returns the sum of particles per line in data
 
         Returns
         -------
         int: if data has only one line
         pandas.DataFrame: else """
-
-        particles = np.zeros(self.data.shape[0])
-        for e, line in enumerate(self.data.values):
+        sd = self.convert2numberconcentration()
+        particles = np.zeros(sd.data.shape[0])
+        for e, line in enumerate(sd.data.values):
             particles[e] = line.sum()
-        if self.data.shape[0] == 1:
+        if sd.data.shape[0] == 1:
             return particles[0]
         else:
-            df = pd.DataFrame(particles, index=self.data.index, columns=['Count_rate'])
+            df = pd.DataFrame(particles, index=sd.data.index, columns=['Count_rate'])
             return df
 
     def plot(self,
@@ -317,6 +316,22 @@ class SizeDist(object):
         raus.close()
         self.data.to_csv(fname, mode='a')
         return
+
+    def zoom_diameter(self, start=None, end=None):
+        sd = self.copy()
+        if start:
+            startIdx = array_tools.find_closest(sd.bins, start)
+        else:
+            startIdx = 0
+        if end:
+            endIdx = array_tools.find_closest(sd.bins, end)
+        else:
+            endIdx = len(self.bincenters)
+        sd.binwidth = self.binwidth[startIdx:endIdx]
+        sd.bins = self.bins[startIdx:endIdx + 1]
+        sd.bincenters = self.bincenters[startIdx:endIdx]
+        sd.data = self.data.iloc[:, startIdx:endIdx]
+        return sd
 
     def _normal2log(self):
         trans = (self.bincenters * np.log(10.))
@@ -595,9 +610,9 @@ class SizeDist_TS(SizeDist):
             f, ax = plt.subplots()
             color = plt_tools.color_cycle[0]
 
-        layers = self.convert2numberconcentration()
+        # layers = self.convert2numberconcentration()
 
-        particles = layers.get_particle_rate().dropna()
+        particles = self.get_particle_concentration().dropna()
 
         ax.plot(particles.index.values, particles.Count_rate.values, color=color, linewidth=2)
 
@@ -698,8 +713,15 @@ class SizeDist_TS(SizeDist):
 
 class SizeDist_LS(SizeDist):
     """
+    Parameters
+    ----------
+    data:    pandas DataFrame ...
+    bins:    array
+    distributionType:   str
+    layerbounderies:    array shape(n_layers,2)
 
-
+    OLD
+    ---
     data: pandas dataFrame with
                  - column names (each name is something like this: '150-200')
                  - altitude (at some point this should be arbitrary, convertable to altitude for example?)
@@ -722,7 +744,8 @@ class SizeDist_LS(SizeDist):
             self.layercenters = np.array([])
         else:
             self.layerbounderies = layerbounderies
-            self.layercenters = (layerbounderies[1:] + layerbounderies[:-1]) / 2.
+            newlb = np.unique(layerbounderies.flatten())
+            self.layercenters = (newlb[1:] + newlb[:-1]) / 2.
 
     def calculate_AOD(self, wavelength=500., n=1.455):
         """
@@ -773,7 +796,10 @@ class SizeDist_LS(SizeDist):
         # out['OptPropInstance']= OpticalProperties(out, self.bins)
 
         warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
-        return OpticalProperties(out, self.bins)
+        AOD = OpticalProperties(out, self.bins)
+        AOD.wavelength = wavelength
+        AOD.index_of_refractio = n
+        return AOD
 
 
     def add_layer(self, sd, layerboundery):
