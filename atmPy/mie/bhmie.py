@@ -16,7 +16,8 @@ class bhmie_hagen():
               refrel - refraction index (n in complex form for example:  1.5+0.02*i;
               nang   - number of angles for S1 and S2 function in range from 0 to pi/2
          input optional:
-              diameter - to calculate the crosssections this value is needed
+              diameter - to calculate the crosssections this value is needed, and yes this is really diameter not radius
+              I am an idiot
          Returns
          -------
          S1, S2 - funtion which correspond to the (complex) phase functions
@@ -25,10 +26,10 @@ class bhmie_hagen():
          Qback  - backscatter efficiency
          gsca   - asymmetry parameter"""
 
-    def __init__(self,xold,refrel,noOfAngles, diameter = False):
+    def __init__(self, x, refrel, noOfAngles, diameter=False):
         self.diameter = diameter
         self.noOfAngles = noOfAngles
-        self.sizeParameter = xold
+        self.sizeParameter = x
         self.indOfRefraction = refrel
 
         s1_1=np.zeros(self.noOfAngles,dtype=np.complex128)

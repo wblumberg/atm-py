@@ -8,6 +8,7 @@ import warnings
 import datetime
 from atmPy.mie import bhmie
 import scipy.optimize as optimization
+from scipy import stats
 
 # TODO: Get rid of references to hagmods so we don't need them.
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
@@ -747,6 +748,75 @@ class SizeDist_LS(SizeDist):
             newlb = np.unique(layerbounderies.flatten())
             self.layercenters = (newlb[1:] + newlb[:-1]) / 2.
 
+    def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
+        """Calculates the Anstrome coefficience (overall, layerdependent)
+
+        Parameters
+        ----------
+        wavelengths:    array-like, optional.
+            the angstrom coefficient will be calculated based on the AOD of these wavelength values (in nm)
+        n:              float, optional.
+            index of refraction used in the underlying mie calculation.
+
+        Returns
+        -------
+        Angstrom exponent, float
+        List containing the OpticalProperties instances for the different wavelengths
+
+        New Attributes
+        --------------
+        angstromexp:        float
+            the resulting angstrom exponent
+        angstromexp_fit:    pandas instance.
+            AOD and fit result as a function of wavelength
+        angstromexp_LS:     pandas instance.
+            angstrom exponent as a function of altitude
+        """
+
+        AOD_list = []
+        AOD_dict = {}
+        for w in wavelengths:
+            AOD = self.calculate_AOD(wavelength=w, n=n)
+            #     opt= sizedistribution.OpticalProperties(AOD, dist_LS.bins)
+            AOD_list.append({'wavelength': w, 'opt_inst': AOD})
+            AOD_dict['%.1f' % w] = AOD
+
+        eg = AOD_dict[list(AOD_dict.keys())[0]]
+
+        wls = AOD_dict.keys()
+        wls_a = np.array(list(AOD_dict.keys())).astype(float)
+        ang_exp = []
+        ang_exp_std = []
+        ang_exp_r_value = []
+        for e, el in enumerate(eg.layercenters):
+            AODs = np.array([AOD_dict[wl].data_orig['AOD_layer'].values[e][0] for wl in wls])
+            slope, intercept, r_value, p_value, std_err = stats.linregress(np.log10(wls_a), np.log10(AODs))
+            ang_exp.append(-slope)
+            ang_exp_std.append(std_err)
+            ang_exp_r_value.append(r_value)
+        # break
+        ang_exp = np.array(ang_exp)
+        ang_exp_std = np.array(ang_exp_std)
+        ang_exp_r_value = np.array(ang_exp_r_value)
+
+        tmp = np.array([[float(i), AOD_dict[i].AOD] for i in AOD_dict.keys()])
+        wavelength, AOD = tmp[np.argsort(tmp[:, 0])].transpose()
+        slope, intercept, r_value, p_value, std_err = stats.linregress(np.log10(wavelength), np.log10(AOD))
+
+        self.angstromexp = -slope
+        aod_fit = np.log10(wavelengths) * slope + intercept
+        self.angstromexp_fit = pd.DataFrame(np.array([AOD, 10 ** aod_fit]).transpose(), index=wavelength,
+                                            columns=['data', 'fit'])
+
+        self.angstromexp_LS = pd.DataFrame(np.array([ang_exp, ang_exp_std, ang_exp_r_value]).transpose(),
+                                           index=self.layercenters,
+                                           columns=['ang_exp', 'standard_dif', 'correlation_coef'])
+        self.angstromexp_LS.index.name = 'layercenter'
+
+        return -slope, AOD_dict
+
+
+
     def calculate_AOD(self, wavelength=500., n=1.455):
         """
         Calculates the extinction crossection and AOD for each layer.
@@ -975,6 +1045,54 @@ class SizeDist_LS(SizeDist):
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
 
         return f, a, a2
+
+    def plot_angstromex_fit(self):
+        if 'angstromexp_fit' not in dir(self):
+            raise ValueError('Execute function calculate_angstromex first!')
+
+        f, a = plt.subplots()
+        a.plot(self.angstromexp_fit.index, self.angstromexp_fit.data, 'o', color=plt_tools.color_cycle[0],
+               label='exp. data')
+        a.plot(self.angstromexp_fit.index, self.angstromexp_fit.fit, color=plt_tools.color_cycle[1], label='fit',
+               linewidth=2)
+        a.set_xlim((self.angstromexp_fit.index.min() * 0.95, self.angstromexp_fit.index.max() * 1.05))
+        a.set_ylim((self.angstromexp_fit.data.min() * 0.95, self.angstromexp_fit.data.max() * 1.05))
+        a.set_xlabel('Wavelength (nm)')
+        a.set_ylabel('AOD')
+        a.loglog()
+        a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+        a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%.2f"))
+        return a
+
+    def plot_angstromex_LS(self, corr_coeff=False, std=False):
+        if 'angstromexp_fit' not in dir(self):
+            raise ValueError('Execute function calculate_angstromex first!')
+
+        f, a = plt.subplots()
+        a.plot(self.angstromexp_LS.index, self.angstromexp_LS.ang_exp, color=plt_tools.color_cycle[0], linewidth=2,
+               label='Angstrom exponent')
+        a.set_xlabel('Altitude (m)')
+        a.set_ylabel('Angstrom exponent')
+
+        if corr_coeff:
+            a.legend(loc=2)
+            a2 = a.twinx()
+            a2.plot(self.angstromexp_LS.index, self.angstromexp_LS.correlation_coef, color=plt_tools.color_cycle[1],
+                    linewidth=2, label='corr_coeff')
+            a2.set_ylabel('Correlation coefficiant')
+            a2.legend(loc=1)
+
+        if std:
+            a.legend(loc=2)
+            a2 = a.twinx()
+            a2.plot(self.angstromexp_LS.index, self.angstromexp_LS.standard_dif, color=plt_tools.color_cycle[1],
+                    linewidth=2, label='corr_coeff')
+            a2.set_ylabel('Standard deviation')
+            a2.legend(loc=1)
+
+        tmp = (self.angstromexp_LS.index.max() - self.angstromexp_LS.index.min()) * 0.05
+        a.set_xlim((self.angstromexp_LS.index.min() - tmp, self.angstromexp_LS.index.max() + tmp))
+        return a
 
     def zoom_altitude(self, start=None, end=None):
         """'2014-11-24 16:02:30'"""
