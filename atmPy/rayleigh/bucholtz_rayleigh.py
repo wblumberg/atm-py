@@ -9,6 +9,11 @@ Bucholtz, A. (1995). Rayleigh-scattering calculations for the terrestrial atmosp
 @author: mtat76
 """
 
+import numpy as np
+from atmpy.tools import array_tools
+from scipy import integrate
+from atmPy import atmosphere_standards as ats
+import pylab as plt
 
 def rayleigh_phase_function(theta, wl):
     "Bucholtz 95 eq(12&13)"
