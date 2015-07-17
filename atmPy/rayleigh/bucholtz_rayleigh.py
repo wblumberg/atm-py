@@ -10,7 +10,7 @@ Bucholtz, A. (1995). Rayleigh-scattering calculations for the terrestrial atmosp
 """
 
 import numpy as np
-from atmpy.tools import array_tools
+from atmPy.tools import array_tools
 from scipy import integrate
 from atmPy import atmosphere_standards as ats
 import pylab as plt
