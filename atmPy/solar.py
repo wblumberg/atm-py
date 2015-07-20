@@ -1,8 +1,12 @@
-__author__ = 'mrichardson'
+__author__ = 'mrichardson, Hagen Telg'
 
 from math import fmod, sin, pi, cos, asin
 
 from atmPy.constants import a2r, r2a
+
+import numpy as np
+import pandas as pd
+import ephem
 
 __julian = {"day": 0., "cent": 0.}
 
@@ -79,3 +83,61 @@ class solar(object):
 
     def __eq_time(self):
         return None
+
+
+def get_sun_position(lat, lon, datetime_UTC, elevation=0):
+    """returns elevation and azimuth angle of the sun
+    Arguments:
+    ----------
+    lat, lon: float
+        latitude and longitude of the observer (e.g. Denver, lat = 39.7392, lon = -104.9903)
+    datetime_UTC: datetime instance or strint ('2015/7/6 19:00:00')
+        time of interestes in UTC
+    elevation: float, optional.
+        elevation of observer.
+
+    Returns
+    -------
+    tuple of two floats
+        elevation and azimuth angle in radians.
+    """
+    obs = ephem.Observer()
+    obs.lat = lat
+    obs.long = lon
+    obs.elevation = elevation
+    # obs.date = '2015/7/6 19:00:00'
+    obs.date = datetime_UTC  # datetime.datetime.now() + datetime.timedelta(hours = 6)
+    #     print(obs)
+    sun = ephem.Sun()
+    sun.compute(obs)
+    return sun.alt, sun.az
+
+
+def get_sun_position_TS(timeseries):
+    """Returns the position, polar and azimuth angle, of the sun in the sky for a given time and location.
+
+    Arguments
+    ---------
+    timeseries: pandas.DataFrame instance with the index being of type datetime (e.g. atmPy.timeseries).
+        This is typically a housekeeping/telemetry timeseries. It must contain the columns
+        Lat, Lon, and Height
+
+    Returns
+    -------
+    pandas.DataFram with two collums for the elevation and azimuth angle
+    Furthermore the timeseries gets two new collumns with the two angles
+    """
+    lat = timeseries.data.Lat.values.astype(str)
+    lon = timeseries.data.Lon.values.astype(str)
+    alti = timeseries.data.Height.values
+    t = timeseries.data.Lat.index
+    sunpos = np.zeros((lat.shape[0], 2))
+    # sunpos = np.zeros((2,2))
+    for e, i in enumerate(lat):
+        if 0 == 1:
+            break
+        sunpos[e] = get_sun_position(lat[e], lon[e], t[e], elevation=alti[e])
+    #     return sunpos
+    timeseries.data['Solar_position_elevation'] = pd.Series(sunpos[:, 0], index=timeseries.data.index)
+    timeseries.data['Solar_position_azimuth'] = pd.Series(sunpos[:, 1], index=timeseries.data.index)
+    return pd.DataFrame(sunpos, columns=['elevation', 'azimuth'], index=timeseries.data.index)
