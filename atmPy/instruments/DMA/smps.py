@@ -506,7 +506,7 @@ class SMPS(object):
         for e, i in enumerate(diam):
             try:
                 fwhm[e] = xfer(i, mean_data.Aer_Q_VLPM, mean_data.Sh_Q_VLPM)
-                dlogd[e] = np.log(i+fwhm[e]/2)-np.log(i-fwhm[e]/2)
+                dlogd[e] = np.log10(i+fwhm[e]/2)-np.log10(i-fwhm[e]/2)
 
             except (ValueError, ZeroDivisionError):
                 fwhm[e] = np.nan
