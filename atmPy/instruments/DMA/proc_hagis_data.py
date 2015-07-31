@@ -1,6 +1,5 @@
 from atmPy.instruments.DMA import dma
 from atmPy.instruments.DMA import smps
-#import atmPy.sizedistribution as sd
 from matplotlib import colors
 import matplotlib.pyplot as plt
 from numpy import meshgrid
@@ -13,12 +12,15 @@ import glob
 from matplotlib import rc
 import csv
 
-def proc_scans(*args, **kwargs):
+def proc_scans(*args):
 
     hagis = smps.SMPS(dma.NoaaWide())
 
-    scan_folder = "C:/Users/mrichardson/Documents/HAGIS/SMPS/Scans"
-    main_dir = 'C:/Users/mrichardson/Documents/HAGIS/SMPS/ProcessedData'
+    scan_folder = args[0]#"C:/Users/mrichardson/Documents/HAGIS/SMPS/Scans"
+    main_dir = args[1] #'C:/Users/mrichardson/Documents/HAGIS/SMPS/ProcessedData'
+    range_low = args[2]
+    range_high = args[3]
+    darg = args[4]
 
     # If the directory does not exist, make it...
     if not os.path.exists(main_dir):
@@ -31,14 +33,14 @@ def proc_scans(*args, **kwargs):
     xfmt = dates.DateFormatter('%H:%M:%S')
 
     # Begin looping through the dates in the scan directory...
-    for i in range(15, 16):
+    for i in range(range_low, range_high):
         if i < 10:
             day = "0" + str(i)
         else:
             day = str(i)
 
         # This will define the year and month through which we scan.
-        pattern = "201503" + day
+        pattern = darg + day
 
         get_files(pattern, hagis)
 
@@ -66,23 +68,28 @@ def proc_scans(*args, **kwargs):
         # Alot space to store data
         file_name = "hagis_" + pattern
         file = open(main_dir + '/' + file_name + '.csv', 'w')
-       #file_index = open(main_dir + '/' + file_name + '_index.csv', 'w')
 
         dataframe.to_csv(file, mode='a', encoding='utf-8', na_rep="NaN", header=False,
                          line_terminator='\r', index=False)
 
         dx = np.empty([len(hagis.date)], dtype="str")
         file = open(main_dir + '/' + file_name + '_index.csv', "w+")
-        fwriter = csv.writer(file)
+        fwriter = csv.writer(file, delimiter='\r')
         dx = [""]*len(hagis.date)
         for e, d in enumerate(hagis.date):
-            print(d.strftime("%m/%d/%y %M:%H:%S"))
             dx[e] = d.strftime("%m/%d/%y %M:%H:%S")
 
         fwriter.writerow(dx)
+        file.close()
 
-        print(dx)
+        file = open(main_dir + '/' + 'd.csv', "w+")
+        fwriter = csv.writer(file, delimiter='\r')
+        fwriter.writerow(hagis.diam_interp)
+        file.close()
+
+
         np.savetxt(main_dir + '/' + file_name + '_index.csv', dx, fmt="%s")
+
 
         pmax = 10**np.ceil(np.log10(np.amax(Z[np.where(Z > 0)])))
         pmin = 1    # 10**np.floor(np.log10(np.amin(Z[np.where(Z > 0)])))
@@ -102,9 +109,10 @@ def proc_scans(*args, **kwargs):
         plt.title(r"$\frac{dN}{d\log{D_p}}$ for " + pattern)
         fig.autofmt_xdate()
         fig.tight_layout()
-        img_name = "C:/Users/mrichardson/Documents/HAGIS/SMPS/images/" + pattern + ".png"
-        plt.show()
+        img_name = main_dir + "/Images/" + pattern + ".png"
+        #plt.show()
         plt.savefig(img_name)
+        print("DAY COMPLETE!!")
 
     return None
 
