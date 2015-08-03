@@ -9,6 +9,9 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import warnings
+from atmPy.tools import math_linear_algebra as mla
+from atmPy.tools import array_tools
+from scipy import integrate
 
 year = '2015'
 
@@ -79,6 +82,96 @@ def _extrapolate(x, y):
     
     return
 
+
+# Todo: if dist_ls and time_series are passed down all the way to opt_prop than we could just pass opt_prop
+def simulate_from_dist_LS(time_series, dist_ls, opt_prop, altitude='lowest', rotations=2):
+    """ Simulates miniSASP signal from a size distribution layer series
+    Arguments
+    ---------
+    altitude: ['lowest'],'all',list, or float
+        Altitude for which the mSASP signal is simulated for
+        'lowest': only for the lowest altitude
+        'all': all altitudes
+        list/float: list/float of altitude(s) in meters (closest evailable altitudes will be selected)
+
+    rotations: int.
+        number of rotations the of the mSASP.
+
+    Returns
+    -------
+    pandas.DataFrame
+        containing the sky brightness as a function of mSASPS azimuth angle"""
+
+    where = array_tools.find_closest(time_series.data.Height.values, dist_ls.layercenters)
+    solar_elev = time_series.data.Solar_position_elevation.values[where]
+    solar_az = time_series.data.Solar_position_azimuth.values[where]
+    time = time_series.data.index[where]
+
+    what_mSASP_sees_aerosols = pd.DataFrame()
+    for arbitraryHightIndex in range(dist_ls.layercenters.shape[0]):
+        # get the sun position at the time when the plane was at the particular altitude,
+        sol_el = solar_elev[arbitraryHightIndex]
+        sol_az = solar_az[arbitraryHightIndex]
+
+
+        # angles between mSASP positions and sun. This is used to pick the angle in the phase functions
+        mSASP2Sunangles = angle_MSASP_sun(sol_el, sol_az,
+                                          no_angles=int(opt_prop.data_phase_fct.shape[0] / 2) * rotations,
+                                          no_rotations=rotations)
+
+        # pick relevant angles in phase function for each layer, this includes selecting the relavant layers (selected altitude to top)
+        closest_phase2sun_azi = array_tools.find_closest(opt_prop.data_phase_fct.index.values,
+                                                         mSASP2Sunangles.mSASP_sun_angle.values)
+        closest_phase2sun_azi = np.unique(closest_phase2sun_azi)
+        # print(closest_phase2sun_azi.shape)
+        phase_fct_rel = opt_prop.data_phase_fct.iloc[closest_phase2sun_azi, arbitraryHightIndex:]
+
+        # Integrate ofer selected intensities in phase function along vertical line (from selected height to top)
+        x = phase_fct_rel.columns.values
+        do_integ = lambda y: integrate.simps(y, x)
+        phase_fct_rel_integ = pd.DataFrame(phase_fct_rel.apply(do_integ, axis=1),
+                                           columns=[dist_ls.layercenters[arbitraryHightIndex]]
+                                           )  # these are the integrated intensities of scattered light into the relavant angles. Integration is from current (arbitrary) to top layer
+
+        slant_adjust = 1 / np.sin(solar_elev[arbitraryHightIndex])
+        closest_phase2sun_azi = array_tools.find_closest(phase_fct_rel_integ.index.values,
+                                                         mSASP2Sunangles.mSASP_sun_angle.values)
+        what_mSASP_sees_aerosols[dist_ls.layercenters[arbitraryHightIndex]] = pd.Series(
+            phase_fct_rel_integ.iloc[closest_phase2sun_azi].values.transpose()[0] * slant_adjust)
+
+    return what_mSASP_sees_aerosols
+
+
+def angle_MSASP_sun(sun_elevation, sun_azimuth=0., no_angles=1000, no_rotations=1):
+    """Calculates the angle between sun and mini-SASP orientation for one full rotation
+
+    Arguments
+    ---------
+    sun_elevation: float
+        elevation angle of the sun in radians.
+    sun_azimuth: float,otional.
+        azimuth angle of the sun in radians.
+    no_angles:  int, optional.
+        number of angles.
+    no_rotations: int, otional.
+        number of rotations.
+
+    Returns
+    -------
+    pandas.DataFrame instance
+    """
+    sunPos = np.array([1, np.pi / 2. - sun_elevation, sun_azimuth])  # just an arbitrary example
+    r = np.repeat(1, no_angles)
+    theta = np.repeat(sunPos[1], no_angles)  # MSASP will always allign to the polar angle of the sun
+    rho = np.linspace(0, no_rotations * 2 * np.pi, no_angles + 1)[:-1]  # no_rotations rotations around its axes
+    mSASPpos = np.array([r, theta, rho]).transpose()
+    ### trans to cartesian coordinates
+    sunPos = mla.spheric2cart(np.repeat(np.array([sunPos]), no_angles, axis=0))
+    mSASPpos = mla.spheric2cart(mSASPpos)
+    angles = mla.angleBetweenVectors(sunPos, mSASPpos)
+    angles = pd.DataFrame(angles, index=rho, columns=['mSASP_sun_angle'])
+    angles.index.name = 'mSASP_azimuth'
+    return angles
 
 def _simplefill(series):
     """Very simple function to fill missing values. Should only be used for 
@@ -216,10 +309,10 @@ class ULR(object):
         self.data = df
 
     def assureFloat(self):
-        """
+        """ OLD!!!! This function is currently not used
         Note
         ----
-        Ever now an then there is a line, which start with 'GPRMC'. This Line causes trouble. Therefore """
+        Sometimes there is a line, which start with 'GPRMC'. This Line causes trouble. Therefore """
 
         where = np.where(self.data.PhotoAsh == 'GPRMC')
         self.data.PhotoAsh.values[where] = np.nan

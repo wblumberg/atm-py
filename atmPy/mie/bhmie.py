@@ -1,5 +1,6 @@
 # from numpy import *
 import numpy as np
+import pandas as pd
 
 class bhmie_hagen():
     """ 
@@ -16,7 +17,8 @@ class bhmie_hagen():
               refrel - refraction index (n in complex form for example:  1.5+0.02*i;
               nang   - number of angles for S1 and S2 function in range from 0 to pi/2
          input optional:
-              diameter - to calculate the crosssections this value is needed
+              diameter - to calculate the crosssections this value is needed, and yes this is really diameter not radius
+              I am an idiot
          Returns
          -------
          S1, S2 - funtion which correspond to the (complex) phase functions
@@ -25,10 +27,10 @@ class bhmie_hagen():
          Qback  - backscatter efficiency
          gsca   - asymmetry parameter"""
 
-    def __init__(self,xold,refrel,noOfAngles, diameter = False):
+    def __init__(self, x, refrel, noOfAngles, diameter=False):
         self.diameter = diameter
         self.noOfAngles = noOfAngles
-        self.sizeParameter = xold
+        self.sizeParameter = x
         self.indOfRefraction = refrel
 
         s1_1=np.zeros(self.noOfAngles,dtype=np.complex128)
@@ -233,11 +235,36 @@ class bhmie_hagen():
         at 180 deg... I am surprised why they are not simpy taking the last one?
         -> it is the same!! -> fixed"""
         self.qback = 4*(abs(self.s1[-1])/self.sizeParameter)**2
-            
+
+    def get_phase_func_parallel(self):
+        s2r = self.s2[::-1]
+        s2f = np.append(self.s2, s2r[1:])
+        s2s = np.abs(s2f) ** 2
+        ang = np.linspace(0, np.pi * 2, len(s2s))
+        df = pd.DataFrame(s2s, index=ang, columns=['Phase_function_parallel'])
+        df.index.name = 'Angle'
+        return df
+
+    def get_phase_func_perp(self):
+        s1r = self.s1[::-1]
+        s1f = np.append(self.s1, s1r[1:])
+        s1s = np.abs(s1f) ** 2
+        ang = np.linspace(0, np.pi * 2, len(s1s))
+        df = pd.DataFrame(s1s, index=ang, columns=['Phase_function_perp'])
+        df.index.name = 'Angle'
+        return df
+
+
     def return_Values_as_dict(self):
-        
-            return {'phaseFct_S1': self.s1, 
-                    'phaseFct_S2': self.s2, 
+        pFperp = self.get_phase_func_perp()
+        pFpara = self.get_phase_func_parallel()
+        pFnat = pd.DataFrame((pFperp.iloc[:, 0] + pFpara.iloc[:, 0]) / 2., columns=['Phase_function_natural'])
+
+            return {'phaseFct_S1': self.s1,
+                    'phaseFct_S2': self.s2,
+                    'phaseFct_perp': pFperp,
+                    'phaseFct_parallel': pFpara,
+                    'phaseFct_natural': pFnat,
                     'extinction_efficiency': self.qext, 
                     'scattering_efficiency': self.qsca, 
                     'backscatter_efficiency': self.qback, 
@@ -430,5 +457,3 @@ if __name__ == "__main__":
     s1,s2,qext,qsca,qback,gsca = bhh.return_Values()   
     
     s1,s2,qext,qsca,qback,gsca = bhmie(x_sizePara,n_refraction,nang_no)
-
-print('done')

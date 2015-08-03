@@ -11,11 +11,13 @@ from atmPy.tools import time_tools
 
 def merge_timeseries(ts_list):
     ts_data_list = [i.data for i in ts_list]
-    try:
-        merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
-    except ValueError:
-        raise ValueError(
-            'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+    # try:
+    # merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
+    # except ValueError:
+    #     raise ValueError(
+    #         'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+    catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     return TimeSeries(merged.iloc[1:-1])
 
 
@@ -60,6 +62,50 @@ class TimeSeries(object):
 
         axes = self.data.plot(subplots=True, figsize=(plt.rcParams['figure.figsize'][0], self.data.shape[1] * 4))
         return axes
+
+    def plot_map(self):
+        """Plots a map of the flight path
+
+        Note
+        ----
+        packages: matplotlib-basemap,
+        """
+        lon_center = (self.data.Lon.values.max() + self.data.Lon.values.min()) / 2.
+        lat_center = (self.data.Lat.values.max() + self.data.Lat.values.min()) / 2.
+
+        points = np.array([self.data.Lat.values, self.data.Lon.values]).transpose()
+        distances_from_center_lat = np.zeros(points.shape[0])
+        distances_from_center_lon = np.zeros(points.shape[0])
+        for e, p in enumerate(points):
+            distances_from_center_lat[e] = vincenty(p, (lat_center, p[1])).m
+            distances_from_center_lon[e] = vincenty(p, (p[0], lon_center)).m
+
+        lat_radius = distances_from_center_lat.max()
+        lon_radius = distances_from_center_lon.max()
+        scale = 1
+        border = scale * 2 * np.array([lat_radius, lon_radius]).max()
+
+        height = border + lat_radius
+        width = border + lon_radius
+        bmap = Basemap(projection='aeqd',
+                       lat_0=lat_center,
+                       lon_0=lon_center,
+                       width=width,
+                       height=height,
+                       resolution='f')
+
+        # Fill the globe with a blue color
+        wcal = np.array([161., 190., 255.]) / 255.
+        bmap.drawmapboundary(fill_color=wcal)
+        # Fill the continents with the land color map.fillcontinents(color=’coral’,lake_color=’aqua’)
+        grau = 0.9
+        bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
+        bmap.drawcoastlines()
+        x, y = bmap(self.data.Lon.values, self.data.Lat.values)
+        bmap.plot(x, y,
+                  color='m')
+
+        return bmap
 
 
     def zoom_time(self, start=None, end=None, copy=True):
@@ -177,7 +223,7 @@ class TimeSeries(object):
         f, ax = plt.subplots(len(what), sharex=True, gridspec_kw={'hspace': 0.1})
 
         if not figsize:
-            f.set_figwidth(4 * len(what))
+            f.set_figheight(4 * len(what))
         else:
             f.set_size_inches(figsize)
 
@@ -218,47 +264,5 @@ class TimeSeries(object):
         """
         return self.data.index.values[[0, -1]]
 
-    def plot_map(self):
-        """Plots a map of the flight path
 
-        Note
-        ----
-        packages: matplotlib-basemap,
-        """
-        lon_center = (self.data.Lon.values.max() + self.data.Lon.values.min()) / 2.
-        lat_center = (self.data.Lat.values.max() + self.data.Lat.values.min()) / 2.
-
-        points = np.array([self.data.Lat.values, self.data.Lon.values]).transpose()
-        distances_from_center_lat = np.zeros(points.shape[0])
-        distances_from_center_lon = np.zeros(points.shape[0])
-        for e, p in enumerate(points):
-            distances_from_center_lat[e] = vincenty(p, (lat_center, p[1])).m
-            distances_from_center_lon[e] = vincenty(p, (p[0], lon_center)).m
-
-        lat_radius = distances_from_center_lat.max()
-        lon_radius = distances_from_center_lon.max()
-        scale = 1
-        border = scale * 2 * np.array([lat_radius, lon_radius]).max()
-
-        height = border + lat_radius
-        width = border + lon_radius
-        bmap = Basemap(projection='aeqd',
-                       lat_0=lat_center,
-                       lon_0=lon_center,
-                       width=width,
-                       height=height,
-                       resolution='f')
-
-        # Fill the globe with a blue color
-        wcal = np.array([161., 190., 255.]) / 255.
-        bmap.drawmapboundary(fill_color=wcal)
-        #Fill the continents with the land color map.fillcontinents(color=’coral’,lake_color=’aqua’)
-        grau = 0.9
-        bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
-        bmap.drawcoastlines()
-        x, y = bmap(self.data.Lon.values, self.data.Lat.values)
-        bmap.plot(x, y,
-                  color='m')
-
-        return bmap
 

@@ -2,16 +2,16 @@ import numpy as np
 from matplotlib.colors import LogNorm
 import pylab as plt
 from copy import deepcopy
-from atmPy.tools import plt_tools
+from atmPy.tools import plt_tools, math_functions, array_tools
 import pandas as pd
 import warnings
 import datetime
 from atmPy.mie import bhmie
-from atmPy.tools import math_functions
 import scipy.optimize as optimization
+from scipy import stats
 
 # TODO: Get rid of references to hagmods so we don't need them.
-
+# Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
 # TODO: Fix distrTypes so they are consistent with our understanding.
 distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
@@ -215,21 +215,21 @@ class SizeDist(object):
         return self.data_fit_normal
 
 
-    def get_particle_rate(self):
+    def get_particle_concentration(self):
         """ Returns the sum of particles per line in data
 
         Returns
         -------
         int: if data has only one line
         pandas.DataFrame: else """
-
-        particles = np.zeros(self.data.shape[0])
-        for e, line in enumerate(self.data.values):
+        sd = self.convert2numberconcentration()
+        particles = np.zeros(sd.data.shape[0])
+        for e, line in enumerate(sd.data.values):
             particles[e] = line.sum()
-        if self.data.shape[0] == 1:
+        if sd.data.shape[0] == 1:
             return particles[0]
         else:
-            df = pd.DataFrame(particles, index=self.data.index, columns=['Count_rate'])
+            df = pd.DataFrame(particles, index=sd.data.index, columns=['Count_rate'])
             return df
 
     def plot(self,
@@ -317,6 +317,22 @@ class SizeDist(object):
         raus.close()
         self.data.to_csv(fname, mode='a')
         return
+
+    def zoom_diameter(self, start=None, end=None):
+        sd = self.copy()
+        if start:
+            startIdx = array_tools.find_closest(sd.bins, start)
+        else:
+            startIdx = 0
+        if end:
+            endIdx = array_tools.find_closest(sd.bins, end)
+        else:
+            endIdx = len(self.bincenters)
+        sd.binwidth = self.binwidth[startIdx:endIdx]
+        sd.bins = self.bins[startIdx:endIdx + 1]
+        sd.bincenters = self.bincenters[startIdx:endIdx]
+        sd.data = self.data.iloc[:, startIdx:endIdx]
+        return sd
 
     def _normal2log(self):
         trans = (self.bincenters * np.log(10.))
@@ -560,20 +576,21 @@ class SizeDist_TS(SizeDist):
                        color=plt_tools.color_cycle[0],
                        alpha=0.5,
                        )
-
-        data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        a.plot(data.index.values, data.Pos.values, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        # data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
         a.legend(loc=2)
         a.set_ylabel('Particle diameter (nm)')
         a.set_xlabel('Altitude (m)')
 
         a2 = a.twinx()
-        data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        # data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
         a2.legend()
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
 
         return f, a, a2
 
-    def plot_particle_rate(self, ax=None, label=None):
+    def plot_particle_concetration(self, ax=None, label=None):
         """Plots the particle rate as a function of time.
 
         Parameters
@@ -586,22 +603,28 @@ class SizeDist_TS(SizeDist):
         matplotlib.axes instance
 
         """
+
         if type(ax).__name__ == 'AxesSubplot':
             color = plt_tools.color_cycle[len(ax.get_lines())]
+            ax.get_figure()
         else:
-            # f,ax = plt.subplots()
+            f, ax = plt.subplots()
             color = plt_tools.color_cycle[0]
-        layers = self.convert2numberconcentration()
 
-        particles = self.get_particle_rate()
-        ax = particles.plot(color=color, linewidth=2, ax=ax, legend=False)
+        # layers = self.convert2numberconcentration()
+
+        particles = self.get_particle_concentration().dropna()
+
+        ax.plot(particles.index.values, particles.Count_rate.values, color=color, linewidth=2)
 
         if label:
             ax.get_lines()[-1].set_label(label)
             ax.legend()
 
         ax.set_xlabel('Time (UTC)')
-        ax.set_ylabel('Particle rate (cm$^{-3})$')
+        ax.set_ylabel('Particle number concentration (cm$^{-3})$')
+        if particles.index.dtype.type.__name__ == 'datetime64':
+            f.autofmt_xdate()
         return ax
 
     def zoom_time(self, start=None, end=None):
@@ -691,8 +714,15 @@ class SizeDist_TS(SizeDist):
 
 class SizeDist_LS(SizeDist):
     """
+    Parameters
+    ----------
+    data:    pandas DataFrame ...
+    bins:    array
+    distributionType:   str
+    layerbounderies:    array shape(n_layers,2)
 
-
+    OLD
+    ---
     data: pandas dataFrame with
                  - column names (each name is something like this: '150-200')
                  - altitude (at some point this should be arbitrary, convertable to altitude for example?)
@@ -715,44 +745,131 @@ class SizeDist_LS(SizeDist):
             self.layercenters = np.array([])
         else:
             self.layerbounderies = layerbounderies
-            self.layercenters = (layerbounderies[1:] + layerbounderies[:-1]) / 2.
+            newlb = np.unique(layerbounderies.flatten())
+            self.layercenters = (newlb[1:] + newlb[:-1]) / 2.
 
-    def calculate_AOD(self, wavelenth=600., n=1.6):
+    def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
+        """Calculates the Anstrome coefficience (overall, layerdependent)
+
+        Parameters
+        ----------
+        wavelengths:    array-like, optional.
+            the angstrom coefficient will be calculated based on the AOD of these wavelength values (in nm)
+        n:              float, optional.
+            index of refraction used in the underlying mie calculation.
+
+        Returns
+        -------
+        Angstrom exponent, float
+        List containing the OpticalProperties instances for the different wavelengths
+
+        New Attributes
+        --------------
+        angstromexp:        float
+            the resulting angstrom exponent
+        angstromexp_fit:    pandas instance.
+            AOD and fit result as a function of wavelength
+        angstromexp_LS:     pandas instance.
+            angstrom exponent as a function of altitude
+        """
+
+        AOD_list = []
+        AOD_dict = {}
+        for w in wavelengths:
+            AOD = self.calculate_AOD(wavelength=w, n=n)
+            #     opt= sizedistribution.OpticalProperties(AOD, dist_LS.bins)
+            AOD_list.append({'wavelength': w, 'opt_inst': AOD})
+            AOD_dict['%.1f' % w] = AOD
+
+        eg = AOD_dict[list(AOD_dict.keys())[0]]
+
+        wls = AOD_dict.keys()
+        wls_a = np.array(list(AOD_dict.keys())).astype(float)
+        ang_exp = []
+        ang_exp_std = []
+        ang_exp_r_value = []
+        for e, el in enumerate(eg.layercenters):
+            AODs = np.array([AOD_dict[wl].data_orig['AOD_layer'].values[e][0] for wl in wls])
+            slope, intercept, r_value, p_value, std_err = stats.linregress(np.log10(wls_a), np.log10(AODs))
+            ang_exp.append(-slope)
+            ang_exp_std.append(std_err)
+            ang_exp_r_value.append(r_value)
+        # break
+        ang_exp = np.array(ang_exp)
+        ang_exp_std = np.array(ang_exp_std)
+        ang_exp_r_value = np.array(ang_exp_r_value)
+
+        tmp = np.array([[float(i), AOD_dict[i].AOD] for i in AOD_dict.keys()])
+        wavelength, AOD = tmp[np.argsort(tmp[:, 0])].transpose()
+        slope, intercept, r_value, p_value, std_err = stats.linregress(np.log10(wavelength), np.log10(AOD))
+
+        self.angstromexp = -slope
+        aod_fit = np.log10(wavelengths) * slope + intercept
+        self.angstromexp_fit = pd.DataFrame(np.array([AOD, 10 ** aod_fit]).transpose(), index=wavelength,
+                                            columns=['data', 'fit'])
+
+        self.angstromexp_LS = pd.DataFrame(np.array([ang_exp, ang_exp_std, ang_exp_r_value]).transpose(),
+                                           index=self.layercenters,
+                                           columns=['ang_exp', 'standard_dif', 'correlation_coef'])
+        self.angstromexp_LS.index.name = 'layercenter'
+
+        return -slope, AOD_dict
+
+
+
+    def calculate_AOD(self, wavelength=500., n=1.455):
         """
         Calculates the extinction crossection and AOD for each layer.
         plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
 
         Parameters
         ----------
-        wavelength: float, optional
-                    default is 600 nm
-        n:          float, optional
-                    Index of refraction; default is 1.6
+        wavelength: float [500], optional
+            wavelength of the scattered light, unit: nm
+        n: float [1.455], optional
+            Index of refraction of the scattering particles
 
         Returns
         -------
-        Aerosol optical depth over all layers.
+        dict
+            Dictionary containing the results:
+                'AOD': overal AOD (float)
+                'AOD_layer': AOD per layer (pandas DataFrame)
+                'AOD_cum': cumulative AOD per layer (pandas DataFrame)
+                'extCoeffPerLayer': extingction coefficient per Layer (pandas DataFrame)
 
         """
+        out = {}
+        out['n'] = n
+        out['wavelength'] = wavelength
         sdls = self.convert2numberconcentration()
 
-        mie = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelenth / 1000., n)
+        mie = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n)
+        out['mie_curve'] = mie
 
         AOD_layer = np.zeros((len(sdls.layercenters)))
         extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
         for i, lc in enumerate(sdls.layercenters):
             laydata = sdls.data.loc[lc].values
+            # print(laydata)
             extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
             layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
             AOD_perBin = extinction_coefficient * layerThickness
             AOD_layer[i] = AOD_perBin.values.sum()
             extCoeffPerLayer[i] = extinction_coefficient
-        out = {}
-        out['AOD'] = AOD_layer.sum()
+            #     print(mie.extinction_crossection)
+        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
         out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
         out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
+
+        # out['OptPropInstance']= OpticalProperties(out, self.bins)
+
         warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
-        return out
+        AOD = OpticalProperties(out, self.bins)
+        AOD.wavelength = wavelength
+        AOD.index_of_refractio = n
+        return AOD
 
 
     def add_layer(self, sd, layerboundery):
@@ -856,7 +973,7 @@ class SizeDist_LS(SizeDist):
         a.set_yscale('linear')
         a.set_xscale('log')
         a.set_xlim((self.bins[0], self.bins[-1]))
-        a.set_ylabel('Height (m)')
+        a.set_ylabel('Altitude (m)')
         a.set_ylim((self.layercenters[0], self.layercenters[-1]))
 
         a.set_xlabel('Diameter (nm)')
@@ -886,8 +1003,8 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    def plot_particle_rate(self, ax=None, label=None):
-        """Plots the particle rate as a function of altitude.
+    def plot_particle_concentration(self, ax=None, label=None):
+        """Plots the particle concentration as a function of altitude.
 
         Parameters
         ----------
@@ -899,7 +1016,7 @@ class SizeDist_LS(SizeDist):
         matplotlib.axes instance
 
         """
-        ax = SizeDist_TS.plot_particle_rate(self, ax, label=label)
+        ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
         ax.set_xlabel('Altitude (m)')
         return ax
 
@@ -912,17 +1029,70 @@ class SizeDist_LS(SizeDist):
                        alpha=0.5,
                        )
 
-        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2)
+        g = a.get_lines()[-1]
+        g.set_label('Center of norm. dist.')
         a.legend(loc=2)
+
         a.set_ylabel('Particle diameter (nm)')
         a.set_xlabel('Altitude (m)')
 
         a2 = a.twinx()
-        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
+        g = a2.get_lines()[-1]
+        g.set_label('Amplitude of norm. dist.')
         a2.legend()
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
 
         return f, a, a2
+
+    def plot_angstromex_fit(self):
+        if 'angstromexp_fit' not in dir(self):
+            raise ValueError('Execute function calculate_angstromex first!')
+
+        f, a = plt.subplots()
+        a.plot(self.angstromexp_fit.index, self.angstromexp_fit.data, 'o', color=plt_tools.color_cycle[0],
+               label='exp. data')
+        a.plot(self.angstromexp_fit.index, self.angstromexp_fit.fit, color=plt_tools.color_cycle[1], label='fit',
+               linewidth=2)
+        a.set_xlim((self.angstromexp_fit.index.min() * 0.95, self.angstromexp_fit.index.max() * 1.05))
+        a.set_ylim((self.angstromexp_fit.data.min() * 0.95, self.angstromexp_fit.data.max() * 1.05))
+        a.set_xlabel('Wavelength (nm)')
+        a.set_ylabel('AOD')
+        a.loglog()
+        a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+        a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%.2f"))
+        return a
+
+    def plot_angstromex_LS(self, corr_coeff=False, std=False):
+        if 'angstromexp_fit' not in dir(self):
+            raise ValueError('Execute function calculate_angstromex first!')
+
+        f, a = plt.subplots()
+        a.plot(self.angstromexp_LS.index, self.angstromexp_LS.ang_exp, color=plt_tools.color_cycle[0], linewidth=2,
+               label='Angstrom exponent')
+        a.set_xlabel('Altitude (m)')
+        a.set_ylabel('Angstrom exponent')
+
+        if corr_coeff:
+            a.legend(loc=2)
+            a2 = a.twinx()
+            a2.plot(self.angstromexp_LS.index, self.angstromexp_LS.correlation_coef, color=plt_tools.color_cycle[1],
+                    linewidth=2, label='corr_coeff')
+            a2.set_ylabel('Correlation coefficiant')
+            a2.legend(loc=1)
+
+        if std:
+            a.legend(loc=2)
+            a2 = a.twinx()
+            a2.plot(self.angstromexp_LS.index, self.angstromexp_LS.standard_dif, color=plt_tools.color_cycle[1],
+                    linewidth=2, label='corr_coeff')
+            a2.set_ylabel('Standard deviation')
+            a2.legend(loc=1)
+
+        tmp = (self.angstromexp_LS.index.max() - self.angstromexp_LS.index.min()) * 0.05
+        a.set_xlim((self.angstromexp_LS.index.min() - tmp, self.angstromexp_LS.index.max() + tmp))
+        return a
 
     def zoom_altitude(self, start=None, end=None):
         """'2014-11-24 16:02:30'"""
@@ -970,6 +1140,62 @@ class SizeDist_LS(SizeDist):
 #        return singleHist
 
 
+#Todo: bins are redundand
+# Todo: some functions should be switched of
+class OpticalProperties(object):
+    def __init__(self, data, bins):
+        self.data = data['extCoeffPerLayer']
+        self.data_orig = data
+        self.AOD = data['AOD']
+        self.bins = bins
+        self.layercenters = self.data.index.values
+
+        # ToDo: to define a distribution type does not really make sence ... just to make the stolen plot function happy
+        self.distributionType = 'dNdlogDp'
+
+
+    def plot_AOD_cum(self, color=plt_tools.color_cycle[0], linewidth=2, ax=None, label='cumulative AOD',
+                     extra_info=True):
+        a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
+        g = a.get_lines()[-1]
+        g.set_label(label)
+        a.legend()
+        # a.set_xlim(0, 3000)
+        a.set_xlabel('Altitude (m)')
+        a.set_ylabel('AOD')
+        txt = '''$\lambda = %s$ nm
+n = %s
+AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_orig['AOD'])
+        if extra_info:
+            a.text(0.7, 0.7, txt, transform=a.transAxes)
+        return a
+
+    def _getXYZ(self):
+        out = SizeDist_LS._getXYZ(self)
+        return out
+
+    def plot_extCoeffPerLayer(self,
+                              vmax=None,
+                              vmin=None,
+                              scale='linear',
+                              show_minor_tickLabels=True,
+                              removeTickLabels=['500', '700', '800', '900'],
+                              plotOnTheseAxes=False, cmap=plt_tools.get_colorMap_intensity(),
+                              fit_pos=True,
+                              ax=None):
+        f, a, pc, cb = SizeDist_LS.plot(self,
+                                        vmax=vmax,
+                                        vmin=vmin,
+                                        scale=scale,
+                                        show_minor_tickLabels=show_minor_tickLabels,
+                                        removeTickLabels=removeTickLabels,
+                                        plotOnTheseAxes=plotOnTheseAxes,
+                                        cmap=cmap,
+                                        fit_pos=fit_pos,
+                                        ax=ax)
+        cb.set_label('Extinction coefficient ($m^{-1}$)')
+
+        return f, a, pc, cb
 
 
 def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, centerOfAerosolMode=200,
@@ -1193,10 +1419,9 @@ def _get_coefficients(crossection, cn):
 
     Returns
     --------
-    Scattering coefficient in m^-1.  This is the percentage of light that is scattered out of the
-    path when it passes through a layer with a thickness of 1 m
+    Extinction coefficient in m^-1.  This is the differential AOD.
     """
-
+    crossection = crossection.copy()
     crossection *= 1e-12  # conversion from um^2 to m^2
     cn *= 1e6  # conversion from cm^-3 to m^-3
     coefficient = cn * crossection
