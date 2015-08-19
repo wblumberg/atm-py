@@ -140,4 +140,5 @@ def get_sun_position_TS(timeseries):
     #     return sunpos
     timeseries.data['Solar_position_elevation'] = pd.Series(sunpos[:, 0], index=timeseries.data.index)
     timeseries.data['Solar_position_azimuth'] = pd.Series(sunpos[:, 1], index=timeseries.data.index)
-    return pd.DataFrame(sunpos, columns=['elevation', 'azimuth'], index=timeseries.data.index)
+    # return pd.DataFrame(sunpos, columns=['elevation', 'azimuth'], index=timeseries.data.index)
+    return timeseries

@@ -42,19 +42,27 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             ):
     """
     Performs mie calculations as a function of particle radius
-    returns:
-    \t diameter (yes diameter, not like the input, which is in radius ... for historic reasons!) 
+
+    Arguments
+    ---------
+    geometry: "perpendicular",
+
+    broadened: {"style": 'gauss',
+                 'center': 0.405,
+                 'fwhm': 0.005,
+                 'noOfwl': 10}
+               {'style': 'custom',
+                 'spectrum': (wl,intens),
+                 'interpolate': 100}
+
+    Returns
+    -------
+    diameter (yes diameter, not like the input, which is in radius ... for historic reasons!)
     array and an array of the intensity of the light scattered onto the detector (this is also 
     not fully correct, since we do not do a decent integration but a sum, at some point it would be nice to change that)
     
     parameters:
-    broadened = {"style": 'gauss',
-                 'center': 0.405,
-                 'fwhm': 0.005,
-                 'noOfwl': 10}
-    broadened = {'style': 'custom',
-                 'spectrum': (wl,intens),
-                 'interpolate': 100}
+
     """
     if scale == 'log':
         dRange = np.logspace(np.log10(radiusRangeInMikroMeter[0]),np.log10(radiusRangeInMikroMeter[1]),noOfdiameters) #radius range 
@@ -110,7 +118,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
     output = np.zeros((exWavelengthInUm.shape[0]+1,dRange.shape[0]))
 #     return exWavelengthInUm,normalizer
     for e,i in enumerate(exWavelengthInUm):
-        print("%s/%s wavelength" % (e + 1, noOfwl))
+        # print("%s/%s wavelength" % (e + 1, noOfwl))
 #         print e,int(len(exWavelengthInUm)/2), normalizer[e]
         event.set_wavelength(i)
         perpInt = []
@@ -446,8 +454,9 @@ class Mie():
 #         raw_input('watewatte')
         
         whatList = ('natural', 'parallel', 'perpendicular')
-        while polarization not in whatList:
-            polarization = raw_input('What do you want to calculate? "%s", "%s", or "%s"?'%whatList)
+        if polarization not in whatList:
+            raise ValueError('Geometry has to be one of the following: "%s", "%s", or "%s"? %s is not an option' % (
+            whatList[0], whatList[1], whatList[2], polarization))
         fIdx = self.angleIndexArray[0]
         lIdx = self.angleIndexArray[-1]
         s1Selection = self.s1[fIdx:lIdx+1]

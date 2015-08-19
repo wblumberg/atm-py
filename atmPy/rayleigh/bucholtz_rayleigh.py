@@ -26,7 +26,7 @@ def rayleigh_phase_function(theta, wl):
 def rayleigh_volume_scattering_coeff(P, T, wl):
     """Bucholtz 95 eq(9 + 10)"""
     N_s = 2.54743e19  # cm^{-3}
-    beta_s = N_s * scatt_cross(wl) * 1e2  # eqn. 9 unit: cm/m
+    beta_s = N_s * scatt_cross(wl) * 1e2  # eqn. 9 unit: 1/m
 
     P_s = 1013.25  # mbars
     T_s = 288.15  # K
@@ -36,7 +36,14 @@ def rayleigh_volume_scattering_coeff(P, T, wl):
 
 def scatt_cross(wl):
     """Bucholtz 95 eq(1)
-    wl in nm"""
+
+    Arguments
+    ---------
+    wl in nm
+
+    Returns
+    -------
+    cross section in cm^2 (watch out mie calculations are in um^2)"""
     n_s = index_of_refraction(wl)
     N_s = 2.54743e19  # cm^{-3}
     rho = depolarization_factor(wl)
@@ -132,13 +139,17 @@ def rayleigh_angular_scattering_intensity(alt, P, T, wl, theta):
 
     Retruns
     -------
+    ndarray
+        this has the unit cm^2 (what out, mie calculations have um^2
+        )
     """
+
     #     if type(alt).__name__ in ['int','float']:
     #         alt = np.linspace(71000,alt,200)
     if type(alt).__name__ == 'ndarray':
         pass
     else:
-        raise TypeError('Sorry only array is allowed currently')
+        raise TypeError('Sorry only array is allowed currently. "alt" has to be an ndarray')
 
     rvsc = angular_volume_scattering_coeff(P, T, wl, theta)
     integ = lambda rvsc1D: integrate.simps(rvsc1D, alt)

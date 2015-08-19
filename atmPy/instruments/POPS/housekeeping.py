@@ -25,10 +25,10 @@ def _read_housekeeping(fname):
     # Time_s = data[:,0]
     # data = data[:,1:]
     df.index = pd.Series(pd.to_datetime(df.Time_s-dts-dtsPlus, unit = 's'), name = 'Time_UTC')
-    if 'P_Baro' in df.keys():
-        df['barometric_pressure'] = df.P_Baro
-        df.drop('P_Baro', 1, inplace=True)
-        df['altitude'] = ct.p2h(df.barometric_pressure)
+    # if 'P_Baro' in df.keys():
+    #     df['barometric_pressure'] = df.P_Baro
+    #     df.drop('P_Baro', 1, inplace=True)
+    #     df['altitude'] = ct.p2h(df.barometric_pressure)
     return timeseries.TimeSeries(df)
 
 
@@ -62,6 +62,12 @@ def read_housekeeping(fname):
     else:
         hk = _read_housekeeping(fname)
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
+
+    if 'P_Baro' in hk.data.keys():
+        hk.data['barometric_pressure'] = df.P_Baro
+        hk.data.drop('P_Baro', 1, inplace=True)
+        hk.data['altitude'] = ct.p2h(df.barometric_pressure)
+
     return hk
 
 # todo: (low) this has never been actually implemented

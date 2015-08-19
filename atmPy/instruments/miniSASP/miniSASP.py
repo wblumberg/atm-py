@@ -8,10 +8,19 @@ Created on Thu Mar 19 21:23:22 2015
 import pandas as pd
 import numpy as np
 from scipy import stats
+import pylab as plt
 import warnings
 from atmPy.tools import math_linear_algebra as mla
-from atmPy.tools import array_tools
-from scipy import integrate
+from atmPy.tools import array_tools, plt_tools
+# from scipy import integrate
+from atmPy import timeseries
+from atmPy import solar
+from atmPy.rayleigh import bucholtz_rayleigh as bray
+from atmPy import atmosphere_standards as atmstd
+from scipy import signal
+from atmPy.tools import time_tools
+from copy import deepcopy
+
 
 year = '2015'
 
@@ -37,7 +46,7 @@ def read_csv(fname, verbose=True):
             else:
                 ulr.data = pd.concat((ulr.data, ulrt.data))
     else:
-        ulr = ULR(fname, verbose=verbose)
+        ulr = miniSASP(fname, verbose=verbose)
 
     return ulr
 
@@ -83,16 +92,137 @@ def _extrapolate(x, y):
     return
 
 
-# Todo: if dist_ls and time_series are passed down all the way to opt_prop than we could just pass opt_prop
-def simulate_from_dist_LS(time_series, dist_ls, opt_prop, altitude='lowest', rotations=2):
-    """ Simulates miniSASP signal from a size distribution layer series
+# ToDo: include actual TEMP and pressure
+def simulate_from_size_dist_LS(opt_prop, rotations=2):
+    """ Simulates miniSASP signal from a size distribution layer series (in particular from the optical property class
+    derived from the layer series.
+    The simulation calculates the position of the sun at the instruments position during the experiment. Slant angles
+    are considert. The atmosphere above the top layer is unkonwn, therefore the measurement from the miniSASP at the top
+    most layer should be added to all results.
+
+    Note
+    ----
+    Temperature and pressure are currently not considered in the underlying Rayleigh calculations. Instead, an
+    international standard atmosphere was used.
+
     Arguments
     ---------
-    altitude: ['lowest'],'all',list, or float
-        Altitude for which the mSASP signal is simulated for
-        'lowest': only for the lowest altitude
-        'all': all altitudes
-        list/float: list/float of altitude(s) in meters (closest evailable altitudes will be selected)
+    OpticalProperties class which was created from a layer series (dist_LS) using the sizedistribution module.
+
+    rotations: int.
+        Number of rotations of the mSASP to be simulated.
+
+    Returns
+    -------
+    dict:
+        containing three (aerosol, rayleigh, sum) pandas DataFrames each with the sky brightness as a function of mSASPS
+        azimuth angle.
+    pandas DataFrame:
+        AOD as a function of elevaton"""
+
+    time_series = opt_prop.parent_dist_LS.parent_timeseries
+    dist_ls = opt_prop.parent_dist_LS
+    layerthickness = np.apply_along_axis(lambda line: line[1] - line[0], 1, dist_ls.layerbounderies)
+    time_series = solar.get_sun_position_TS(time_series)
+    where = array_tools.find_closest(time_series.data.Height.values, dist_ls.layercenters)
+    alts = time_series.data.Height.values[where]
+    solar_elev = time_series.data.Solar_position_elevation.values[where]
+    solar_az = time_series.data.Solar_position_azimuth.values[where]
+    # time = time_series.data.index[where]
+
+    what_mSASP_sees_aerosols = pd.DataFrame()
+    what_mSASP_sees_AOD_aerosols = np.zeros(alts.shape)
+
+    for altitude in range(dist_ls.layercenters.shape[0]):
+        # get the sun position at the time when the plane was at the particular altitude,
+        sol_el = solar_elev[altitude]
+        sol_az = solar_az[altitude]
+
+
+        # angles between mSASP positions and sun. This is used to pick the angle in the phase functions
+        mSASP2Sunangles = angle_MSASP_sun(sol_el, sol_az,
+                                          no_angles=int(opt_prop.angular_scatt_func.shape[0] / 2) * rotations,
+                                          # pretty arbitrary number ... this is just to get a reasonal number of angles
+                                          no_rotations=rotations)
+
+        # pick relevant angles in phase function for each layer, this includes selecting the relavant layers (selected altitude to top).
+        closest_phase2sun_azi = array_tools.find_closest(opt_prop.angular_scatt_func.index.values,
+                                                         mSASP2Sunangles.mSASP_sun_angle.values)
+        # minimize so values are calculated only once
+        closest_phase2sun_azi = np.unique(closest_phase2sun_azi)
+        phase_fct_rel = opt_prop.angular_scatt_func.iloc[closest_phase2sun_azi, altitude:]
+        # Integrate ofer selected intensities in phase function along vertical line (from selected height to top)
+        # x = phase_fct_rel.columns.values
+        # do_integ = lambda y: integrate.simps(y, x)
+        # phase_fct_rel_integ = pd.DataFrame(phase_fct_rel.apply(do_integ, axis=1),
+        #                                    columns=[alts[altitude]],
+        #                                    # columns=[dist_ls.layercenters[altitude]]
+        #                                    )  # these are the integrated intensities of scattered light into the relavant angles. Integration is from current (arbitrary) to top layer
+        # print(phase_fct_rel.shape, layerthickness[altitude:].shape)
+        phth = phase_fct_rel * layerthickness[altitude:]
+        phase_fct_rel_integ = pd.DataFrame(phth.apply(np.sum, 1))
+        # return phase_fct_rel, phase_fct_rel_integ
+
+        slant_adjust = 1 / np.sin(solar_elev[altitude])
+        # similar to above this selects the different angels of mSASP to the sun. However, it keeps all of them (no unique)
+        closest_phase2sun_azi = array_tools.find_closest(phase_fct_rel_integ.index.values,
+                                                         mSASP2Sunangles.mSASP_sun_angle.values)
+
+        what_mSASP_sees_aerosols[dist_ls.layercenters[altitude]] = pd.Series(
+            phase_fct_rel_integ.iloc[closest_phase2sun_azi].values.transpose()[0] * slant_adjust)
+        # what_mSASP_sees_aerosols[dist_ls.layercenters[altitude]] = pd.Series(
+        #     phase_fct_rel_integ.iloc[closest_phase2sun_azi].values.transpose()[0] * slant_adjust)
+
+        # what_mSASP_sees_AOD_aerosols[altitude] = opt_prop.data_orig['AOD_layer'][altitude:].sum().values[0] * slant_adjust
+        what_mSASP_sees_AOD_aerosols[altitude] = opt_prop.data_orig['AOD_cum'].values[altitude][0] * slant_adjust
+    what_mSASP_sees_aerosols.index = mSASP2Sunangles.index
+    # what_mSASP_sees_AOD_aerosols = pd.DataFrame(what_mSASP_sees_AOD_aerosols, index = alts, columns = ['AOD_aerosols'])
+    what_mSASP_sees_AOD = pd.DataFrame(what_mSASP_sees_AOD_aerosols, columns=['aerosol'])
+    what_mSASP_sees_sky = {'aerosol': what_mSASP_sees_aerosols}
+
+    what_mSASP_sees_rayleigh, what_mSASP_sees_AOD_rayleigh = simulate_from_rayleigh(time_series,
+                                                                                    dist_ls.layerbounderies, False,
+                                                                                    False, opt_prop.wavelength,
+                                                                                    what_mSASP_sees_aerosols.shape[0],
+                                                                                    rotations)
+    what_mSASP_sees_rayleigh.columns = dist_ls.layercenters
+    what_mSASP_sees_sky['rayleigh'] = what_mSASP_sees_rayleigh
+
+    what_mSASP_sees_sum = what_mSASP_sees_aerosols + what_mSASP_sees_rayleigh
+    what_mSASP_sees_sky['sum'] = what_mSASP_sees_sum
+
+    what_mSASP_sees_AOD_sum = what_mSASP_sees_AOD_aerosols + what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
+    what_mSASP_sees_AOD['rayleigh'] = what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
+    what_mSASP_sees_AOD['sum'] = what_mSASP_sees_AOD_sum
+    # return what_mSASP_sees_AOD_aerosols  , what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
+
+    # what_mSASP_sees_AOD_aerosols = pd.DataFrame(what_mSASP_sees_AOD_aerosols, index = alts, columns = ['AOD'])
+    what_mSASP_sees_AOD.index = alts
+    return what_mSASP_sees_sky, what_mSASP_sees_AOD
+
+
+def simulate_from_rayleigh(time_series,
+                           layerbounderies,
+                           # altitude,
+                           # layerbounderies,
+                           pressure, temp, wl, no_angles, rotations):
+    """ Fix this documentation!
+
+
+    Simulates miniSASP signal from a size distribution layer series
+    Arguments
+    ---------
+    layerbounderies: array-like
+    altitude: float or array-like.
+        Altitude for which the mSASP signal is simulated for in meters
+    pressure: array, bool
+        Atmospheric pressure in mbar. If False, value is taken from international standard atmosphere.
+    temp: array, bool in K
+    wl: wavelength in nm
+
+    no_angles: int
+        total number of angles considered. This included the number in multiple roations. most likely this is
+        int(opt_prop.angular_scatt_func.shape[0] / 2) * rotations
 
     rotations: int.
         number of rotations the of the mSASP.
@@ -101,45 +231,63 @@ def simulate_from_dist_LS(time_series, dist_ls, opt_prop, altitude='lowest', rot
     -------
     pandas.DataFrame
         containing the sky brightness as a function of mSASPS azimuth angle"""
-
-    where = array_tools.find_closest(time_series.data.Height.values, dist_ls.layercenters)
+    layerbounderies = np.unique(layerbounderies.flatten())
+    altitude = (layerbounderies[1:] + layerbounderies[:-1]) / 2.
+    time_series = solar.get_sun_position_TS(time_series)
+    where = array_tools.find_closest(time_series.data.Height.values, altitude)
     solar_elev = time_series.data.Solar_position_elevation.values[where]
     solar_az = time_series.data.Solar_position_azimuth.values[where]
-    time = time_series.data.index[where]
+    alts = time_series.data.Height.values[where]  # thats over acurate, cal simply use the layerbounderies
 
-    what_mSASP_sees_aerosols = pd.DataFrame()
-    for arbitraryHightIndex in range(dist_ls.layercenters.shape[0]):
+    if (type(pressure).__name__ == 'bool') or (type(temp).__name__ == 'bool'):
+        p, t = atmstd.standard_atmosphere(layerbounderies)
+        if type(pressure).__name__ == 'bool':
+            if pressure == False:
+                pressure = p
+        if type(temp).__name__ == 'bool':
+            if temp == False:
+                temp = t
+    elif (layerbounderies.shape != pressure.shape) or (layerbounderies.shape != temp.shape):
+        raise ValueError('altituda, pressure and tmp have to have same shape')
+
+    # time = time_series.data.index[where]
+
+    what_mSASP_sees_rayleigh = pd.DataFrame()
+    what_mSASP_sees_AOD_rayleigh = np.zeros(altitude.shape)
+
+    for alt in range(altitude.shape[0]):
         # get the sun position at the time when the plane was at the particular altitude,
-        sol_el = solar_elev[arbitraryHightIndex]
-        sol_az = solar_az[arbitraryHightIndex]
 
+        sol_el = solar_elev[alt]
+        sol_az = solar_az[alt]
+        # print(alts[alt:])
+
+        # return ray_scatt_fct
 
         # angles between mSASP positions and sun. This is used to pick the angle in the phase functions
         mSASP2Sunangles = angle_MSASP_sun(sol_el, sol_az,
-                                          no_angles=int(opt_prop.data_phase_fct.shape[0] / 2) * rotations,
+                                          no_angles=no_angles,
+                                          # pretty arbitrary number ... this is just to get a reasonal number of angles
                                           no_rotations=rotations)
 
-        # pick relevant angles in phase function for each layer, this includes selecting the relavant layers (selected altitude to top)
-        closest_phase2sun_azi = array_tools.find_closest(opt_prop.data_phase_fct.index.values,
-                                                         mSASP2Sunangles.mSASP_sun_angle.values)
-        closest_phase2sun_azi = np.unique(closest_phase2sun_azi)
-        # print(closest_phase2sun_azi.shape)
-        phase_fct_rel = opt_prop.data_phase_fct.iloc[closest_phase2sun_azi, arbitraryHightIndex:]
+        ray_scatt_fct = bray.rayleigh_angular_scattering_intensity(layerbounderies[alt:], pressure[alt:], temp[alt:],
+                                                                   wl, mSASP2Sunangles.values.transpose())
+        ray_scatt_fct = pd.DataFrame(ray_scatt_fct, index=mSASP2Sunangles.index)
+        # return layerbounderies[alt:], pressure[alt:],temp[alt:], wl, ray_scatt_fct
 
-        # Integrate ofer selected intensities in phase function along vertical line (from selected height to top)
-        x = phase_fct_rel.columns.values
-        do_integ = lambda y: integrate.simps(y, x)
-        phase_fct_rel_integ = pd.DataFrame(phase_fct_rel.apply(do_integ, axis=1),
-                                           columns=[dist_ls.layercenters[arbitraryHightIndex]]
-                                           )  # these are the integrated intensities of scattered light into the relavant angles. Integration is from current (arbitrary) to top layer
+        slant_adjust = 1 / np.sin(solar_elev[alt])
+        # closest_phase2sun_azi = array_tools.find_closest(ray_scatt_fct.index.values,
+        #                                                  mSASP2Sunangles.mSASP_sun_angle.values)
+        what_mSASP_sees_rayleigh[alts[alt]] = pd.Series(ray_scatt_fct.values.transpose()[0] * slant_adjust)
+        # what_mSASP_sees_rayleigh.index = mSASP2Sunangles.index.values
 
-        slant_adjust = 1 / np.sin(solar_elev[arbitraryHightIndex])
-        closest_phase2sun_azi = array_tools.find_closest(phase_fct_rel_integ.index.values,
-                                                         mSASP2Sunangles.mSASP_sun_angle.values)
-        what_mSASP_sees_aerosols[dist_ls.layercenters[arbitraryHightIndex]] = pd.Series(
-            phase_fct_rel_integ.iloc[closest_phase2sun_azi].values.transpose()[0] * slant_adjust)
+        what_mSASP_sees_AOD_rayleigh[alt] = bray.rayleigh_optical_depth(layerbounderies[alt:], pressure[alt:],
+                                                                        temp[alt:], wl) * slant_adjust
+        # return layerbounderies[alt:],pressure[alt:],temp[alt:],wl, what_mSASP_sees_AOD_rayleigh[alt], slant_adjust
 
-    return what_mSASP_sees_aerosols
+    what_mSASP_sees_rayleigh.index = mSASP2Sunangles.index
+    what_mSASP_sees_AOD_rayleigh = pd.DataFrame(what_mSASP_sees_AOD_rayleigh, index=altitude, columns=['AOD_ray'])
+    return what_mSASP_sees_rayleigh, what_mSASP_sees_AOD_rayleigh
 
 
 def angle_MSASP_sun(sun_elevation, sun_azimuth=0., no_angles=1000, no_rotations=1):
@@ -185,7 +333,8 @@ def _simplefill(series):
     return
 
 
-class ULR(object):
+# Todo: wouldn't it be better if that would be a subclass of timeseries?
+class miniSASP(object):
     def __init__(self, fname, verbose=True):
         self.verbose = verbose
         self.read_file(fname)
@@ -195,7 +344,195 @@ class ULR(object):
         self.set_dateTime()
         self.remove_data_withoutGPS()
         self.remove_unused_columns()
+        self.channels = [550.4, 460.3, 671.2, 860.7]
 
+    def _time2vertical_profile(self, stack, ts, key='Height'):
+        """Converts the time series of mSASP revolutions to a height profile by merging
+        with a TimeSeries that has height information"""
+        picco_t = ts.copy()
+        picco_t.data = picco_t.data[[key]]
+        out = stack.merge(picco_t)
+        out.data.index = out.data[key]
+        out.data = out.data.drop(key, axis=1)
+        #     out = out.data.transpose()
+        return out
+
+    def _smoothen(self, stack, window=20, which='vertical'):
+        """Smoothen a vertical profile of mSASP revolutions.
+        "which" is in case there is the need for smootingin something else, like the timeseries."""
+        stack = stack.copy()
+        out = stack.data
+        heigh = round(out.index.values.max())
+        low = round(out.index.values.min())
+        no = heigh - low
+        out = out.reindex(np.linspace(low, heigh, no + 1), method='nearest')
+        out = pd.rolling_mean(out, window, min_periods=1, center=True)
+        out = out.reindex(np.arange(low + (window / 2), heigh, window), method='nearest')
+        stack.data = out
+        return stack
+
+    def split_revolutions(self, peaks='l', time_delta=(5, 20), revolution_period=26.):
+        """This function reorganizes the miniSASP data in a way that all sun transits are stacked on top of eachother
+        and the time is translated to an angle"""
+
+        ulr = self.copy()
+        # star = 10000
+        # till = 20000
+        # ulr.data = ulr.data[star:till]
+
+
+        if peaks == 's':
+            peaks_s = ulr.find_peaks()
+        elif peaks == 'l':
+            peaks_s = ulr.find_peaks(which='long')
+
+        time_delta_back = time_delta[0]
+        time_delta_forward = time_delta[1]
+
+        #     wls = ['460.3', '550.4',  '671.2', '860.7']
+        photos = [ulr.data.PhotoA, ulr.data.PhotoB, ulr.data.PhotoC, ulr.data.PhotoD]
+        out_dict = {}
+        for u, i in enumerate(ulr.channels):
+
+            centers = peaks_s.data[str(i)].dropna().index.values
+
+            #     res = []
+            df = pd.DataFrame()
+            PAl = photos[u]
+            for e, center in enumerate(centers):
+                # center = peaks_s.data['460.3'].dropna().index.values[1]
+                start = center - np.timedelta64(time_delta_back, 's')
+                end = center + np.timedelta64(time_delta_forward, 's')
+                PAlt = PAl.truncate(before=start, after=end, copy=True)
+                PAlt.index = PAlt.index - center
+                PAlt = PAlt[
+                    PAlt != 0]  # For some reasons there are values equal to 0 which would screw up the averaging I intend to do
+                #         res.append(PAlt)
+                df[center] = PAlt.resample('50ms')
+            df.index = (df.index.values - np.datetime64('1970-01-01T00:00:00.000000000Z')) / np.timedelta64(1, 's')
+            df.index = df.index.values / revolution_period * 2 * np.pi
+            out = timeseries.TimeSeries(df.transpose())
+            out_dict[i] = out
+        return out_dict
+
+    def create_sky_brightness_altitude(self, picco, peaks='l', time_delta=(5, 20), revolution_period=26., key='Height',
+                                       window=20, which='vertical'):
+        """Creates a smoothened vertical profile of the sky brightness."""
+        strevol = self.split_revolutions(peaks=peaks, time_delta=time_delta, revolution_period=revolution_period)
+        smoothened_vertical_profs = {}
+        for i in strevol.keys():
+            strevol_t = strevol[i]
+            vprof_t = self._time2vertical_profile(strevol_t, picco, key=key)
+            smoothened_vertical_profs[i] = self._smoothen(vprof_t, window=window, which=which)
+        return smoothened_vertical_profs
+
+    def copy(self):
+        return deepcopy(self)
+
+    def zoom_time(self, start=None, end=None, copy=True):
+        """ Selects a strech of time from a housekeeping instance.
+
+        Arguments
+        ---------
+        start (optional):   string - Timestamp of format '%Y-%m-%d %H:%M:%S.%f' or '%Y-%m-%d %H:%M:%S'
+        end (optional):     string ... as start
+        copy (optional):    bool - if False the instance will be changed. Else, a copy is returned
+
+        Returns
+        -------
+        If copy is True:  housekeeping instance
+        else:             nothing (instance is changed in place)
+
+
+        Example
+        -------
+        >>> from atmPy.instruments.piccolo import piccolo
+        >>> launch = '2015-04-19 08:20:22'
+        >>> landing = '2015-04-19 10:29:22'
+        >>> hk = piccolo.read_file(filename) # create housekeeping instance
+        >>> hk_zoom = zoom_time(hk, start = launch, end= landing)
+        """
+
+        if copy:
+            housek = self.copy()
+        else:
+            housek = self
+
+        if start:
+            start = time_tools.string2timestamp(start)
+        if end:
+            end = time_tools.string2timestamp(end)
+
+        housek.data = housek.data.truncate(before=start, after=end)
+        if copy:
+            return housek
+        else:
+            return
+
+    def find_peaks(self, which='short', min_snr=10, moving_max_window=23):
+        """ Finds the peaks in all four photo channels (short exposure). It also returns a moving maximum as guide to
+         the eye for the more "real" values.
+
+         Parameters
+         ----------
+         which: 'long' or 'short'.
+            If e.g. PhotoA (long) or PhotoAsh(short) are used.
+         min_snr: int, optional.
+            Minimum signal to noise ratio.
+         moving_max_window: in, optionl.
+            Window width for the moving maximum.
+
+
+         Returns
+         -------
+         TimeSeries instance (AtmPy)
+        """
+        moving_max_window = int(moving_max_window / 2.)
+        # till = 10000
+        # photos = [self.data.PhotoAsh[:till], self.data.PhotoBsh[:till], self.data.PhotoCsh[:till], self.data.PhotoDsh[:till]]
+        if which == 'short':
+            photos = [self.data.PhotoAsh, self.data.PhotoBsh, self.data.PhotoCsh, self.data.PhotoDsh]
+        elif which == 'long':
+            photos = [self.data.PhotoA, self.data.PhotoB, self.data.PhotoC, self.data.PhotoD]
+        else:
+            raise ValueError('which must be "long" or "short" and not %s' % which)
+        # channels = [ 550.4, 460.3, 860.7, 671.2]
+        df_list = []
+        for e, data in enumerate(photos):
+            pos_indx = signal.find_peaks_cwt(data, np.array([10]), min_snr=min_snr)
+            out = pd.DataFrame()
+            # return out
+            # break
+            out[str(self.channels[e])] = pd.Series(data.values[pos_indx], index=data.index.values[pos_indx])
+
+            out['%s max' % self.channels[e]] = self._moving_max(out[str(self.channels[e])], window=moving_max_window)
+            df_list.append(out)
+
+        out = pd.concat(df_list).sort_index()
+        out = out.groupby(out.index).mean()
+        out = Sun_Intensities_TS(out)
+        return out
+
+    def _moving_max(self, ds, window=3):
+        # x = ds.dropna().index.values
+        # y = ds.dropna().values
+        # out = []
+        # out_x = []
+        # i = 0
+        # while True:
+        #     out.append(y[i:i+window].max())
+        #     out_x.append(x[int(i+window/2)])
+        #     i = i+window
+        #     if (i+window/2) >= len(x):
+        #         break
+        # out = np.array(out)
+        # out_x = np.array(out_x)
+        # return pd.Series(out, index = out_x)
+
+        out = pd.DataFrame(ds, index=ds.index)
+        out = pd.rolling_max(out, window)
+        out = pd.rolling_mean(out, int(window / 5), center=True)
+        return out
 
     def remove_data_withoutGPS(self, day='08', month='01'):
         """ Removes data from before the GPS is fully initiallized. At that time the Date should be the 8th of January.
@@ -414,3 +751,66 @@ class ULR(object):
         self.data.drop('GPSReadSeconds', axis=1, inplace= True)
         self.data.drop('GateLgArr', axis=1, inplace= True)
         self.data.drop('GateShArr', axis=1, inplace= True)
+
+
+def load_sunintensities_TS(fname):
+    data = pd.read_csv(fname, index_col=0)
+    data.index = pd.to_datetime(data.index)
+    return Sun_Intensities_TS(data)
+
+
+class Sun_Intensities_TS(timeseries.TimeSeries):
+    def plot_sun_intensities(self, offset=[0, 0, 0, 0], move_max=True, legend=True):
+        m_size = 5
+        m_ewidht = 1.5
+        l_width = 2
+        gridspec_kw = {'wspace': 0.05}
+        f, a = plt.subplots(1, 4, gridspec_kw=gridspec_kw)
+        columns = ['460.3', '460.3 max', '550.4', '550.4 max', '671.2', '671.2 max', '860.7', '860.7 max']
+        # peaks_max = [460.3, '460.3 max', 550.4, '550.4 max', 860.7, '860.7 max', 671.2,
+        #        '671.2 max']
+        #################
+        for i in range(int(len(columns) / 2)):
+            col = plt_tools.wavelength_to_rgb(columns[i * 2]) * 0.8
+            intens = self.data[columns[i * 2]].dropna()  # .plot(ax = a, style = 'o', label = '%s nm'%colums[i*2])
+            x = intens.index.values
+            g, = a[i].plot(offset[i] - np.log(intens), x)
+            g.set_label('%s nm' % columns[i * 2])
+            g.set_linestyle('')
+            g.set_marker('o')
+            #         g = a.get_lines()[-1]
+            g.set_markersize(m_size)
+            g.set_markeredgewidth(m_ewidht)
+            g.set_markerfacecolor('None')
+            g.set_markeredgecolor(col)
+
+            if move_max:
+                #             sun_intensities.data.iloc[:,i*2+1].dropna().plot(ax = a)
+                intens = self.data[
+                    columns[i * 2 + 1]].dropna()  # .plot(ax = a, style = 'o', label = '%s nm'%colums[i*2])
+                x = intens.index.values
+
+                g, = a[i].plot(offset[i] - np.log(intens), x)
+                #             g = a.get_lines()[-1]
+                g.set_color(col)
+                #             g.set_solid_joinstyle('round')
+                g.set_linewidth(l_width)
+                g.set_label(None)
+
+            if i != 0:
+                a[i].set_yticklabels([])
+
+            if i == 4:
+                break
+
+        if legend:
+            for aa in a:
+                aa.legend()
+
+        a[0].set_xlabel('AOD')
+        a[0].xaxis.set_label_coords(2.05, -0.07)
+        a[0].set_ylabel('Altitude (m)')
+        return a
+
+
+

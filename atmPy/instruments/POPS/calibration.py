@@ -10,8 +10,13 @@ import warnings
 #read_fromFile = fileIO.read_Calibration_fromFile
 #read_fromString = fileIO.read_Calibration_fromString
 
+def _msg(txt, save, out_file):
+    print(txt)
+    if save:
+        out_file.write(str(txt) + '\n')
 
-def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8):
+
+def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False):
     """Prints the bins assosiated with what is seen on the POPS user interface and the serial output, respectively.
 
     Parameters
@@ -24,6 +29,8 @@ def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8):
         log10 of the minimum value considered (digitizer bins)
     imax: float [4.8], optional
         log10 of the maximum value considered (digitizer bins)
+    save: bool or string.
+        If result is saved into file given by string.
 
     Returns
     -------
@@ -39,47 +46,58 @@ def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8):
     bin_ed_cal = cal.calibrationFunction(bin_ed)
     bin_center_lin_cal = cal.calibrationFunction(bin_center_lin)
     bin_center_log_cal = cal.calibrationFunction(bin_center_log)
+    if save:
+        save_file = open(save, 'w')
+    else:
+        save_file = False
 
-    print('''
+    txt = '''
 bin edges (digitizer bins)
---------------------------''')
+--------------------------'''
+    _msg(txt, save, save_file)
+
     for e, i in enumerate(bin_ed):
-        print(i)
+        _msg(i, save, save_file)
     # bin_center_cal = cal.calibrationFunction(bin_center)
 
 
-    print('''
+    txt = '''
 bin centers (digitizer bins)
-----------------------------''')
+----------------------------'''
+    _msg(txt, save, save_file)
     for e, i in enumerate(bin_center_lin):
-        print(i)
+        _msg(i, save, save_file)
 
-    print('''
+    txt = '''
 bin centers of logarithms (digitizer bins)
-----------------------------''')
+----------------------------'''
+    _msg(txt, save, save_file)
     for e, i in enumerate(bin_center_log):
-        print(i)
+        _msg(i, save, save_file)
 
-    print('''
+    txt = '''
 
 bin edges (nm)
---------------''')
+--------------'''
+    _msg(txt, save, save_file)
     for e, i in enumerate(bin_ed_cal):
-        print(i)
+        _msg(i, save, save_file)
     # bin_center_cal = cal.calibrationFunction(bin_center)
 
 
-    print('''
+    txt = '''
 bin centers (nm)
-----------------''')
+----------------'''
+    _msg(txt, save, save_file)
     for e, i in enumerate(bin_center_lin_cal):
-        print(i)
+        _msg(i, save, save_file)
 
-    print('''
+    txt = '''
 bin centers of logarithms (nm)
-----------------''')
+----------------'''
+    _msg(txt, save, save_file)
     for e, i in enumerate(bin_center_log_cal):
-        print(i)
+        _msg(i, save, save_file)
 
     df = pd.DataFrame(bin_center_lin_cal, index=bin_center_log, columns=['Bin_centers'])
     # a = df.Bin_centers.plot()
@@ -102,40 +120,53 @@ bin centers of logarithms (nm)
     return a, df
 
 
-def _string2Dataframe(data):
+def _string2Dataframe(data, log=True):
     sb = io(data)
     dataFrame = pd.read_csv(sb, sep = ' ', names = ('d','amp')).sort('d')
+    if log:
+        dataFrame.amp = 10 ** dataFrame.amp
     return dataFrame
 
 
-def read_str(data):
-    '''unit of diameter must be nm
-    e.g.:
-data = """140 88
-150 102
-173 175
-200 295
-233 480
-270 740
-315 880
-365 1130
-420 1350
-490 1930
-570 3050
-660 4200
-770 5100
-890 6300
-1040 8000
-1200 8300
-1400 10000
-1600 11500
-1880 16000
-2180 21000
-2500 28000
-3000 37000"""
+def read_str(data, log=True):
+    '''Read a calibration table from string.
+
+    Arguments
+    ---------
+    data: string.
+        Multiline string with a diameter-intensity pair seperated by space. Diameter in nm, intensity in digitizer bin
+        or log_10(digitizer bins).
+    log: bool, optional.
+        Set True if the intensity values are given in log_10(digitizer bins).
+
+    Example
+    -------
+    data = """140 88
+    150 102
+    173 175
+    200 295
+    233 480
+    270 740
+    315 880
+    365 1130
+    420 1350
+    490 1930
+    570 3050
+    660 4200
+    770 5100
+    890 6300
+    1040 8000
+    1200 8300
+    1400 10000
+    1600 11500
+    1880 16000
+    2180 21000
+    2500 28000
+    3000 37000"""
+    read_str(data, log = False)
     '''
-    
-    dataFrame = _string2Dataframe(data)
+
+    dataFrame = _string2Dataframe(data, log=True)
     calibrationInstance = calibration(dataFrame)
     return calibrationInstance
 

@@ -33,6 +33,11 @@ class bhmie_hagen():
         self.sizeParameter = x
         self.indOfRefraction = refrel
 
+        self.normalizer = (
+                          4 * np.pi) ** 2  # hagen: the physical origin is not clear to me right now, but this normalizer
+        # is necessary so the integral of the scattering function is equal to the
+        # scattering crossection and the integral over the phase function is 4 pi
+
         s1_1=np.zeros(self.noOfAngles,dtype=np.complex128)
         s1_2=np.zeros(self.noOfAngles,dtype=np.complex128)
         s2_1=np.zeros(self.noOfAngles,dtype=np.complex128)
@@ -236,41 +241,105 @@ class bhmie_hagen():
         -> it is the same!! -> fixed"""
         self.qback = 4*(abs(self.s1[-1])/self.sizeParameter)**2
 
-    def get_phase_func_parallel(self):
+    def get_phase_func(self):
+        """ Returns the phase functions in the interval [0,2*pi).
+
+        Note
+        ----
+        The phase phase function is normalized such that the integrale over the entire sphere is 4pi
+        """
+        # out = self.get_angular_scatt_func() * 4 * np.pi/self.csca
         s2r = self.s2[::-1]
         s2f = np.append(self.s2, s2r[1:])
         s2s = np.abs(s2f) ** 2
-        ang = np.linspace(0, np.pi * 2, len(s2s))
-        df = pd.DataFrame(s2s, index=ang, columns=['Phase_function_parallel'])
-        df.index.name = 'Angle'
-        return df
+        # ang = np.linspace(0, np.pi * 2, len(s2s))
+        # df = pd.DataFrame(s2s, index=ang, columns=['Phase_function_parallel'])
+        # df.index.name = 'Angle'
 
-    def get_phase_func_perp(self):
         s1r = self.s1[::-1]
         s1f = np.append(self.s1, s1r[1:])
         s1s = np.abs(s1f) ** 2
+
+        s12s = (s1s + s2s) / 2
+
+
         ang = np.linspace(0, np.pi * 2, len(s1s))
-        df = pd.DataFrame(s1s, index=ang, columns=['Phase_function_perp'])
-        df.index.name = 'Angle'
+        df = pd.DataFrame(np.array([s1s, s2s, s12s]).transpose(), index=ang,
+                          columns=['perpendicular', 'parallel', 'natural'])
+        df.index.name = 'angle'
+        df *= 4 * np.pi / (np.pi * self.sizeParameter ** 2 * self.qsca)
         return df
+
+    def get_angular_scatt_func(self):
+        """
+        Returns the angular scattering function for parallel scattering geometry in the interval [0,2*pi).
+
+        Note
+        ----
+        The integral of 'natural' over the entire sqhere is equal to the scattering crossection.
+        >>> natural = natural[theta < np.pi] # to ensure integration from 0 to pi
+        >>> theta = theta[theta < np.pi]
+        >>> integrate.simps(natural * np.sin(theta) ,theta) * 2 * np.pi # this is equal to scattering crossection
+        """
+
+        df = self.get_phase_func()
+        df *= self.csca / (4 * np.pi)
+
+        return df
+
+    # def get_phase_func_parallel(self):
+    #     """
+    #     Returns the angular scattering function for parallel scattering geometry in the interval [0,2*pi).
+    #
+    #     Note
+    #     ----
+    #     This is not exactly the phase function since it is not normalized to the integrated intensity.
+    #     However, normalizing here results in the loss of information, which might be valuable later. To get the
+    #     phase function multiply this value by 4*pi/self.csca.
+    #     """
+    #     s2r = self.s2[::-1]
+    #     s2f = np.append(self.s2, s2r[1:])
+    #     s2s = np.abs(s2f) ** 2 / self.normalizer
+    #     ang = np.linspace(0, np.pi * 2, len(s2s))
+    #     df = pd.DataFrame(s2s, index=ang, columns=['Phase_function_parallel'])
+    #     df.index.name = 'Angle'
+    #     return df
+    #
+    # def get_phase_func_perp(self):
+    #     """
+    #     Returns the angular scattering function for perpendicular scattering geometry in the interval [0,2*pi)
+    #
+    #     Note
+    #     ----
+    #     This is not exactly the phase function since it is not normalized to the integrated intensity.
+    #     However, normalizing here results in the loss of information, which might be valuable later. To get the
+    #     phase function multiply this value by 4*pi/self.csca.
+    #     """
+    #     s1r = self.s1[::-1]
+    #     s1f = np.append(self.s1, s1r[1:])
+    #     s1s = np.abs(s1f) ** 2 / self.normalizer
+    #     ang = np.linspace(0, np.pi * 2, len(s1s))
+    #     df = pd.DataFrame(s1s, index=ang, columns=['Phase_function_perp'])
+    #     df.index.name = 'Angle'
+    #     return df
 
 
     def return_Values_as_dict(self):
-        pFperp = self.get_phase_func_perp()
-        pFpara = self.get_phase_func_parallel()
-        pFnat = pd.DataFrame((pFperp.iloc[:, 0] + pFpara.iloc[:, 0]) / 2., columns=['Phase_function_natural'])
+        # pFperp = self.get_phase_func_perp()
+        # pFpara = self.get_phase_func_parallel()
+        # pFnat = pd.DataFrame((pFperp.iloc[:, 0] + pFpara.iloc[:, 0]) / 2., columns=['Phase_function_natural'])
 
-            return {'phaseFct_S1': self.s1,
-                    'phaseFct_S2': self.s2,
-                    'phaseFct_perp': pFperp,
-                    'phaseFct_parallel': pFpara,
-                    'phaseFct_natural': pFnat,
-                    'extinction_efficiency': self.qext, 
-                    'scattering_efficiency': self.qsca, 
-                    'backscatter_efficiency': self.qback, 
-                    'asymmetry_parameter': self.gsca, 
-                    'scattering_crosssection': self.csca,
-                    'extinction_crosssection': self.cext}
+        return {  # 'phaseFct_S1': self.s1,
+                  # 'phaseFct_S2': self.s2,
+                  # 'angular_scattering_function_perp': pFperp,
+                  # 'angular_scattering_function_parallel': pFpara,
+                  # 'angular_scattering_function_natural': pFnat,
+                  'extinction_efficiency': self.qext,
+                  'scattering_efficiency': self.qsca,
+                  'backscatter_efficiency': self.qback,
+                  'asymmetry_parameter': self.gsca,
+                  'scattering_crosssection': self.csca,
+                  'extinction_crosssection': self.cext}
         
     def return_Values(self):
         return self.s1, self.s2, self.qext, self.qsca, self.qback, self.gsca

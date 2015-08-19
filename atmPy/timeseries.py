@@ -7,19 +7,44 @@ from geopy.distance import vincenty
 import numpy as np
 from copy import deepcopy
 from atmPy.tools import time_tools
+import warnings
 
+# Todo: get rid of this class
+# def merge_timeseries(ts_list):
+#     """ Merges a list of timeseries into one series. The returned timeseries has the same time-axes as the first
+#     timeseries in ts_list. Missing or offset data points are linearly interpolated.
+#
+#     Argument
+#     --------
+#     ts_list: list.
+#         List of TimeSeries objects.
+#
+#     Returns
+#     -------
+#     TimeSeries object
+#
+#     """
+#     warnings.warn("THIS IS OLD, please use the merge attribute of the TimeSeries class")
+#     ts_data_list = [i.data for i in ts_list]
+#     # try:
+#     # merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
+#     # except ValueError:
+#     #     raise ValueError(
+#     #         'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
+#     catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+#     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+#     return TimeSeries(merged.iloc[1:-1])
 
-def merge_timeseries(ts_list):
-    ts_data_list = [i.data for i in ts_list]
-    # try:
-    # merged = pd.concat(ts_data_list).sort_index().interpolate().reindex(ts_data_list[0].index)
-    # except ValueError:
-    #     raise ValueError(
-    #         'There is a problem with the time axes. Make sure you limit the data set to a reasonable time interval (e.g. duration of flight)')
-    catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
-    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
-    return TimeSeries(merged.iloc[1:-1])
+def load_csv(fname):
+    """Loads the dat of a saved timesereis instance and creates a new TimeSeries instance
 
+    Arguments
+    ---------
+    fname: str.
+        Path to the file to load"""
+    data = pd.read_csv(fname, index_col=0)
+    data.index = pd.to_datetime(data.index)
+    return TimeSeries(data)
 
 class TimeSeries(object):
     """
@@ -49,6 +74,26 @@ class TimeSeries(object):
     def data(self, data):
         self._data = data
 
+    def merge(self, ts):
+        """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
+        one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
+
+        Argument
+        --------
+        ts: timeseries or one of its subclasses.
+            List of TimeSeries objects.
+
+        Returns
+        -------
+        TimeSeries object or one of its subclasses
+
+        """
+        ts_this = self.copy()
+        ts_data_list = [ts_this.data, ts.data]
+        catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+        merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+        ts_this.data = merged
+        return ts_this
 
     def copy(self):
         return deepcopy(self)
@@ -264,5 +309,12 @@ class TimeSeries(object):
         """
         return self.data.index.values[[0, -1]]
 
+    def save(self, fname):
+        """currently this simply saves the data of the timeseries
 
+        Arguments
+        ---------
+        fname: str.
+            Path to the file."""
 
+        self.data.to_csv(fname)

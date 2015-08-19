@@ -8,7 +8,9 @@ import warnings
 import datetime
 from atmPy.mie import bhmie
 import scipy.optimize as optimization
+from scipy import integrate
 from scipy import stats
+import pdb
 
 # TODO: Get rid of references to hagmods so we don't need them.
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
@@ -708,7 +710,8 @@ class SizeDist_TS(SizeDist):
             dist_tmp = self.zoom_time(start=start_t, end=end_t)
             avrg = dist_tmp.average_overAllTime()
             lays.add_layer(avrg, (start_h_l, end_h_l))
-
+        lays.parent_dist_TS = self
+        lays.parent_timeseries = hk
         return lays
 
 
@@ -815,61 +818,94 @@ class SizeDist_LS(SizeDist):
 
         return -slope, AOD_dict
 
-
-
-    def calculate_AOD(self, wavelength=500., n=1.455):
+    def calculate_optical_properties(self, wavelength, n, noOfAngles=100):
         """
-        Calculates the extinction crossection and AOD for each layer.
+        Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
         plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
 
         Parameters
         ----------
-        wavelength: float [500], optional
+        wavelength: float.
             wavelength of the scattered light, unit: nm
-        n: float [1.455], optional
+        n: float.
             Index of refraction of the scattering particles
+        noOfAngles: int, optional.
+            Number of scattering angles to be calculated. This mostly effects calculations which depend on the phase
+            function.
 
         Returns
         -------
-        dict
-            Dictionary containing the results:
-                'AOD': overal AOD (float)
-                'AOD_layer': AOD per layer (pandas DataFrame)
-                'AOD_cum': cumulative AOD per layer (pandas DataFrame)
-                'extCoeffPerLayer': extingction coefficient per Layer (pandas DataFrame)
+        OpticalProperty instance
 
         """
         out = {}
         out['n'] = n
         out['wavelength'] = wavelength
         sdls = self.convert2numberconcentration()
-
-        mie = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n)
-        out['mie_curve'] = mie
+        # pdb.set_trace()
+        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+                                                           noOfAngles=noOfAngles)
+        # out['mie_curve'] = mie
 
         AOD_layer = np.zeros((len(sdls.layercenters)))
         extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
+        angular_scatt_func_effective = pd.DataFrame()
+        asymmetry_parameter_LS = np.zeros((len(sdls.layercenters)))
+        # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
         for i, lc in enumerate(sdls.layercenters):
             laydata = sdls.data.loc[lc].values
             # print(laydata)
             extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
+            # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
+
             layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
             AOD_perBin = extinction_coefficient * layerThickness
             AOD_layer[i] = AOD_perBin.values.sum()
             extCoeffPerLayer[i] = extinction_coefficient
+
+
+            # return laydata, mie.scattering_crossection
+
+            scattering_cross_eff = laydata * mie.scattering_crossection
+
+            pfe = (laydata * angular_scatt_func).sum(axis=1)  # sum of all angular_scattering_intensities
+            # pfe2 = pfe.copy()
+            # angular_scatt_func_effective[lc] =  pfe
+            # asymmetry_parameter_LS[i] = (pfe.values*np.cos(pfe.index.values)).sum()/pfe.values.sum()
+            x_2p = pfe.index.values
+            y_2p = pfe.values
+            # limit to [0,pi]
+            y_1p = y_2p[x_2p < np.pi]
+            x_1p = x_2p[x_2p < np.pi]
+            # integ = integrate.simps(y_1p*np.sin(x_1p),x_1p)
+            # y_phase_func = y_1p/integ
+            y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
+            asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
+            # return mie,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
+            angular_scatt_func_effective[
+                lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
+            # return mie.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
+            # return extinction_coefficient, angular_scatt_func_effective
+            # return AOD_layer, pfe, angular_scatt_func_effective[lc]
+
+
             #     print(mie.extinction_crossection)
         out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
         out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
         out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
         out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
-
+        out['asymmetry_param'] = pd.DataFrame(asymmetry_parameter_LS, index=sdls.layercenters,
+                                              columns=['asymmetry_param'])
+        # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
         # out['OptPropInstance']= OpticalProperties(out, self.bins)
 
         warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
-        AOD = OpticalProperties(out, self.bins)
-        AOD.wavelength = wavelength
-        AOD.index_of_refractio = n
-        return AOD
+        opt_properties = OpticalProperties(out, self.bins)
+        opt_properties.wavelength = wavelength
+        opt_properties.index_of_refractio = n
+        opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+        opt_properties.parent_dist_LS = self
+        return opt_properties
 
 
     def add_layer(self, sd, layerboundery):
@@ -1094,10 +1130,14 @@ class SizeDist_LS(SizeDist):
         a.set_xlim((self.angstromexp_LS.index.min() - tmp, self.angstromexp_LS.index.max() + tmp))
         return a
 
-    def zoom_altitude(self, start=None, end=None):
+    def zoom_altitude(self, bottom, top):
         """'2014-11-24 16:02:30'"""
-        print('need fixn')
-        return False
+        dist = self.copy()
+        dist.data = dist.data.truncate(before=bottom, after=top)
+        where = np.where(np.logical_and(dist.layercenters < top, dist.layercenters > bottom))
+        dist.layercenters = dist.layercenters[where]
+        dist.layerbounderies = dist.layerbounderies[where]
+        return dist
 
     # dist = self.copy()
     #        dist.data = dist.data.truncate(before=start, after = end)
@@ -1115,9 +1155,13 @@ class SizeDist_LS(SizeDist):
     #            self.data.values[np.where(np.isnan(self.data.values))] = 0
     #        return
 
+
+
+
     def average_overAllAltitudes(self):
-        print('need fixn')
-        return False
+        dataII = self.data.mean(axis=0)
+        out = pd.DataFrame(dataII).T
+        return SizeDist(out, self.bins, self.distributionType)
 
 
     def fit_normal(self):
@@ -1149,6 +1193,8 @@ class OpticalProperties(object):
         self.AOD = data['AOD']
         self.bins = bins
         self.layercenters = self.data.index.values
+        self.asymmetry_parameter_LS = data['asymmetry_param']
+        # self.asymmetry_parameter_LS_alt = data['asymmetry_param_alt']
 
         # ToDo: to define a distribution type does not really make sence ... just to make the stolen plot function happy
         self.distributionType = 'dNdlogDp'
@@ -1263,8 +1309,9 @@ def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters
                                           layerDensity=[1000., 5000.], layerModecenter=[200., 800.], ):
     gaussian = lambda x, mu, sig: np.exp(-(x - mu) ** 2 / (2 * sig ** 2))
 
-    layerbounderies = np.linspace(heightlimits[0], heightlimits[1], noOflayers + 1)
-    layercenter = (layerbounderies[1:] + layerbounderies[:-1]) / 2.
+    lbt = np.linspace(heightlimits[0], heightlimits[1], noOflayers + 1)
+    layerbounderies = np.array([lbt[:-1], lbt[1:]]).transpose()
+    layercenter = (lbt[1:] + lbt[:-1]) / 2.
 
     # strata = np.linspace(heightlimits[0],heightlimits[1],noOflayers+1)
 
@@ -1345,7 +1392,7 @@ def test_generate_numberConcentration():
     plt.semilogx()
 
 
-def _perform_Miecalculations(diam, wavelength, n):
+def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
     """
     Performs Mie calculations
 
@@ -1354,7 +1401,7 @@ def _perform_Miecalculations(diam, wavelength, n):
     diam:       NumPy array of floats
                 Array of diameters over which to perform Mie calculations; units are um
     wavelength: float
-                Wavelength of light in nm for which to perform calculations
+                Wavelength of light in um for which to perform calculations
     n:          complex
                 Ensemble complex index of refraction
 
@@ -1364,7 +1411,7 @@ def _perform_Miecalculations(diam, wavelength, n):
                                       meter. This is in principle the AOD of an L
 
     """
-    noOfAngles = 100.
+
 
     diam = np.asarray(diam)
 
@@ -1376,13 +1423,16 @@ def _perform_Miecalculations(diam, wavelength, n):
     scattering_crossection = np.zeros(diam.shape)
     absorption_crossection = np.zeros(diam.shape)
 
-    extinction_coefficient = np.zeros(diam.shape)
-    scattering_coefficient = np.zeros(diam.shape)
-    absorption_coefficient = np.zeros(diam.shape)
+    # phase_function_natural = pd.DataFrame()
+    angular_scattering_natural = pd.DataFrame()
+    # extinction_coefficient = np.zeros(diam.shape)
+    # scattering_coefficient = np.zeros(diam.shape)
+    # absorption_coefficient = np.zeros(diam.shape)
+
+
 
     # Function for calculating the size parameter for wavelength l and radius r
     sp = lambda r, l: 2. * np.pi * r / l
-
     for e, d in enumerate(diam):
         radius = d / 2.
         mie = bhmie.bhmie_hagen(sp(radius, wavelength), n, noOfAngles, diameter=d)
@@ -1395,6 +1445,12 @@ def _perform_Miecalculations(diam, wavelength, n):
         scattering_crossection[e] = values['scattering_crosssection']
         absorption_crossection[e] = values['extinction_crosssection'] - values['scattering_crosssection']
 
+        # phase_function_natural[d] = values['phaseFct_natural']['Phase_function_natural'].values
+        angular_scattering_natural[d] = mie.get_angular_scatt_func().natural.values
+
+    # phase_function_natural.index = values['phaseFct_natural'].index
+    angular_scattering_natural.index = mie.get_angular_scatt_func().index
+
     out = pd.DataFrame(index=diam)
     out['extinction_efficiency'] = pd.Series(extinction_efficiency, index=diam)
     out['scattering_efficiency'] = pd.Series(scattering_efficiency, index=diam)
@@ -1403,12 +1459,12 @@ def _perform_Miecalculations(diam, wavelength, n):
     out['extinction_crossection'] = pd.Series(extinction_crossection, index=diam)
     out['scattering_crossection'] = pd.Series(scattering_crossection, index=diam)
     out['absorption_crossection'] = pd.Series(absorption_crossection, index=diam)
-    return out
+    return out, angular_scattering_natural
 
 
 def _get_coefficients(crossection, cn):
     """
-    Calculates the scattering coefficient
+    Calculates the extinction, scattering or absorbtion coefficient
 
     Parameters
     ----------
@@ -1419,9 +1475,10 @@ def _get_coefficients(crossection, cn):
 
     Returns
     --------
-    Extinction coefficient in m^-1.  This is the differential AOD.
+    coefficient in m^-1.  This is the differential AOD.
     """
     crossection = crossection.copy()
+    cn = cn.copy()
     crossection *= 1e-12  # conversion from um^2 to m^2
     cn *= 1e6  # conversion from cm^-3 to m^-3
     coefficient = cn * crossection
