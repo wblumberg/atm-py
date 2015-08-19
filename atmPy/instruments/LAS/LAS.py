@@ -8,37 +8,44 @@ Created on Mon Nov 10 11:43:10 2014
 import numpy as np
 import pandas as pd
 import datetime
-from StringIO import StringIO as io
+# from StringIO import StringIO as io
 import pylab as plt
 from scipy.interpolate import UnivariateSpline
 import warnings
 from matplotlib.colors import LogNorm
-import hagmods as hm
+
+
 
 def readFromFakeXLS(fname):
     """reads and shapes a XLS file produced by the LAS instrument"""
-    fr = pd.read_csv(fname, sep = '\t')
-    newcolname = [fr.columns[e] + ' ' +str(fr.values[0][e]) for e,i in enumerate(fr.columns)]
+    fr = pd.read_csv(fname, sep='\t')
+    newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
     fr.columns = newcolname
     fr = fr.drop(fr.index[0])
-    bla = pd.Series(fr['Date -'].values +' '+ fr['Time -'].values)
+    bla = pd.Series(fr['Date -'].values + ' ' + fr['Time -'].values)
     fr.index = bla.map(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y %I:%M:%S.%f %p'))
-    fr = fr.drop(['Date -','Time -'], axis = 1)
+    fr = fr.drop(['Date -', 'Time -'], axis=1)
     return fr
-    
+
+
 def removeHousekeeping(frame):
-    """Limits the frame to the collumns which have the number concentrations in them"""
+    """
+    Limits the frame to the collumns which have the number concentrations in them
+    """
     frame = frame.copy()
     k = frame.keys()
     k = k[:int(np.argwhere(k == 'Flow sccm'))+1]
-    frame = frame.drop(k, axis = 1)
+    frame = frame.drop(k, axis=1)
     return frame
-    
-def getBinCenters(frame, binedges = False, log = False):
-    """LAS gives the bin edges, this calculates the bin centers.
+
+
+def getBinCenters(frame, binedges=False, log=False):
+    """
+    LAS gives the bin edges, this calculates the bin centers.
     if log is True, the center will be with respect to the log10 ... log(d_{n+1})-log(d_{n})
     if binedges is True, frame is not really a frame but the binedges (array with dtype=float)
-    Make sure you are running "removeHousekeeping" first"""
+    Make sure you are running "removeHousekeeping" first
+    """
     frame = frame.copy()
     
     if binedges:
@@ -49,8 +56,8 @@ def getBinCenters(frame, binedges = False, log = False):
             binCenters = (frame[:-1] + frame[1:])/2.
     else:
         binCenters = np.zeros(frame.keys().shape)
-        for e,i in enumerate(frame.keys()):
-            bin_s,bin_e = i.split(' ')
+        for e, i in enumerate(frame.keys()):
+            bin_s, bin_e = i.split(' ')
             bin_s = float(bin_s)
             bin_e = float(bin_e)
             normTo = bin_e - bin_s
@@ -60,8 +67,9 @@ def getBinCenters(frame, binedges = False, log = False):
             else:
                 binCenters[e] = (bin_e + bin_s)/2.
     return binCenters
-    
-def frameToXYZ(frame,binCenters, timeDelta = False):
+
+
+def frameToXYZ(frame, binCenters, timeDelta = False):
     """This creates a three same shaped arrays, so it can be plotted using pcolor, contour ...
     Inputs:
         \t frame - has to be run through "removeHousekeeping"
@@ -71,15 +79,16 @@ def frameToXYZ(frame,binCenters, timeDelta = False):
     frame = frame.copy()
     histArray = frame.values.astype(np.float)
     histArray[np.isnan(histArray)] = 0   
-    BINS_center = np.meshgrid(np.zeros(frame.index.values.shape[0]),binCenters)[1].transpose()
-    timeMesh = np.zeros(frame.shape, dtype = "datetime64[ms]").transpose()
-    for e,i in enumerate(timeMesh):
+    BINS_center = np.meshgrid(np.zeros(frame.index.values.shape[0]), binCenters)[1].transpose()
+    timeMesh = np.zeros(frame.shape, dtype="datetime64[ms]").transpose()
+    for e, i in enumerate(timeMesh):
         timeMesh[e] = frame.index.values
         if timeDelta:
             timeMesh[e] += timeDelta
-    return timeMesh.transpose().astype(datetime.datetime),BINS_center,histArray
-    
-def getTimeIntervalFromFrame(frame,start,end):
+    return timeMesh.transpose().astype(datetime.datetime), BINS_center, histArray
+
+
+def getTimeIntervalFromFrame(frame, start, end):
     """cutes out a particular time interval from frame.
     e.g.: getTimeIntervalFromFrame(frame,'2014-10-31 18:10:00','2014-10-31 18:10:00')"""
     frame = frame.copy()
@@ -90,23 +99,26 @@ def getTimeIntervalFromFrame(frame,start,end):
         frame = frame.truncate(after = end)
     
     return frame
-    
+
+
 def frame2singleDistribution(frame):
     frame = frame.copy()
     singleHist = np.zeros(frame.shape[1])
     for i in xrange(frame.shape[1]):
-#                 print i
         singleHist[i] = np.nansum(frame.values[:,i])
     singleHist /= frame.shape[0]
     return singleHist
-    
+
+
 def _string2Dataframe(data):
     sb = io(data)
-    dataFrame = pd.read_csv(sb, sep = ' ', names = ('d','amp')).sort('d')
+    dataFrame = pd.read_csv(sb, sep=' ', names=('d', 'amp')).sort('d')
     return dataFrame
-    
+
+
 def read_Calibration_fromString(data):
-    '''unit of diameter must be nm
+    '''
+    unit of diameter must be nm
     e.g.:
 data = """140 88
 150 102
@@ -135,7 +147,8 @@ data = """140 88
     dataFrame = _string2Dataframe(data)
     calibrationInstance = calibration(dataFrame)
     return calibrationInstance
-    
+
+
 def save_Calibration(calibrationInstance, fname):
     """should be saved hier cd ~/data/POPS_calibrations/"""
     calibrationInstance.data.to_csv(fname, index = False)
@@ -169,13 +182,12 @@ class calibration:
     def __init__(self,dataTabel):
         self.data = dataTabel
         self.calibrationFunction = self.get_calibrationFunctionSpline()
-        
-        
+
     def save_csv(self,fname):
         save_Calibration(self,fname)
         return
         
-    def get_calibrationFunctionSpline(self, fitOrder = 1):# = 1, noOfPts = 500, plot = False):
+    def get_calibrationFunctionSpline(self, fitOrder=1):
         """
         Performes a spline fit/smoothening (scipy.interpolate.UnivariateSpline) of d over amp (yes this way not the other way around).
     
@@ -185,19 +197,19 @@ class calibration:
         \t s: int - oder of the spline function
         \t noOfPts: int - length of generated graph
         \t plot: boolean - if result is supposed to be plotted
-        """       
+        """
+
         # The following two step method is necessary to get a smooth curve. 
         #When I only do the second step on the cal_curve I get some wired whiggles
         ##### First Step
         if (self.data.amp.values[1:]-self.data.amp.values[:-1]).min() < 0:
             warnings.warn('The data represent a non injective function! This will not work. plot the calibration to see what I meen')  
-        
-        fitOrder = 1
+
         sf = UnivariateSpline(self.data.d.values, self.data.amp.values, s=fitOrder)
         d = np.logspace(np.log10(self.data.d.values.min()), np.log10(self.data.d.values.max()), 500)
         amp = sf(d)
     
-        ##### second step
+        # second step
         cal_function = UnivariateSpline(amp, d, s=fitOrder)
         return cal_function
         
@@ -218,19 +230,19 @@ class calibration:
         amp = np.logspace(np.log10(self.data.amp.min()), np.log10(self.data.amp.max()), 500)
         d = cal_function(amp)
     
-        f,a = plt.subplots()
+        f, a = plt.subplots()
         
-        cal_data, = a.plot(self.data.d,  self.data.amp, 'o',label = 'data',)
-        cal_func, = a.plot(d,amp, label = 'function')
+        cal_data, = a.plot(self.data.d,  self.data.amp, 'o', label='data',)
+        cal_func, = a.plot(d, amp, label='function')
         
         a.loglog()
     
         a.set_xlim(0.9*self.data.d.min(), 1.1*self.data.d.max())
-        a.set_xlabel('Diameter (nm)')#($\mu$m)')
+        a.set_xlabel('Diameter (nm)')
     
         a.set_ylim(0.9*self.data.amp.min(), 1.1*self.data.amp.max()) 
         a.set_ylabel('Amplitude (digitizer bins)')
     
         a.set_title('Calibration curve')
         a.legend(loc = 2)
-        return f,a,cal_data, cal_func
+        return f, a, cal_data, cal_func
