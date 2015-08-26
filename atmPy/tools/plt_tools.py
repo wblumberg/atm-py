@@ -13,8 +13,7 @@ red = np.array([120.,17.,0.])/255.
 color_cycle = [blue,orange,green,purple,yellow,turques,red]
 
 
-
-def setRCParams_fontsize(plt,style= 'paper'):
+def setRcParams_fontsize(plt, style='paper'):
     textsizescale_paper = 2.
     textsizescale_talk = 2.5
     if style == 'paper':
@@ -29,7 +28,7 @@ def setRcParams(plt, style = 'paper'):
     
     plt.rcParams['axes.linewidth'] = 1.2
     plt.rcParams['figure.figsize'] = [10.0, 8.0]   #talk: [6.0, 5.0]
-    setRCParams_fontsize(plt,style = style)
+    setRcParams_fontsize(plt, style=style)
     plt.rcParams['xtick.major.size'] = 8
     plt.rcParams['xtick.minor.size'] = 4
     plt.rcParams['xtick.minor.width'] = 1

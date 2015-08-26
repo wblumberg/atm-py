@@ -10,6 +10,7 @@ from atmPy.mie import bhmie
 import scipy.optimize as optimization
 from scipy import integrate
 from scipy import stats
+from atmPy import vertical_profile
 import pdb
 
 # TODO: Get rid of references to hagmods so we don't need them.
@@ -687,15 +688,15 @@ class SizeDist_TS(SizeDist):
         hk: housekeeping instance
         layer_thickness (optional): [10] thickness of each generated layer in meter"""
 
-        if ((hk.data.Height.values[1:] - hk.data.Height.values[:-1]).min() < 0) and (
-            (hk.data.Height.values[1:] - hk.data.Height.values[:-1]).max() > 0):
+        if ((hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).min() < 0) and (
+                    (hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).max() > 0):
             if force:
-                hk.data = hk.data.sort(columns='Height')
+                hk.data = hk.data.sort(columns='Altitude')
             else:
                 raise ValueError('Given altitude data is not monotonic. This is not possible (yet).')
 
-        start_h = round(hk.data.Height.values.min() / layer_thickness) * layer_thickness
-        end_h = round(hk.data.Height.values.max() / layer_thickness) * layer_thickness
+        start_h = round(hk.data.Altitude.values.min() / layer_thickness) * layer_thickness
+        end_h = round(hk.data.Altitude.values.max() / layer_thickness) * layer_thickness
 
         layer_edges = np.arange(start_h, end_h, layer_thickness)
         empty_frame = pd.DataFrame(columns=self.data.columns)
@@ -703,8 +704,8 @@ class SizeDist_TS(SizeDist):
 
         for e, end_h_l in enumerate(layer_edges[1:]):
             start_h_l = layer_edges[e]
-            layer = hk.data.Height.iloc[
-                np.where(np.logical_and(start_h_l < hk.data.Height.values, hk.data.Height.values < end_h_l))]
+            layer = hk.data.Altitude.iloc[
+                np.where(np.logical_and(start_h_l < hk.data.Altitude.values, hk.data.Altitude.values < end_h_l))]
             start_t = layer.index.min()
             end_t = layer.index.max()
             dist_tmp = self.zoom_time(start=start_t, end=end_t)
@@ -907,7 +908,6 @@ class SizeDist_LS(SizeDist):
         opt_properties.parent_dist_LS = self
         return opt_properties
 
-
     def add_layer(self, sd, layerboundery):
         """
         Adds a sizedistribution instance to the layerseries.
@@ -949,7 +949,7 @@ class SizeDist_LS(SizeDist):
         Z = np.append(self.data.values, ext, axis=1)
         return layerArray, binArray, Z
 
-    def plot_eachLayer(self, a=None):
+    def plot_eachLayer(self, a=None, normalize=False):
         """
         Plots the distribution of each layer in one plot.
 
@@ -963,7 +963,10 @@ class SizeDist_LS(SizeDist):
             f = None
             pass
         for iv in self.data.index.values:
-            a.plot(self.bincenters, self.data.loc[iv, :], label='%i' % iv)
+            if normalize:
+                a.plot(self.bincenters, self.data.loc[iv, :] / self.data.loc[iv, :].max(), label='%i' % iv)
+            else:
+                a.plot(self.bincenters, self.data.loc[iv, :], label='%i' % iv)
         a.set_xlabel('Particle diameter (nm)')
         a.set_ylabel(get_label(self.distributionType))
         a.legend()
@@ -1056,8 +1059,14 @@ class SizeDist_LS(SizeDist):
         ax.set_xlabel('Altitude (m)')
         return ax
 
-    def plot_fitres(self):
-        """ Plots the results from fit_normal"""
+    def plot_fitres(self, amp=True):
+        """ Plots the results from fit_normal
+
+        Arguments
+        ---------
+        amp: bool.
+            if the amplitude is to be plotted
+        """
 
         f, a = plt.subplots()
         a.fill_between(self.layercenters, self.data_fit_normal.Sigma_high, self.data_fit_normal.Sigma_low,
@@ -1073,13 +1082,15 @@ class SizeDist_LS(SizeDist):
         a.set_ylabel('Particle diameter (nm)')
         a.set_xlabel('Altitude (m)')
 
-        a2 = a.twinx()
-        self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
-        g = a2.get_lines()[-1]
-        g.set_label('Amplitude of norm. dist.')
-        a2.legend()
-        a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
-
+        if amp:
+            a2 = a.twinx()
+            self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
+            g = a2.get_lines()[-1]
+            g.set_label('Amplitude of norm. dist.')
+            a2.legend()
+            a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
+        else:
+            a2 = False
         return f, a, a2
 
     def plot_angstromex_fit(self):
@@ -1199,6 +1210,18 @@ class OpticalProperties(object):
         # ToDo: to define a distribution type does not really make sence ... just to make the stolen plot function happy
         self.distributionType = 'dNdlogDp'
 
+    def get_extinction_coeff_verticle_profile(self):
+        """
+        Creates a verticle profile of the extinction coefficient.
+        """
+        ext = self.data.sum(axis=1)
+        ext = pd.DataFrame(ext, columns=['ext. coeff.'])
+        ext.index.name = 'Altitude'
+        out = ExtinctionCoeffVerticlProfile(ext, self, self.wavelength, self.index_of_refractio)
+        # out.wavelength = self.wavelength
+        # out.n = self.index_of_refractio
+        # out.parent = self
+        return out
 
     def plot_AOD_cum(self, color=plt_tools.color_cycle[0], linewidth=2, ax=None, label='cumulative AOD',
                      extra_info=True):
@@ -1242,6 +1265,20 @@ AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_or
         cb.set_label('Extinction coefficient ($m^{-1}$)')
 
         return f, a, pc, cb
+
+
+class ExtinctionCoeffVerticlProfile(vertical_profile.VerticalProfile):
+    def __init__(self, ext, parent, wavelength, index_of_refraction):
+        super(ExtinctionCoeffVerticlProfile, self).__init__(ext)
+        self.parent = parent
+        self.wavelength = wavelength
+        self.index_of_refraction = index_of_refraction
+
+    def plot(self, *args, **kwargs):
+        a = super(ExtinctionCoeffVerticlProfile, self).plot(*args, **kwargs)
+        a.set_xlabel('Extinction coefficient (m$^{-1}$)')
+        return a
+
 
 
 def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, centerOfAerosolMode=200,

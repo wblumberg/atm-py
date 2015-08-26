@@ -7,6 +7,7 @@ from geopy.distance import vincenty
 import numpy as np
 from copy import deepcopy
 from atmPy.tools import time_tools
+from atmPy import solar
 import warnings
 
 # Todo: get rid of this class
@@ -73,6 +74,20 @@ class TimeSeries(object):
     @data.setter
     def data(self, data):
         self._data = data
+
+    # Todo: inherit docstring
+    def get_sun_position(self):
+        """read docstring of solar.get_sun_position_TS"""
+        out = solar.get_sun_position_TS(self)
+        return out
+
+    def convert2verticalprofile(self):
+        hk_tmp = self.copy()
+        hk_tmp.data['TimeUTC'] = hk_tmp.data.index
+        hk_tmp.data.index = hk_tmp.data.Altitude
+        return hk_tmp
+
+
 
     def merge(self, ts):
         """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
@@ -264,8 +279,12 @@ class TimeSeries(object):
         if not found:
             txt = 'TimeSeries instance has no attribute associated with altitude (%s)' % allowed
             raise AttributeError(txt)
-
-        f, ax = plt.subplots(len(what), sharex=True, gridspec_kw={'hspace': 0.1})
+        if ax:
+            f = ax[0].get_figure()
+        else:
+            f, ax = plt.subplots(len(what), sharex=True, gridspec_kw={'hspace': 0.1})
+            if len(what) == 1:
+                ax = [ax]
 
         if not figsize:
             f.set_figheight(4 * len(what))
@@ -275,6 +294,7 @@ class TimeSeries(object):
         for e, a in enumerate(ax):
             a.plot(x, self.data[what[e]], label=what[e])
             a.legend()
+            a.set_xlabel('Altitude')
 
         # a = data[what].plot(subplots = True, figsize = figsize)
         # a[-1].set_xlabel('Altitude (m)')
@@ -287,7 +307,7 @@ class TimeSeries(object):
         # a.plot(self.data.altitude.values, what)
         # a.set_xlabel('Altitude (m)')
 
-        return a
+        return ax
 
     # def plot_versus_altitude_all(self):
     # axes = []
@@ -305,9 +325,13 @@ class TimeSeries(object):
 
         Returns
         -------
-        numpy array of datetime64 objects
+        tuple of timestamps
         """
-        return self.data.index.values[[0, -1]]
+        start = self.data.index[0]
+        end = self.data.index[-1]
+        print('start: %s' % start.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        print('end:   %s' % end.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        return start, end
 
     def save(self, fname):
         """currently this simply saves the data of the timeseries

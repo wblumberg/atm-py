@@ -4,10 +4,11 @@
 """
 import pandas as pd
 import datetime
-import os
-import pylab as plt
+# import os
+# import pylab as plt
 from atmPy import timeseries
-from atmPy.tools import conversion_tools as ct
+# from atmPy.tools import conversion_tools as ct
+from atmPy import atmosphere_standards as atm_std
 
 
 def _read_housekeeping(fname):
@@ -29,10 +30,10 @@ def _read_housekeeping(fname):
     #     df['barometric_pressure'] = df.P_Baro
     #     df.drop('P_Baro', 1, inplace=True)
     #     df['altitude'] = ct.p2h(df.barometric_pressure)
-    return timeseries.TimeSeries(df)
+    return POPSHouseKeeping(df)
 
 
-def read_housekeeping(fname):
+def read_csv(fname):
     """
     Parameters
     ----------
@@ -58,17 +59,35 @@ def read_housekeeping(fname):
 
                 else:
                     data = pd.concat((data, hktmp.data))
-                    hk = timeseries.TimeSeries(data)
+                    hk = POPSHouseKeeping(data)
     else:
         hk = _read_housekeeping(fname)
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
 
     if 'P_Baro' in hk.data.keys():
-        hk.data['barometric_pressure'] = df.P_Baro
+        hk.data['Barometric_pressure'] = hk.data.P_Baro
         hk.data.drop('P_Baro', 1, inplace=True)
-        hk.data['altitude'] = ct.p2h(df.barometric_pressure)
+        # hk.data['Altitude'] = ct.p2h(hk.data.barometric_pressure)
 
     return hk
+
+
+class POPSHouseKeeping(timeseries.TimeSeries):
+    def get_altitude(self, temperature=False):
+        """Calculates the altitude from the measured barometric pressure
+        Arguments
+        ---------
+        temperature: bool or array-like, optional
+            False: temperature according to international standard is assumed.
+            arraylike: actually measured temperature in Kelvin.
+
+        Returns
+        -------
+        returns altitude and adds it to this instance
+        """
+        alt, tmp = atm_std.standard_atmosphere(self.data.Barometric_pressure, quantity='pressure')
+        self.data['Altitude'] = alt
+        return alt
 
 # todo: (low) this has never been actually implemented
 # def read_housekeeping_allInFolder(concatWithOther = False, other = False, skip=[]):

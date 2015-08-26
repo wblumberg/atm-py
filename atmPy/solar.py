@@ -129,7 +129,7 @@ def get_sun_position_TS(timeseries):
     """
     lat = timeseries.data.Lat.values.astype(str)
     lon = timeseries.data.Lon.values.astype(str)
-    alti = timeseries.data.Height.values
+    alti = timeseries.data.Altitude.values
     t = timeseries.data.Lat.index
     sunpos = np.zeros((lat.shape[0], 2))
     # sunpos = np.zeros((2,2))

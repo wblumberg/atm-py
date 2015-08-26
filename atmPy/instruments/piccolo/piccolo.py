@@ -53,6 +53,8 @@ def _read_file(fname):
     data.Lat.values[:] = np.rad2deg(data.Lat.values)
     data.Lon.values[:] = np.rad2deg(data.Lon.values)
     data.sort_index(inplace=True)
+    data['Altitude'] = data['Height']
+    data = data.drop('Height', axis=1)
     return timeseries.TimeSeries(data, {'original header': header})
 
 
