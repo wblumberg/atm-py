@@ -935,7 +935,7 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
         picco: any timeseries instance containing Lat and Lon
         """
 
-        picco_t = timeseries.TimeSeries(picco.data.iloc[:, :3])  # only Altitude, Lat and Lon
+        picco_t = timeseries.TimeSeries(picco.data.loc[:, ['Lat', 'Lon', 'Altitude']])  # only Altitude, Lat and Lon
         sun_int_su = self.merge(picco_t)
         out = sun_int_su.get_sun_position()
         #     sun_int_su = sun_int_su.zoom_time(spiral_up_start, spiral_up_end)
