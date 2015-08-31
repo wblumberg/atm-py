@@ -311,13 +311,14 @@ class SizeDist(object):
     def copy(self):
         return deepcopy(self)
 
-    def save_csv(self, fname):
-        raus = open(fname, 'w')
-        raus.write('bins = %s\n' % self.bins.tolist())
-        raus.write('distributionType = %s\n' % self.distributionType)
-        raus.write('objectType = %s\n' % (type(self).__name__))
-        raus.write('#\n')
-        raus.close()
+    def save_csv(self, fname, header=True):
+        if header:
+            raus = open(fname, 'w')
+            raus.write('bins = %s\n' % self.bins.tolist())
+            raus.write('distributionType = %s\n' % self.distributionType)
+            raus.write('objectType = %s\n' % (type(self).__name__))
+            raus.write('#\n')
+            raus.close()
         self.data.to_csv(fname, mode='a')
         return
 

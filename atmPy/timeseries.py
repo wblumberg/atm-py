@@ -9,6 +9,7 @@ from copy import deepcopy
 from atmPy.tools import time_tools
 from atmPy import solar
 import warnings
+from mpl_toolkits.mplot3d import Axes3D
 
 # Todo: get rid of this class
 # def merge_timeseries(ts_list):
@@ -123,13 +124,19 @@ class TimeSeries(object):
         axes = self.data.plot(subplots=True, figsize=(plt.rcParams['figure.figsize'][0], self.data.shape[1] * 4))
         return axes
 
-    def plot_map(self):
+    def plot_map(self, three_d=False):
         """Plots a map of the flight path
 
         Note
         ----
         packages: matplotlib-basemap,
+
+        Arguments
+        ---------
+        three_d: bool.
+            If flight path is plotted in 3D. unfortunately this does not work very well (only costlines)
         """
+
         lon_center = (self.data.Lon.values.max() + self.data.Lon.values.min()) / 2.
         lat_center = (self.data.Lat.values.max() + self.data.Lat.values.min()) / 2.
 
@@ -147,25 +154,49 @@ class TimeSeries(object):
 
         height = border + lat_radius
         width = border + lon_radius
-        bmap = Basemap(projection='aeqd',
+        if not three_d:
+            bmap = Basemap(projection='aeqd',
+                           lat_0=lat_center,
+                           lon_0=lon_center,
+                           width=width,
+                           height=height,
+                           resolution='f')
+
+            # Fill the globe with a blue color
+            wcal = np.array([161., 190., 255.]) / 255.
+            boundary = bmap.drawmapboundary(fill_color=wcal)
+
+
+            # Fill the continents with the land color map.fillcontinents(color=’coral’,lake_color=’aqua’)
+            grau = 0.9
+            continents = bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
+            costlines = bmap.drawcoastlines()
+            x, y = bmap(self.data.Lon.values, self.data.Lat.values)
+            path = bmap.plot(x, y,
+                             color='m')
+            return bmap
+
+        else:
+            bmap = Basemap(projection='aeqd',
                        lat_0=lat_center,
                        lon_0=lon_center,
                        width=width,
                        height=height,
                        resolution='f')
 
-        # Fill the globe with a blue color
-        wcal = np.array([161., 190., 255.]) / 255.
-        bmap.drawmapboundary(fill_color=wcal)
-        # Fill the continents with the land color map.fillcontinents(color=’coral’,lake_color=’aqua’)
-        grau = 0.9
-        bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
-        bmap.drawcoastlines()
-        x, y = bmap(self.data.Lon.values, self.data.Lat.values)
-        bmap.plot(x, y,
-                  color='m')
+            fig = plt.figure()
+            ax = Axes3D(fig)
+            ax.add_collection3d(bmap.drawcoastlines())
+            x, y = bmap(self.data.Lon.values, self.data.Lat.values)
+            # ax.plot(x, y,self.data.Altitude.values,
+            #           color='m')
+            N = len(x)
+            for i in range(N - 1):
+                color = plt.cm.jet(i / N)
+                ax.plot(x[i:i + 2], y[i:i + 2], self.data.Altitude.values[i:i + 2],
+                        color=color)
+            return bmap, ax
 
-        return bmap
 
 
     def zoom_time(self, start=None, end=None, copy=True):
