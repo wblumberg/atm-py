@@ -781,7 +781,7 @@ class SizeDist_LS(SizeDist):
         AOD_list = []
         AOD_dict = {}
         for w in wavelengths:
-            AOD = self.calculate_AOD(wavelength=w, n=n)
+            AOD = self.calculate_optical_properties(w, n)  # calculate_AOD(wavelength=w, n=n)
             #     opt= sizedistribution.OpticalProperties(AOD, dist_LS.bins)
             AOD_list.append({'wavelength': w, 'opt_inst': AOD})
             AOD_dict['%.1f' % w] = AOD
