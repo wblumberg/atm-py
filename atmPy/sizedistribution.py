@@ -3,6 +3,7 @@ from matplotlib.colors import LogNorm
 import pylab as plt
 from copy import deepcopy
 from atmPy.tools import plt_tools, math_functions, array_tools
+from atmPy import timeseries
 import pandas as pd
 import warnings
 import datetime
@@ -95,6 +96,113 @@ def get_label(distType):
     return label
 
 
+# Todo: Docstring is wrong
+# Todo: implement into the Layer Series
+def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
+    """
+    !!!Tis Docstring need fixn
+    Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
+    plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
+
+    Parameters
+    ----------
+    wavelength: float.
+        wavelength of the scattered light, unit: nm
+    n: float.
+        Index of refraction of the scattering particles
+
+    noOfAngles: int, optional.
+        Number of scattering angles to be calculated. This mostly effects calculations which depend on the phase
+        function.
+
+    Returns
+    -------
+    OpticalProperty instance
+
+    """
+    out = {}
+    out['n'] = n
+    out['wavelength'] = wavelength
+    sdls = sd.convert2numberconcentration()
+    index = sd.data.index
+    # pdb.set_trace()
+    mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+                                                       noOfAngles=noOfAngles)
+    # out['mie_curve'] = mie
+
+    # AOD_layer = np.zeros((len(sdls.layercenters)))
+    extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
+    # print('extCoeffPerLayer: ', extCoeffPerLayer.shape)
+    angular_scatt_func_effective = pd.DataFrame()
+    asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
+    # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
+    for i, lc in enumerate(sdls.data.index.values):
+        laydata = sdls.data.iloc[i].values
+        # print('laydata: ',laydata.shape)
+        # print(laydata)
+        extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
+        # print('mie.extinction_crossection ', mie.extinction_crossection.shape)
+        # print('extinction_coefficient: ', extinction_coefficient.shape)
+        # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
+
+        # layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
+        # AOD_perBin = extinction_coefficient * layerThickness
+        # AOD_layer[i] = AOD_perBin.values.sum()
+        extCoeffPerLayer[i] = extinction_coefficient
+
+
+        # return laydata, mie.scattering_crossection
+
+        scattering_cross_eff = laydata * mie.scattering_crossection
+
+        pfe = (laydata * angular_scatt_func).sum(axis=1)  # sum of all angular_scattering_intensities
+        # pfe2 = pfe.copy()
+        # angular_scatt_func_effective[lc] =  pfe
+        # asymmetry_parameter_LS[i] = (pfe.values*np.cos(pfe.index.values)).sum()/pfe.values.sum()
+        x_2p = pfe.index.values
+        y_2p = pfe.values
+        # limit to [0,pi]
+        y_1p = y_2p[x_2p < np.pi]
+        x_1p = x_2p[x_2p < np.pi]
+        # integ = integrate.simps(y_1p*np.sin(x_1p),x_1p)
+        # y_phase_func = y_1p/integ
+        y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
+        asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
+        # return mie,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
+        angular_scatt_func_effective[
+            lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
+        # return mie.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
+        # return extinction_coefficient, angular_scatt_func_effective
+        # return AOD_layer, pfe, angular_scatt_func_effective[lc]
+
+
+        #     print(mie.extinction_crossection)
+    # out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
+    # out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+    # out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
+    extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
+
+    out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
+    extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
+    if index.dtype == '<M8[ns]':
+        out['extCoeff_perrow'] = timeseries.TimeSeries(extCoeff_perrow)
+    else:
+        out['extCoeff_perrow'] = extCoeff_perrow
+
+    out['asymmetry_param'] = pd.DataFrame(asymmetry_parameter_LS, index=index,
+                                          columns=['asymmetry_param'])
+    # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
+    # out['OptPropInstance']= OpticalProperties(out, self.bins)
+    out['wavelength'] = wavelength
+    out['index_of_refraction'] = n
+    out['bin_centers'] = sd.bincenters
+    # opt_properties = OpticalProperties(out, self.bins)
+    # opt_properties.wavelength = wavelength
+    # opt_properties.index_of_refractio = n
+    # opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+    # opt_properties.parent_dist_LS = self
+    return out
+
 class SizeDist(object):
     """
     Object defining a log normal aerosol size distribution
@@ -147,6 +255,11 @@ class SizeDist(object):
 
             if fixGaps:
                 self.fillGaps()
+
+    def calculate_optical_properties(self, wavelength, n):
+        out = calculate_optical_properties(self, wavelength, n)
+        return out
+
 
     def fillGaps(self, scale=1.1):
         """
@@ -456,6 +569,7 @@ class SizeDist_TS(SizeDist):
 
        """
 
+
     def fit_normal(self):
         """ Fits a single normal distribution to each line in the data frame.
 
@@ -591,7 +705,7 @@ class SizeDist_TS(SizeDist):
         a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
         a2.legend()
         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
-
+        f.autofmt_xdate()
         return f, a, a2
 
     def plot_particle_concetration(self, ax=None, label=None):
@@ -1043,24 +1157,40 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    def plot_particle_concentration(self, ax=None, label=None):
+    def plot_particle_concentration(self, ax=None, label=None, rotate=True):
         """Plots the particle concentration as a function of altitude.
 
         Parameters
         ----------
         ax: matplotlib.axes instance, optional
             perform plot on these axes.
-
+        rotate: bool.
+            When True the y-axes is the Altitude.
         Returns
         -------
         matplotlib.axes instance
 
         """
+
         ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
         ax.set_xlabel('Altitude (m)')
+
+        if rotate:
+            g = ax.get_lines()[-1]
+            x, y = g.get_xydata().transpose()
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            ax.set_xlim(ylim)
+            ax.set_ylim(xlim)
+            g.set_xdata(y)
+            g.set_ydata(x)
+            xlabel = ax.get_xlabel()
+            ylabel = ax.get_ylabel()
+            ax.set_xlabel(ylabel)
+            ax.set_ylabel(xlabel)
         return ax
 
-    def plot_fitres(self, amp=True):
+    def plot_fitres(self, amp=True, rotate=True):
         """ Plots the results from fit_normal
 
         Arguments
