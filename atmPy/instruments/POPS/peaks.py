@@ -318,7 +318,7 @@ class peaks:
             cols.append(i+'-'+binstr[e+1])
         dataFrame = pd.DataFrame(N, columns=cols, index = unique)
         if distributionType == 'calibration':
-            return sizedistribution.SizeDist(dataFrame, bins, 'calibration')
+            return sizedistribution.SizeDist_TS(dataFrame, bins, 'calibration')
         else:
             return sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp')
         
