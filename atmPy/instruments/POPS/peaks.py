@@ -13,7 +13,6 @@ import warnings
 defaultBins = np.array([0.15, 0.168, 0.188, 0.211, 0.236, 0.264, 0.296, 0.332, 0.371, 0.416, 0.466, 0.522, 0.584, 0.655, 0.864, 1.14, 1.505, 1.987, 2.623, 3.462])
 defaultBins *= 1000
 
-blabla = """asdfasdfasdf"""
 
 #######
 #### Peak file
@@ -57,44 +56,13 @@ def read_binary(fname):
     return m
 
 
-# todo (low): not workings
-def read_cal_process_peakFile(fname, cal, averageOverTime = '60S', deltaTime = 0):
-    peakdf = read_PeakFile_Binary(fname,deltaTime = deltaTime)
+def read_cal_process_peakFile(fname, cal, bins, averageOverTime='60S'):
+    peakdf = read_binary(fname)
     peakdf.apply_calibration(cal)
-    dist = peakdf.peak2numberdistribution()
-    dist.average_overTime(averageOverTime)
+    dist = peakdf.peak2numberdistribution(bins=bins)
+    dist = dist.average_overTime(averageOverTime)
     return dist
 
-def read_cal_process_peakFile_allInFolder(cal,concatWithOther = False, other = False, skip=[], averageOverTime = '60S', deltaTime = 0):
-    """cal: calibration instance"""
-    files = os.listdir('./')
-    if concatWithOther:
-        counter = True
-        dist = other.copy()
-    else:
-        counter = False
-    for e,i in enumerate(files):
-        if 'Peak.bin' in i:
-            if i in skip:
-                continue
-            print("file: %s" % i)
-#            start = time.time()
-#            peakdf = peaks.read_PeakFile_Binary(i,deltaTime = deltaTime)
-#            peakdf.apply_calibration(cal)
-            dist_tmp = read_cal_process_peakFile(i,cal,averageOverTime=averageOverTime,deltaTime=deltaTime)
-#            dist_tmp.average_overTime(averageOverTime)
-            if not counter:
-                dist = dist_tmp
-                counter = True
-            else:
-                dist.data = pd.concat([dist.data,dist_tmp.data])
-#            end = time.time()
-#            print 'time in min: ',(end - start)/60., '\n'
-    return dist
-
-def save_PeakFile_csv(peakInstance, fname):
-    peakInstance.data.to_csv(fname)
-    return
 
 def _BinaryFile2Array(fname):
     entry_format = '>fLfBB?'
