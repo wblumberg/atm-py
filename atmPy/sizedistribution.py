@@ -25,18 +25,30 @@ distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
              'volume': ['dVdlogDp', 'dVdDp']}
 
 
-def fit_normal_dist(x, y, p0=None):
+def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     """Fits a normal distribution to a """
-    x = np.log10(x)[~ np.isnan(y)]
+    param = p0[:]
+    x = x[~ np.isnan(y)]
     y = y[~ np.isnan(y)]
-    if not p0:
-        p0 = [y.max(), x[y.argmax()], 0.2]
-    para = optimization.curve_fit(math_functions.gauss, x, y, p0=[10, 2, 0.2])
+
+    if log:
+        x = np.log10(x)
+        param[1] = np.log10(param[1])
+    # todo: write a bug report for the fact that I have to call the y.max() function to make the fit to work!!!!!
+    y.max()
+    ############
+
+    para = optimization.curve_fit(math_functions.gauss, x, y, p0=param)
     amp = para[0][0]
-    pos = 10 ** para[0][1]
     sigma = para[0][2]
-    sigma_high = 10 ** (para[0][1] + para[0][2])
-    sigma_low = 10 ** (para[0][1] - para[0][2])
+    if log:
+        pos = 10 ** para[0][1]
+        sigma_high = 10 ** (para[0][1] + para[0][2])
+        sigma_low = 10 ** (para[0][1] - para[0][2])
+    else:
+        pos = para[0][1]
+        sigma_high = (para[0][1] + para[0][2])
+        sigma_low = (para[0][1] - para[0][2])
     return [amp, pos, sigma, sigma_high, sigma_low]
 
 
@@ -287,8 +299,7 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-
-    def fit_normal(self):
+    def fit_normal(self, log=True, p0=[10, 180, 0.2]):
         """ Fits a single normal distribution to each line in the data frame.
 
         Returns
@@ -299,9 +310,12 @@ class SizeDist(object):
         sd = self.copy()
 
         if sd.distributionType != 'dNdlogDp':
-            warnings.warn(
-                "Size distribution is not in 'dNdlogDp'. I temporarily converted the distribution to conduct the fitting. If that is not what you want, change the code!")
-            sd = sd.convert2dNdlogDp()
+            if sd.distributionType == 'calibration':
+                pass
+            else:
+                warnings.warn(
+                    "Size distribution is not in 'dNdlogDp'. I temporarily converted the distribution to conduct the fitting. If that is not what you want, change the code!")
+                sd = sd.convert2dNdlogDp()
 
         n_lines = sd.data.shape[0]
         amp = np.zeros(n_lines)
@@ -311,7 +325,7 @@ class SizeDist(object):
         sigma_low = np.zeros(n_lines)
         for e, lay in enumerate(sd.data.values):
             try:
-                fit_res = fit_normal_dist(sd.bincenters, lay)
+                fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0)
             except (ValueError, RuntimeError):
                 fit_res = [np.nan, np.nan, np.nan, np.nan, np.nan]
             amp[e] = fit_res[0]
@@ -569,8 +583,7 @@ class SizeDist_TS(SizeDist):
 
        """
 
-
-    def fit_normal(self):
+    def fit_normal(self, log=True, p0=[10, 180, 0.2]):
         """ Fits a single normal distribution to each line in the data frame.
 
         Returns
@@ -579,7 +592,7 @@ class SizeDist_TS(SizeDist):
 
         """
 
-        super(SizeDist_TS, self).fit_normal()
+        super(SizeDist_TS, self).fit_normal(log=log, p0=p0)
         self.data_fit_normal.index = self.data.index
         return self.data_fit_normal
 
