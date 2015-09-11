@@ -93,6 +93,31 @@ def K(sampling_angle, inlet_length, air_velocity_in_inlet, inlet_diameter, parti
     return out
 
 
+###########################
+def gravitational_loss_in_circular_tube(temperature=293.15,  # Kelvin
+                                        pressure=101.3,  # kPa
+                                        particle_diameter=10,  # µm
+                                        particle_density=1000,  # kg/m^3
+                                        tube_diameter=0.01,  # m
+                                        tube_length=0.1,  # m
+                                        incline_angle=60,  # degrees from horizontal (0-90)
+                                        flow_rate=3,  # cc/s
+                                        mean_flow_velocity=False  # 0.1061    # m/s)
+
+    """
+    Arguments
+    ---------
+    temperature         = 293.15,   # Kelvin
+    pressure            = 101.3,    # kPa
+    particle_diameter   = 10,       # µm
+    particle_density    = 1000,     # kg/m^3
+    tube_diameter       = 0.01,     # m
+    tube_length         = 0.1,      # m
+    incline_angle       = 60,       # degrees from horizontal (0-90)
+    flow_rate           = 3,        # cc/s
+    mean_flow_velocity  = False     #0.1061    # m/s)"""
+
+
 def gravitational_loss_in_an_inlet(temperature=293.15,  # K
                                    pressure=101.3,  # hPa
                                    particle_diameter=15,  # um
@@ -105,6 +130,7 @@ def gravitational_loss_in_an_inlet(temperature=293.15,  # K
                                    # R is 1 for isokinetic, > 1 for subisokinetic, < 1 for superisokinetic
                                    verbose=False):
     """Gravitational losses in an inlet (B&W 8-23, 8-24; W&B 6-23, 6-24)
+    Not to be mixed up with gravitational loss in a circular tube
 
     Arguments
     ---------

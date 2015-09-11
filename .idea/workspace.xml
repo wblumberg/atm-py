@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="1c2296e6-bd20-4060-aec5-63057b0f89c9" name="Default" comment="new">
+    <list default="true" id="1c2296e6-bd20-4060-aec5-63057b0f89c9" name="Default" comment="new: set of functions to calculate gravitational loss">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/atmPy/aerosols/particle_loss.py" afterPath="$PROJECT_DIR$/atmPy/aerosols/particle_loss.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
     </list>
@@ -49,8 +49,8 @@
       <file leaf-file-name="particle_loss.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/atmPy/aerosols/particle_loss.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.3149883">
-              <caret line="75" column="67" selection-start-line="75" selection-start-column="67" selection-end-line="75" selection-end-column="67" />
+            <state vertical-scroll-proportion="0.13934426">
+              <caret line="95" column="57" selection-start-line="95" selection-start-column="57" selection-end-line="95" selection-end-column="57" />
               <folding />
             </state>
           </provider>
@@ -182,8 +182,8 @@
     <order />
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="217" />
-    <option name="y" value="67" />
+    <option name="x" value="-1634" />
+    <option name="y" value="61" />
     <option name="width" value="1635" />
     <option name="height" value="1027" />
   </component>
@@ -692,11 +692,17 @@
       <option name="project" value="LOCAL" />
       <updated>1441838184820</updated>
     </task>
-    <option name="localTasksCounter" value="42" />
+    <task id="LOCAL-00042" summary="new: set of functions to calculate gravitational loss">
+      <created>1441847049384</created>
+      <option name="number" value="00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1441847049384</updated>
+    </task>
+    <option name="localTasksCounter" value="43" />
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="217" y="67" width="1635" height="1027" extended-state="6" />
+    <frame x="-1634" y="61" width="1635" height="1027" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info id="Messages" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.3290735" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
@@ -736,7 +742,6 @@
   <component name="VcsManagerConfiguration">
     <option name="OFFER_MOVE_TO_ANOTHER_CHANGELIST_ON_PARTIAL_COMMIT" value="false" />
     <option name="CHECK_NEW_TODO" value="false" />
-    <MESSAGE value="various bug fixes" />
     <MESSAGE value="Added a GUI for POPS data processing including a stand alone OSX app." />
     <MESSAGE value="sizedistribution - new: angstrom exponent calculation and plotting&#10;bhmie, change: no idea why x was changed to xold, does not make sense." />
     <MESSAGE value="New: the full phase function is calculated and returned when return_as_dict is executed" />
@@ -761,7 +766,8 @@
     <MESSAGE value="bugfix in peak2peakHeightDistribution" />
     <MESSAGE value="bugfixes, minor" />
     <MESSAGE value="new" />
-    <option name="LAST_COMMIT_MESSAGE" value="new" />
+    <MESSAGE value="new: set of functions to calculate gravitational loss" />
+    <option name="LAST_COMMIT_MESSAGE" value="new: set of functions to calculate gravitational loss" />
     <option name="REFORMAT_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -1146,8 +1152,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/atmPy/aerosols/particle_loss.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.3149883">
-          <caret line="75" column="67" selection-start-line="75" selection-start-column="67" selection-end-line="75" selection-end-column="67" />
+        <state vertical-scroll-proportion="0.13934426">
+          <caret line="95" column="57" selection-start-line="95" selection-start-column="57" selection-end-line="95" selection-end-column="57" />
           <folding />
         </state>
       </provider>
