@@ -94,7 +94,7 @@ def _extrapolate(x, y):
     return
 
 
-def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimuth=True):
+def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimuth=True, pressure=True, temp=True):
     """Simulates AOD and skybrightness from sizeditribution
 
     Arguments
@@ -126,7 +126,7 @@ def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimut
 
     for k in optPs.keys():
         sky, aod = simulate_from_size_dist_opt(optPs[k], airmassfct=airmassfct, rotations=rotations,
-                                               sun_azimuth=sun_azimuth)
+                                               sun_azimuth=sun_azimuth, pressure=pressure, temp=temp)
         skyBrs[k] = sky
         aods[k] = aod
 
@@ -134,7 +134,7 @@ def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimut
 
 
 # ToDo: include actual TEMP and pressure
-def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azimuth=True):
+def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azimuth=True, pressure=True, temp=True):
     """ Simulates miniSASP signal from a size distribution layer series (in particular from the optical property class
     derived from the layer series.
     The simulation calculates the position of the sun at the instruments position during the experiment. Slant angles
@@ -153,6 +153,14 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
         If True, results will be corrected for the airmassfactor (slant angle only)
     rotations: int.
         Number of rotations of the mSASP to be simulated.
+    pressure: bool or array-like.
+        If True the opt_prop.paretn_timeseries.Barometric_pressure timeseries.
+        If False standard atmosphere is used.
+        If array-like the this array is used.
+    temp: bool or array-like.
+        If True the opt_prop.paretn_timeseries.Temperature timeseries.
+        If False standard atmosphere is used.
+        If array-like the this array is used.
 
     Returns
     -------
@@ -231,8 +239,10 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
     what_mSASP_sees_sky = {'aerosol': what_mSASP_sees_aerosols}
 
     what_mSASP_sees_rayleigh, what_mSASP_sees_AOD_rayleigh = simulate_from_rayleigh(time_series,
-                                                                                    dist_ls.layerbounderies, False,
-                                                                                    False, opt_prop.wavelength,
+                                                                                    dist_ls.layerbounderies,
+                                                                                    pressure,
+                                                                                    temp,
+                                                                                    opt_prop.wavelength,
                                                                                     what_mSASP_sees_aerosols.shape[0],
                                                                                     rotations,
                                                                                     airmassfct,
@@ -242,8 +252,11 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
 
     what_mSASP_sees_sum = what_mSASP_sees_aerosols + what_mSASP_sees_rayleigh
     what_mSASP_sees_sky['sum'] = what_mSASP_sees_sum
+    # what_mSASP_sees_sky['aerosols'] = what_mSASP_sees_aerosols
+
 
     what_mSASP_sees_AOD_sum = what_mSASP_sees_AOD_aerosols + what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
+    # what_mSASP_sees_AOD['aerosols'] = what_mSASP_sees_AOD_aerosols
     what_mSASP_sees_AOD['rayleigh'] = what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
     what_mSASP_sees_AOD['sum'] = what_mSASP_sees_AOD_sum
     # return what_mSASP_sees_AOD_aerosols  , what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
@@ -257,7 +270,13 @@ def simulate_from_rayleigh(time_series,
                            layerbounderies,
                            # altitude,
                            # layerbounderies,
-                           pressure, temp, wl, no_angles, rotations, airmassfct, sun_azimuth):
+                           pressure,
+                           temp,
+                           wl,
+                           no_angles,
+                           rotations,
+                           airmassfct,
+                           sun_azimuth):
     """ Fix this documentation!
 
 
@@ -292,15 +311,31 @@ def simulate_from_rayleigh(time_series,
     alts = time_series.data.Altitude.values[where]  # thats over acurate, cal simply use the layerbounderies
 
     if (type(pressure).__name__ == 'bool') or (type(temp).__name__ == 'bool'):
-        p, t = atmstd.standard_atmosphere(layerbounderies)
-        if type(pressure).__name__ == 'bool':
-            if pressure == False:
-                pressure = p
-        if type(temp).__name__ == 'bool':
-            if temp == False:
-                temp = t
-    elif (layerbounderies.shape != pressure.shape) or (layerbounderies.shape != temp.shape):
-        raise ValueError('altituda, pressure and tmp have to have same shape')
+        if pressure and temp:
+            # temp = time_series.data.Temperature
+            # pressure = time_series.data.Barometric_pressure_Pa
+            lb = pd.DataFrame(index=layerbounderies)
+            hkt = time_series.data.loc[:, ["Temperature", "Altitude", "Pressure_Pa"]]
+
+            hkt.index = hkt.Altitude
+            hkt = hkt.sort_index()
+
+            hkt_lb = pd.concat([hkt, lb]).sort_index().interpolate()
+            hkt_lb = hkt_lb.groupby(hkt_lb.index).mean().reindex(lb.index)
+            temp = hkt_lb.Temperature.values + 273.15
+            pressure = hkt_lb.Pressure_Pa.values
+
+        else:
+            p, t = atmstd.standard_atmosphere(layerbounderies)
+            if type(pressure).__name__ == 'bool':
+                if pressure == False:
+                    pressure = p
+            if type(temp).__name__ == 'bool':
+                if temp == False:
+                    temp = t
+    # print(pressure, temp)
+    if (layerbounderies.shape != pressure.shape) or (layerbounderies.shape != temp.shape):
+        raise ValueError('altitude, pressure and tmp have to have same shape')
 
     # time = time_series.data.index[where]
 
@@ -851,7 +886,8 @@ def load_sunintensities_TS(fname):
 
 
 class Sun_Intensities_TS(timeseries.TimeSeries):
-    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True):
+    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, additional_axes=False,
+             rayleigh=True):
         """plots ...
         Arguments
         ---------
@@ -860,13 +896,18 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
             If the airmass factor is included or not.
             True: naturally the air-mass factor is included in the data, so this does nothing.
             False: data is corrected to correct for the slant angle
+        rayleigh: bool or the aod part of the output of miniSASP.simulate_from_size_dist_LS.
+            make sure there is no airmassfkt included in this!!
         """
 
         m_size = 5
         m_ewidht = 1.5
         l_width = 2
         gridspec_kw = {'wspace': 0.05}
-        f, a = plt.subplots(1, 4, gridspec_kw=gridspec_kw)
+        no_axes = 4
+        if additional_axes:
+            no_axes = no_axes + additional_axes
+        f, a = plt.subplots(1, no_axes, gridspec_kw=gridspec_kw)
         columns = ['460.3', '460.3 max', '550.4', '550.4 max', '671.2', '671.2 max', '860.7', '860.7 max']
         # peaks_max = [460.3, '460.3 max', 550.4, '550.4 max', 860.7, '860.7 max', 671.2,
         #        '671.2 max']
@@ -876,11 +917,23 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
             col = plt_tools.wavelength_to_rgb(columns[i * 2]) * 0.8
             intens = self.data[columns[i * 2]].dropna()  # .plot(ax = a, style = 'o', label = '%s nm'%colums[i*2])
             x = intens.index.get_level_values(1)
+            if type(rayleigh) == bool:
+                if rayleigh:
+                    rayleigh_corr = 0
+            else:
+                aodt = rayleigh[float(columns[i * 2])].loc[:, ['rayleigh']]
+                intenst = intens.copy()
+                intenst.index = intenst.index.droplevel(['Time', 'Sunelevation'])
+                aodt_sit = pd.concat([aodt, intenst]).sort_index().interpolate()
+                aodt_sit = aodt_sit.groupby(aodt_sit.index).mean().reindex(intenst.index)
+                rayleigh_corr = aodt_sit.rayleigh.values / np.sin(intens.index.get_level_values(2))
+
             if not airmassfct:
                 amf_corr = np.sin(intens.index.get_level_values(2))
             else:
                 amf_corr = 1
-            g, = a[i].plot((offset[i] - np.log(intens)) * amf_corr, x)
+
+            g, = a[i].plot((offset[i] - np.log(intens) - rayleigh_corr) * amf_corr, x)
             g.set_label('%s nm' % columns[i * 2])
             g.set_linestyle('')
             g.set_marker('o')
