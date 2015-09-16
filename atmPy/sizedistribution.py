@@ -268,6 +268,29 @@ class SizeDist(object):
             if fixGaps:
                 self.fillGaps()
 
+    def grow_particles(self, shift=1):
+        """This function shifts the data by "shift" columns to the right
+        Argurments
+        ----------
+        shift: int.
+            number of columns to shift.
+
+        Returns
+        -------
+        New dist_LS instance
+        Growth ratio (mean,std) """
+
+        dist_grow = self.copy()
+        gf = dist_grow.bincenters[shift:] / dist_grow.bincenters[:-shift]
+        gf_mean = gf.mean()
+        gf_std = gf.std()
+
+        shape = dist_grow.data.shape[1]
+        dist_grow.data[:] = 0
+        dist_grow.data.iloc[:, shift:] = self.data.values[:, :shape - shift]
+
+        return dist_grow, (gf_mean, gf_std)
+
     def calculate_optical_properties(self, wavelength, n):
         out = calculate_optical_properties(self, wavelength, n)
         return out
