@@ -94,7 +94,7 @@ def _extrapolate(x, y):
     return
 
 
-def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimuth=True):
+def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimuth=True, pressure=True, temp=True):
     """Simulates AOD and skybrightness from sizeditribution
 
     Arguments
@@ -126,7 +126,7 @@ def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimut
 
     for k in optPs.keys():
         sky, aod = simulate_from_size_dist_opt(optPs[k], airmassfct=airmassfct, rotations=rotations,
-                                               sun_azimuth=sun_azimuth)
+                                               sun_azimuth=sun_azimuth, pressure=pressure, temp=temp)
         skyBrs[k] = sky
         aods[k] = aod
 
@@ -134,7 +134,7 @@ def simulate_from_size_dist_LS(dist_LS, airmassfct=True, rotations=2, sun_azimut
 
 
 # ToDo: include actual TEMP and pressure
-def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azimuth=True):
+def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azimuth=True, pressure=True, temp=True):
     """ Simulates miniSASP signal from a size distribution layer series (in particular from the optical property class
     derived from the layer series.
     The simulation calculates the position of the sun at the instruments position during the experiment. Slant angles
@@ -153,6 +153,14 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
         If True, results will be corrected for the airmassfactor (slant angle only)
     rotations: int.
         Number of rotations of the mSASP to be simulated.
+    pressure: bool or array-like.
+        If True the opt_prop.paretn_timeseries.Barometric_pressure timeseries.
+        If False standard atmosphere is used.
+        If array-like the this array is used.
+    temp: bool or array-like.
+        If True the opt_prop.paretn_timeseries.Temperature timeseries.
+        If False standard atmosphere is used.
+        If array-like the this array is used.
 
     Returns
     -------
@@ -231,8 +239,10 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
     what_mSASP_sees_sky = {'aerosol': what_mSASP_sees_aerosols}
 
     what_mSASP_sees_rayleigh, what_mSASP_sees_AOD_rayleigh = simulate_from_rayleigh(time_series,
-                                                                                    dist_ls.layerbounderies, False,
-                                                                                    False, opt_prop.wavelength,
+                                                                                    dist_ls.layerbounderies,
+                                                                                    pressure,
+                                                                                    temp,
+                                                                                    opt_prop.wavelength,
                                                                                     what_mSASP_sees_aerosols.shape[0],
                                                                                     rotations,
                                                                                     airmassfct,
@@ -242,6 +252,8 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
 
     what_mSASP_sees_sum = what_mSASP_sees_aerosols + what_mSASP_sees_rayleigh
     what_mSASP_sees_sky['sum'] = what_mSASP_sees_sum
+    # what_mSASP_sees_sky['aerosols'] = what_mSASP_sees_aerosols
+
 
     what_mSASP_sees_AOD_sum = what_mSASP_sees_AOD_aerosols + what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
     what_mSASP_sees_AOD['rayleigh'] = what_mSASP_sees_AOD_rayleigh.values.transpose()[0]
@@ -851,7 +863,8 @@ def load_sunintensities_TS(fname):
 
 
 class Sun_Intensities_TS(timeseries.TimeSeries):
-    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True):
+    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, additional_axes=False,
+             rayleigh=True):
         """plots ...
         Arguments
         ---------
