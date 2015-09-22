@@ -1,4 +1,5 @@
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 ###
 
@@ -194,3 +195,13 @@ def wavelength_to_rgb(wavelength, gamma=0.8, scale=1):
     #     B *= 255
     #     return np.array([int(R), int(G), int(B)])
     return np.array([R, G, B])
+
+
+def get_formatter_minor_log():
+    def minor_log(x, pos):
+        'The two args are the value and tick position'
+        out = str(x)[0]
+        return out
+
+    formatter = FuncFormatter(minor_log)
+    return formatter
