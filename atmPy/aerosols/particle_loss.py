@@ -292,9 +292,21 @@ Stokes number: %s (0.003 < st_num  < 0.2)""" % (sampling_angle, velocity_ratio, 
     return asp_eff
 
 
-def test_flow_type(tube_diameter, tube_air_velocity, temperature, pressure, verbose=False):
+def test_flow_type_in_tube(tube_diameter, tube_air_velocity, temperature, pressure, verbose=False):
     rey_num = flow_reynolds_number(tube_diameter, tube_air_velocity, temperature, pressure, verbose=verbose)
+    if np.all(rey_num < 2000):
+        flowtype = 'laminar'
+    elif np.all(rey_num > 4000):
+        flowtype = 'turbulent'
+    else:
+        txt = """Flowtype can not be detected. Flow type is ambigues."""
+        raise ValueError(txt)
 
+    if verbose:
+        txt = """Flow type: %s""" % flowtype
+        print(txt)
+
+    return flowtype
 
 def loss_in_a_bent_section_of_circular_tubing(temperature=293.15,  # Kelvin
                                               pressure=101.3,  # kPa
@@ -304,7 +316,7 @@ def loss_in_a_bent_section_of_circular_tubing(temperature=293.15,  # Kelvin
                                               tube_air_velocity=False,  # m/s
                                               tube_diameter=0.0025,  # m
                                               angle_of_bend=90,  # degrees
-                                              flow_type='laminar',
+                                              flow_type='auto',
                                               verbose=False
                                               ):
     """ (B&W 8-66 to 8-68; W&B 6-52, 6-53)
@@ -320,15 +332,22 @@ def loss_in_a_bent_section_of_circular_tubing(temperature=293.15,  # Kelvin
         tube_air_velocity = flow_rate2flow_velocity(tube_air_flow_rate, tube_diameter, verbose=verbose)
 
     if flow_type == 'auto':
-        fow_type = test_flow_type(tube_diameter, tube_air_velocity, temperature, pressure, verbose=verbose)
+        flow_type = test_flow_type_in_tube(tube_diameter, tube_air_velocity, temperature, pressure, verbose=verbose)
+
+    velocity_ratio = 1
+    stnum = stokes_number(particle_density, particle_diameter, pressure, temperature, tube_air_velocity,
+                              velocity_ratio, tube_diameter, verbose=verbose)
 
     if flow_type == 'laminar':
-        velocity_ratio = 1
-        stnum = stokes_number(particle_density, particle_diameter, pressure, temperature, tube_air_velocity,
-                              velocity_ratio, tube_diameter, verbose=verbose)
+
         fract = 1 - stnum * angle_of_bend * np.pi / 180.
+
+    elif flow_type == 'turbulent':
+        fract = np.exp(-2.823 * stnum * angle_of_bend * np.pi / 180)
+
     else:
-        raise TypeError('sorry not implemented yet. Flow_type has to be "laminar"')
+        raise ValueError('Unknown flow type: %s' % flow_type)
+
     return fract
 
 
@@ -341,7 +360,7 @@ def gravitational_loss_in_circular_tube(temperature=293.15,  # Kelvin
                                         incline_angle=60,  # degrees from horizontal (0-90)
                                         flow_rate=3,  # cc/s
                                         mean_flow_velocity=False,  # 0.1061    # m/s)
-                                        flow_type='laminar',
+                                        flow_type='auto',
                                         verbose=False):
     """
     Arguments
@@ -359,6 +378,9 @@ def gravitational_loss_in_circular_tube(temperature=293.15,  # Kelvin
     if not mean_flow_velocity:
         mean_flow_velocity = flow_rate2flow_velocity(flow_rate, tube_diameter, verbose=verbose)
 
+    if flow_type == 'auto':
+        flow_type = test_flow_type_in_tube(tube_diameter, mean_flow_velocity, temperature, pressure, verbose=verbose)
+
     if flow_type == 'laminar':
         sv = settling_velocity(temperature, particle_density, particle_diameter, pressure, verbose=verbose)
         k770 = np.cos(np.pi * incline_angle / 180) * 3 * sv * tube_length / (4 * tube_diameter * mean_flow_velocity)
@@ -375,9 +397,10 @@ def gravitational_loss_in_circular_tube(temperature=293.15,  # Kelvin
             2 * k770 * np.sqrt(1 - k770 ** (2 / 3)) + k771 - (k770 ** (1 / 3) * np.sqrt(1 - k770 ** (2 / 3)))))  # done
             if np.any(fract < 0):
                 fract = 0
-
+    elif flow_type == 'turbulent':
+        raise ValueError('Sorry this loss mechanism has not been implemented for turbulent flow')
     else:
-        print('sorry not implemented.')
+        raise ValueError('Unknown flow type: %s' % flow_type)
     if verbose:
         print('k770: %s' % k770)
         print('k771: %s' % k771)
