@@ -761,8 +761,6 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/atmPy/instruments/POPS/peaks.py">
-      <provider selected="true" editor-type-id="text-editor">
     <entry file="file://$PROJECT_DIR$/atmPy/tools/miscell_tools.py">
       <provider selected="true" editor-type-id="text-editor">
         <state vertical-scroll-proportion="0.0">
