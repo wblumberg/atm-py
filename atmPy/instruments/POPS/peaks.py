@@ -56,6 +56,99 @@ def read_binary(fname):
     return m
 
 
+#############################################
+#############################################
+#############################################
+#############################################
+
+# def _PeakFileArray2dataFrame(data,fname,deltaTime):
+#     data = data.copy()
+#     dateString = fname.split('_')[0]
+#     dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
+#     dts = dt.total_seconds()
+#     #dtsPlus = datetime.timedelta(seconds = deltaTime).total_seconds()
+#
+#     columns = np.array(['Ticks', 'Amplitude', 'Width', 'Saturated', 'Masked'])
+#
+#
+#     try:
+#         Time_s = data[:,0]
+#         rest = data[:,1:]
+#         dataTable = pd.DataFrame(rest, columns=columns)
+#         dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + deltaTime, unit = 's'), name = 'Time_UTC')
+#     except OverflowError:
+#
+#         data, report = _cleanPeaksArray(data)
+#         warnings.warn('Binary file %s is corrupt. Will try to fix it. if no exception accured it probably worked\nReport:\n%s'%(fname,report))
+#
+#
+#         Time_s = data[:,0]
+#         rest = data[:,1:]
+#         dataTable = pd.DataFrame(rest, columns=columns)
+#         dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + deltaTime, unit = 's'), name = 'Time_UTC')
+#
+#
+#     dataTable.Amplitude = 10**dataTable.Amplitude # data is written in log10
+#
+#     dataTable.Ticks = dataTable.Ticks.astype(np.int32)
+#     dataTable.Width = dataTable.Width.astype(np.int16)
+#     dataTable.Saturated = dataTable.Saturated.astype(np.int16)
+#     dataTable.Masked = np.abs(1. - dataTable.Masked).astype(np.int8)
+#     return dataTable
+
+def _csv2array(fname):
+    df = pd.read_csv(fname).dropna()
+    data = df.values
+    return data
+
+
+def _read_peak_file_csv(fname, deltaTime=0):
+    """returns a peak instance
+    fname: ...
+    deltaTime: if you want to apply a timedelay in seconds"""
+    data = _csv2array(fname)
+    directory, fname = os.path.split(fname)
+    dataFrame = _PeakFileArray2dataFrame(data, fname, deltaTime)
+    peakInstance = peaks(dataFrame)
+    return peakInstance
+
+
+def read_csv(fname):
+    """Generates a single Peak instance from a file or list of files
+
+    Arguments
+    ---------
+    fname: string or list of strings
+    """
+
+    m = None
+    if type(fname).__name__ == 'list':
+        first = True
+        for file in fname:
+            if 'Peak.txt' not in file:
+                print('%s is not a peak file ... skipped' % file)
+                continue
+            print('%s ... processed' % file)
+            mt = _read_peak_file_csv(file)
+            if first:
+                m = mt
+                first = False
+            else:
+                m.data = pd.concat((m.data, mt.data))
+
+    else:
+        m = _read_peak_file_csv(fname)
+
+    return m
+
+
+#############################################
+#############################################
+#############################################
+#############################################
+
+
+
 def read_cal_process_peakFile(fname, cal, bins, averageOverTime='60S'):
     peakdf = read_binary(fname)
     peakdf.apply_calibration(cal)
