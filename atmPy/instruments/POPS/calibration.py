@@ -161,12 +161,12 @@ def read_str(data, log=True):
     1600 11500
     1880 16000
     2180 21000
-    2500 28000
+    2500 28000s
     3000 37000"""
     read_str(data, log = False)
     '''
 
-    dataFrame = _string2Dataframe(data, log=True)
+    dataFrame = _string2Dataframe(data, log=log)
     calibrationInstance = calibration(dataFrame)
     return calibrationInstance
 

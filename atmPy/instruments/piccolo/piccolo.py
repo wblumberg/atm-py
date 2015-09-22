@@ -52,9 +52,12 @@ def _read_file(fname):
     # convert from rad to deg
     data.Lat.values[:] = np.rad2deg(data.Lat.values)
     data.Lon.values[:] = np.rad2deg(data.Lon.values)
-    data.sort_index(inplace=True)
+
     data['Altitude'] = data['Height']
     data = data.drop('Height', axis=1)
+
+    data.sort_index(inplace=True)
+
     return timeseries.TimeSeries(data, {'original header': header})
 
 
