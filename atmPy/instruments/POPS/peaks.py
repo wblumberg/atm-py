@@ -380,7 +380,7 @@ class peaks:
         deltaT = np.repeat(np.array([deltaT]),bins.shape[0]-1, axis=0)
         N/=deltaT.transpose()
         
-        bincenter = (edg[:-1] + edg[1:])/2.
+        # bincenter = (edg[:-1] + edg[1:])/2.
         binwidth = edg[1:] - edg[:-1]
     
         if not differentialStyle:
@@ -388,23 +388,9 @@ class peaks:
     
         elif differentialStyle == 'dNdDp':
             N = N/binwidth
-    
-#        elif differentialStyle == 'dNdlogDp':
-#            bincenter = 10**((np.log10(edg[:-1]) + np.log10(edg[1:]))/2.)
-#            binwidth = np.log10(edg[1:]) - np.log10(edg[:-1])
-#            N = N/binwidth
         else:
             raise ValueError('wrong type for argument "differentialStyle"')      
-    
-#        if distributionType == 'surface':
-#            N *= (bincenter**2 * np.pi)
-#        elif distributionType == 'volume':
-#            N *= (bincenter**3 * np.pi/6.)
-#        elif (distributionType == 'number') or (distributionType == 'calibration'):
-#            pass
-#        else:
-#            raise ValueError('wrong type for argument "distributionType"')    
-    
+
         binstr = bins.astype(int).astype(str)
         cols=[]
         for e,i in enumerate(binstr[:-1]):
