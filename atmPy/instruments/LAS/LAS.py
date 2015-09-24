@@ -13,10 +13,60 @@ import pylab as plt
 from scipy.interpolate import UnivariateSpline
 import warnings
 from matplotlib.colors import LogNorm
+from atmPy import sizedistribution
 
 
 
-def readFromFakeXLS(fname):
+def read_csv(fname):
+    las = _readFromFakeXLS(fname)
+    sd,hk = _separate_sizedist_and_housekeep(las)
+    bins = _get_bins(sd)
+    dist = sizedistribution.SizeDist_TS(sd,bins,"numberConcentration")
+    return dist
+
+
+def _separate_sizedist_and_housekeep(las):
+    """Beside separating size distribution and housekeeping this
+    function also converts the data to a numberconcentration (#/cc)
+
+    Parameters
+    ----------
+    las: pandas.DataFrame"""
+
+    sd = las.copy()
+    hk = las.copy()
+    k = sd.keys()
+    where = np.argwhere(k == 'Flow sccm') + 1
+    khk = k[: where]
+    sd = sd.drop(khk, axis=1)
+    hsd = k[where:]
+    hk = hk.drop(hsd, axis=1)
+
+    hk['Sample sccm'] = hk['Sample sccm'].astype(float)
+
+    hk['Accum. Secs'] = hk['Accum. Secs'].astype(float)
+
+    # normalize to time and flow
+    sd = sd.mul(60./hk['Sample sccm'] / hk['Accum. Secs'], axis = 0 )
+    return sd,hk
+
+def _get_bins(frame, log=False):
+    """
+    get the bins from the column labels of the size distribution DataFrame.
+    """
+    frame = frame.copy()
+
+    bins = np.zeros(frame.keys().shape[0]+1)
+    for e, i in enumerate(frame.keys()):
+        bin_s, bin_e = i.split(' ')
+        bin_s = float(bin_s)
+        bin_e = float(bin_e)
+        bins[e] = bin_s
+        bins[e+1] = bin_e
+    return bins #binCenters
+
+
+def _readFromFakeXLS(fname):
     """reads and shapes a XLS file produced by the LAS instrument"""
     fr = pd.read_csv(fname, sep='\t')
     newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
@@ -28,92 +78,67 @@ def readFromFakeXLS(fname):
     return fr
 
 
-def removeHousekeeping(frame):
-    """
-    Limits the frame to the collumns which have the number concentrations in them
-    """
-    frame = frame.copy()
-    k = frame.keys()
-    k = k[:int(np.argwhere(k == 'Flow sccm'))+1]
-    frame = frame.drop(k, axis=1)
-    return frame
 
 
-def getBinCenters(frame, binedges=False, log=False):
-    """
-    LAS gives the bin edges, this calculates the bin centers.
-    if log is True, the center will be with respect to the log10 ... log(d_{n+1})-log(d_{n})
-    if binedges is True, frame is not really a frame but the binedges (array with dtype=float)
-    Make sure you are running "removeHousekeeping" first
-    """
-    frame = frame.copy()
-    
-    if binedges:
-        if log:
-            binCenters = 10**((np.log10(frame[:-1]) + np.log10(frame[1:]))/2.)
-        else:
-            
-            binCenters = (frame[:-1] + frame[1:])/2.
-    else:
-        binCenters = np.zeros(frame.keys().shape)
-        for e, i in enumerate(frame.keys()):
-            bin_s, bin_e = i.split(' ')
-            bin_s = float(bin_s)
-            bin_e = float(bin_e)
-            normTo = bin_e - bin_s
-            frame[i] = frame[i].divide(normTo)
-            if log:
-                binCenters[e] = 10**((np.log10(bin_e) + np.log10(bin_s))/2.)
-            else:
-                binCenters[e] = (bin_e + bin_s)/2.
-    return binCenters
+# def _getBinCenters(frame, binedges=False, log=False):
+#     """
+#     LAS gives the bin edges, this calculates the bin centers.
+#     if log is True, the center will be with respect to the log10 ... log(d_{n+1})-log(d_{n})
+#     if binedges is True, frame is not really a frame but the binedges (array with dtype=float)
+#     Make sure you are running "removeHousekeeping" first
+#     """
+#     frame = frame.copy()
+#
+#     if binedges:
+#         if log:
+#             binCenters = 10**((np.log10(frame[:-1]) + np.log10(frame[1:]))/2.)
+#         else:
+#
+#             binCenters = (frame[:-1] + frame[1:])/2.
+#     else:
+#         binCenters = np.zeros(frame.keys().shape)
+#         for e, i in enumerate(frame.keys()):
+#             bin_s, bin_e = i.split(' ')
+#             bin_s = float(bin_s)
+#             bin_e = float(bin_e)
+#             normTo = bin_e - bin_s
+#             frame[i] = frame[i].divide(normTo)
+#             if log:
+#                 binCenters[e] = 10**((np.log10(bin_e) + np.log10(bin_s))/2.)
+#             else:
+#                 binCenters[e] = (bin_e + bin_s)/2.
+#     return binCenters
 
 
-def frameToXYZ(frame, binCenters, timeDelta = False):
-    """This creates a three same shaped arrays, so it can be plotted using pcolor, contour ...
-    Inputs:
-        \t frame - has to be run through "removeHousekeeping"
-        \t binCenters - can be obtained using "getBinCenters" 
-        \t timeDelta - time offset in hours"""
-#    binCenters = getBinCenters(frame)
-    frame = frame.copy()
-    histArray = frame.values.astype(np.float)
-    histArray[np.isnan(histArray)] = 0   
-    BINS_center = np.meshgrid(np.zeros(frame.index.values.shape[0]), binCenters)[1].transpose()
-    timeMesh = np.zeros(frame.shape, dtype="datetime64[ms]").transpose()
-    for e, i in enumerate(timeMesh):
-        timeMesh[e] = frame.index.values
-        if timeDelta:
-            timeMesh[e] += timeDelta
-    return timeMesh.transpose().astype(datetime.datetime), BINS_center, histArray
 
 
-def getTimeIntervalFromFrame(frame, start, end):
-    """cutes out a particular time interval from frame.
-    e.g.: getTimeIntervalFromFrame(frame,'2014-10-31 18:10:00','2014-10-31 18:10:00')"""
-    frame = frame.copy()
-    if start:
-        frame = frame.truncate(before = start)
 
-    if end:
-        frame = frame.truncate(after = end)
-    
-    return frame
+# def getTimeIntervalFromFrame(frame, start, end):
+#     """cutes out a particular time interval from frame.
+#     e.g.: getTimeIntervalFromFrame(frame,'2014-10-31 18:10:00','2014-10-31 18:10:00')"""
+#     frame = frame.copy()
+#     if start:
+#         frame = frame.truncate(before = start)
+#
+#     if end:
+#         frame = frame.truncate(after = end)
+#
+#     return frame
+
+#
+# def frame2singleDistribution(frame):
+#     frame = frame.copy()
+#     singleHist = np.zeros(frame.shape[1])
+#     for i in xrange(frame.shape[1]):
+#         singleHist[i] = np.nansum(frame.values[:,i])
+#     singleHist /= frame.shape[0]
+#     return singleHist
 
 
-def frame2singleDistribution(frame):
-    frame = frame.copy()
-    singleHist = np.zeros(frame.shape[1])
-    for i in xrange(frame.shape[1]):
-        singleHist[i] = np.nansum(frame.values[:,i])
-    singleHist /= frame.shape[0]
-    return singleHist
-
-
-def _string2Dataframe(data):
-    sb = io(data)
-    dataFrame = pd.read_csv(sb, sep=' ', names=('d', 'amp')).sort('d')
-    return dataFrame
+# def _string2Dataframe(data):
+#     sb = io(data)
+#     dataFrame = pd.read_csv(sb, sep=' ', names=('d', 'amp')).sort('d')
+#     return dataFrame
 
 
 def read_Calibration_fromString(data):
