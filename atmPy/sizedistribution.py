@@ -643,7 +643,6 @@ class SizeDist_TS(SizeDist):
              ax=None,
              fit_pos=True,
              cmap=plt_tools.get_colorMap_intensity(),
-
              colorbar=True):
 
         """ plots an intensity plot of all data
@@ -1130,7 +1129,8 @@ class SizeDist_LS(SizeDist):
              plotOnTheseAxes=False,
              cmap=plt_tools.get_colorMap_intensity(),
              fit_pos=True,
-             ax=None):
+             ax=None,
+             colorbar = True):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
 
         Arguments
@@ -1171,9 +1171,12 @@ class SizeDist_LS(SizeDist):
         a.get_yaxis().set_tick_params(direction='out', which='both')
         a.get_xaxis().set_tick_params(direction='out', which='both')
 
-        cb = f.colorbar(pc)
-        label = get_label(self.distributionType)
-        cb.set_label(label)
+        if colorbar:
+            cb = f.colorbar(pc)
+            label = get_label(self.distributionType)
+            cb.set_label(label)
+        else:
+            cb = None
 
         if self.distributionType != 'calibration':
             a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
