@@ -1395,8 +1395,14 @@ class OpticalProperties(object):
 
     def plot_AOD_cum(self, color=plt_tools.color_cycle[0], linewidth=2, ax=None, label='cumulative AOD',
                      extra_info=True):
-        a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
-        g = a.get_lines()[-1]
+        if not ax:
+            f,a = plt.subplots()
+        else:
+            a = ax
+        # a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
+        g, = a.plot(self.data_orig['AOD_cum']['AOD per Layer'], self.data_orig['AOD_cum'].index, color=color, linewidth=linewidth, label=label)
+
+        # g = a.get_lines()[-1]
         g.set_label(label)
         a.legend()
         # a.set_xlim(0, 3000)
