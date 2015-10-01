@@ -24,6 +24,7 @@ distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
              'surface': ['dSdlogDp', 'dSdDp'],
              'volume': ['dVdlogDp', 'dVdDp']}
 
+axes_types = ('AxesSubplot', 'AxesHostAxes')
 
 def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     """Fits a normal distribution to a """
@@ -411,7 +412,7 @@ class SizeDist(object):
 
 
         """
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
@@ -667,7 +668,7 @@ class SizeDist_TS(SizeDist):
         X, Y, Z = self._getXYZ()
         Z = np.ma.masked_invalid(Z)
 
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
@@ -757,7 +758,7 @@ class SizeDist_TS(SizeDist):
 
         """
 
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             color = plt_tools.color_cycle[len(ax.get_lines())]
             ax.get_figure()
         else:
@@ -1147,7 +1148,7 @@ class SizeDist_LS(SizeDist):
         """
         X, Y, Z = self._getXYZ()
         Z = np.ma.masked_invalid(Z)
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
