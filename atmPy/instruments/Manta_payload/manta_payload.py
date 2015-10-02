@@ -3,6 +3,12 @@ import pandas as pd
 from atmPy import timeseries
 import numpy as np
 from atmPy.aerosols import sampling_efficiency as sampeff
+from atmPy.tools import pandas_tools
+
+_date_time_alts = ['uas_datetime']
+_pressure_alt = ['StaticP', 'PRESS']
+_temp_alt = ['AT_cont', 'AT']
+_RH_alt = ['RH_cont', 'RH']
 
 def read_csv(fname, temperature_limits=(-20, -0.5)):
     """
@@ -11,13 +17,22 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
     temerature_limits: tuple.
         The temperature reading has false readings in it which can cause porblems later"""
     df = pd.read_csv(fname, sep='\t')
+
+
+
+    pandas_tools.ensure_column_exists(df,'DateTime', _date_time_alts)
+    pandas_tools.ensure_column_exists(df,'Pressure_Pa', _pressure_alt)
+    pandas_tools.ensure_column_exists(df,'Temperature', _temp_alt)
+    pandas_tools.ensure_column_exists(df,'Relative_humidity', _RH_alt)
+    # return df
     df.index = pd.Series(pd.to_datetime(df.DateTime, format='%Y-%m-%d %H:%M:%S'))
-    df['Pressure_Pa'] = df.PRESS
-    df['Temperature'] = df.AT
-    df['Relative_humidity'] = df.RH
-    df = df.drop('PRESS', axis=1)
-    df = df.drop('AT', axis=1)
-    df = df.drop('RH', axis=1)
+    # df['Pressure_Pa'] = df.PRESS
+    # df['Temperature'] = df.AT
+    # df['Relative_humidity'] = df.RH
+    # df = df.drop('PRESS', axis=1)
+    # df = df.drop('AT', axis=1)
+    # df = df.drop('RH', axis=1)
+    df = df.drop('DateTime', axis=1)
 
     df = df.sort_index()
 
