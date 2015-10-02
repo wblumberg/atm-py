@@ -179,28 +179,28 @@ def save_Calibration(calibrationInstance, fname):
     calibrationInstance.data.to_csv(fname, index = False)
     return
 
-def plot_distMap_LAS(fr_d,binEdgensLAS_d):
-    binCenters = getBinCenters(binEdgensLAS_d , binedges= True, log = True)
-    TIME_LAS,D_LAS,DNDP_LAS = frameToXYZ(fr_d, binCenters)
-    f,a = plt.subplots()
-    pcIm = a.pcolormesh(TIME_LAS,D_LAS,
-                 DNDP_LAS,
-                 norm = LogNorm(),#vmin = 3,vmax = distZoom.data.values.max()),#vmin = 1e-5),
-    #              cmap=plt.cm.RdYlBu_r,
-    #              cmap = plt.cm.terrain_r,
-                  cmap = hm.get_colorMap_intensity(),#plt.cm.hot_r, #PuBuGn,
-    #            shading='gouraud',
-                 )
-    a.semilogy()
-    a.set_ylim((150,2500))
-    a.set_ylabel('Diameter (nm)')
-    a.set_xlabel('Time')
-    a.set_title('LAS')
-    cb = f.colorbar(pcIm)
-    cb.set_label("Particle number (cm$^{-3}\,$s$^{-1}$)")
-    f.autofmt_xdate()
-#    a.yaxis.set_minor_formatter(FormatStrFormatter("%i"))
-#    a.yaxis.set_major_formatter(FormatStrFormatter("%i"))
+# def plot_distMap_LAS(fr_d,binEdgensLAS_d):
+#     binCenters = getBinCenters(binEdgensLAS_d , binedges= True, log = True)
+#     TIME_LAS,D_LAS,DNDP_LAS = frameToXYZ(fr_d, binCenters)
+#     f,a = plt.subplots()
+#     pcIm = a.pcolormesh(TIME_LAS,D_LAS,
+#                  DNDP_LAS,
+#                  norm = LogNorm(),#vmin = 3,vmax = distZoom.data.values.max()),#vmin = 1e-5),
+#     #              cmap=plt.cm.RdYlBu_r,
+#     #              cmap = plt.cm.terrain_r,
+#                   cmap = hm.get_colorMap_intensity(),#plt.cm.hot_r, #PuBuGn,
+#     #            shading='gouraud',
+#                  )
+#     a.semilogy()
+#     a.set_ylim((150,2500))
+#     a.set_ylabel('Diameter (nm)')
+#     a.set_xlabel('Time')
+#     a.set_title('LAS')
+#     cb = f.colorbar(pcIm)
+#     cb.set_label("Particle number (cm$^{-3}\,$s$^{-1}$)")
+#     f.autofmt_xdate()
+# #    a.yaxis.set_minor_formatter(FormatStrFormatter("%i"))
+# #    a.yaxis.set_major_formatter(FormatStrFormatter("%i"))
 
     
 class calibration:
