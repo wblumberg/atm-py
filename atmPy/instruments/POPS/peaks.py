@@ -102,23 +102,27 @@ def _csv2array(fname):
     return data
 
 
-def _read_peak_file_csv(fname, deltaTime=0):
+def _read_peak_file_csv(fname, deltaTime=0, log = True, since_midnight = True):
     """returns a peak instance
     fname: ...
     deltaTime: if you want to apply a timedelay in seconds"""
     data = _csv2array(fname)
     directory, fname = os.path.split(fname)
-    dataFrame = _PeakFileArray2dataFrame(data, fname, deltaTime)
+    dataFrame = _PeakFileArray2dataFrame(data, fname, deltaTime, log = log, since_midnight = since_midnight)
     peakInstance = peaks(dataFrame)
     return peakInstance
 
 
-def read_csv(fname):
+def read_csv(fname, log = True, since_midnight = True):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
     ---------
     fname: string or list of strings
+    log: bool.
+        If the actual or the log of the amplitude is given. If log is True the value in the file will be 10**amp
+    since_midnight: bool
+        if the time stamp in the file is seconds since midnitght or since 19040101.
     """
 
     m = None
@@ -129,7 +133,7 @@ def read_csv(fname):
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)
-            mt = _read_peak_file_csv(file)
+            mt = _read_peak_file_csv(file, log = log, since_midnight = since_midnight)
             if first:
                 m = mt
                 first = False
@@ -137,7 +141,7 @@ def read_csv(fname):
                 m.data = pd.concat((m.data, mt.data))
 
     else:
-        m = _read_peak_file_csv(fname)
+        m = _read_peak_file_csv(fname, log = log, since_midnight = since_midnight)
 
     return m
 
@@ -174,11 +178,17 @@ def _BinaryFile2Array(fname):
     rein.close()
     return data
 
-def _PeakFileArray2dataFrame(data,fname,deltaTime): 
+
+
+def _PeakFileArray2dataFrame(data,fname,deltaTime, log = True, since_midnight = True):
     data = data.copy()
     dateString = fname.split('_')[0]
-    dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d") 
-    dts = dt.total_seconds()
+    if since_midnight:
+        dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
+        dts = dt.total_seconds()
+    else:
+        dt = datetime.datetime.strptime('19040101', "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
+        dts = dt.total_seconds()
     #dtsPlus = datetime.timedelta(seconds = deltaTime).total_seconds() 
     
     columns = np.array(['Ticks', 'Amplitude', 'Width', 'Saturated', 'Masked'])
@@ -200,8 +210,8 @@ def _PeakFileArray2dataFrame(data,fname,deltaTime):
         dataTable = pd.DataFrame(rest, columns=columns)
         dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + deltaTime, unit = 's'), name = 'Time_UTC')
         
-
-    dataTable.Amplitude = 10**dataTable.Amplitude # data is written in log10
+    if log:
+        dataTable.Amplitude = 10**dataTable.Amplitude # data is written in log10
 
     dataTable.Ticks = dataTable.Ticks.astype(np.int32)
     dataTable.Width = dataTable.Width.astype(np.int16)
