@@ -45,10 +45,19 @@ def read_csv(fname):
     """
     # fname = os.listdir()
     # fname = '20150419_000_POPS_HK.csv'
+
+    houseKeeping_file_endings = ['HK.csv', 'HK.txt']
+
     first = True
+
     if type(fname).__name__ == 'list':
         for file in fname:
-            if 'HK.csv' in file:
+            for i in houseKeeping_file_endings:
+                if i in file:
+                    is_hk = True
+                else:
+                    is_hk = False
+            if is_hk:
                 hktmp = _read_housekeeping(file)
                 if not hktmp:
                     print('%s is empty ... next one' % file)
@@ -60,6 +69,10 @@ def read_csv(fname):
                 else:
                     data = pd.concat((data, hktmp.data))
                     hk = POPSHouseKeeping(data)
+        if first:
+            txt = """Either the prvided list of names is empty, the files are empty, or none of the file names end on
+the required ending (*HK.csv)"""
+            raise ValueError(txt)
     else:
         hk = _read_housekeeping(fname)
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
