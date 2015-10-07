@@ -9,13 +9,48 @@ import numpy as np
 import pandas as pd
 import datetime
 from atmPy import sizedistribution
-
+from atmPy import timeseries
 
 
 def read_csv(fname, norm2time = True, norm2flow = True):
+    uhsas_file_types = ['.xls']
+    first = True
+    if type(fname).__name__ == 'list':
+        for file in fname:
+            for i in uhsas_file_types:
+                if i in file:
+                    right_file_format = True
+                else:
+                    right_file_format = False
+            if right_file_format:
+                sdt, hkt= _read_csv(file, norm2time = norm2time, norm2flow = norm2flow)
+
+                if first:
+                    sd = sdt.copy()
+                    hk = hkt.copy()
+                    first = False
+                else:
+                    if not np.array_equal(sd.bincenters, sdt.bincenters):
+                        txt = 'the bincenters changed between files! No good!'
+                        raise ValueError(txt)
+
+                    sd.data = pd.concat((sd.data,sdt.data))
+                    hk.data = pd.concat((hk.data,hkt.data))
+
+        if first:
+            txt = """Either the prvided list of names is empty, the files are empty, or none of the file names end on
+the required ending (*.xls)"""
+            raise ValueError(txt)
+    else:
+        sd, hk= _read_csv(fname, norm2time = norm2time, norm2flow = norm2flow)
+    return sd, hk
+
+
+def _read_csv(fname, norm2time = True, norm2flow = True):
     uhsas = _readFromFakeXLS(fname)
 #     return uhsas
     sd,hk = _separate_sizedist_and_housekeep(uhsas, norm2time = norm2time, norm2flow = norm2flow)
+    hk = timeseries.TimeSeries(hk)
 #     return sd,hk
     bins = _get_bins(sd)
 #     return bins
