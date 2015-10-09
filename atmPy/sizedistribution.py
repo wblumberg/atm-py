@@ -14,7 +14,7 @@ from scipy import stats
 from atmPy import vertical_profile
 import pdb
 
-# TODO: Get rid of references to hagmods so we don't need them.
+
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
 # TODO: Fix distrTypes so they are consistent with our understanding.
@@ -247,27 +247,59 @@ class SizeDist(object):
     * Diameters are specified in nanometers
 
     """
-
-    def __init__(self, data, bins, distrType, bincenters=False, fixGaps=True):
-
-        self.bins = bins
-        if type(bincenters) == np.ndarray:
-            self.bincenters = bincenters
-        else:
-            self.bincenters = (bins[1:] + bins[:-1]) / 2.
-        self.binwidth = (bins[1:] - bins[:-1])
-        self.distributionType = distrType
+    # todo: write setters and getters for bins and bincenter, so when one is changed the otherone is automatically
+    #  changed too
+    def __init__(self, data, bins, distrType,
+                 # bincenters=False,
+                 fixGaps=True):
 
         if type(data).__name__ == 'NoneType':
-            cols = []
-            for e, i in enumerate(bins[:-1]):
-                cols.append(str(i) + '-' + str(bins[e + 1]))
-            self.data = pd.DataFrame(columns=cols)
+            self.data = pd.DataFrame()
         else:
             self.data = data
 
-            if fixGaps:
-                self.fillGaps()
+
+
+        self.bins = bins
+        # if type(bincenters) == np.ndarray:
+        #     self.bincenters = bincenters
+        # else:
+        #     self.bincenters = (bins[1:] + bins[:-1]) / 2.
+        # self.binwidth = (bins[1:] - bins[:-1])
+        self.distributionType = distrType
+        if fixGaps:
+            self.fillGaps()
+
+
+    @property
+    def bins(self):
+        return self.__bins
+
+    @bins.setter
+    def bins(self,array):
+        bins_st = array.astype(int).astype(str)
+        col_names = []
+        for e,i in enumerate(bins_st):
+            if e == len(bins_st) - 1:
+                break
+            col_names.append(bins_st[e] + '-' + bins_st[e+1])
+        self.data.columns = col_names
+
+
+        self.__bins = array
+        self.__bincenters = (array[1:] + array[:-1]) / 2.
+        self.__binwidth = (array[1:] - array[:-1])
+
+
+
+    @property
+    def bincenters(self):
+        return self.__bincenters
+
+    @property
+    def binwidth(self):
+        return self.__binwidth
+
 
     def grow_particles(self, shift=1):
         """This function shifts the data by "shift" columns to the right
@@ -483,10 +515,11 @@ class SizeDist(object):
             endIdx = array_tools.find_closest(sd.bins, end)
         else:
             endIdx = len(self.bincenters)
-        sd.binwidth = self.binwidth[startIdx:endIdx]
-        sd.bins = self.bins[startIdx:endIdx + 1]
-        sd.bincenters = self.bincenters[startIdx:endIdx]
+        # sd.binwidth = self.binwidth[startIdx:endIdx]
         sd.data = self.data.iloc[:, startIdx:endIdx]
+        sd.bins = self.bins[startIdx:endIdx + 1]
+        # sd.bincenters = self.bincenters[startIdx:endIdx]
+
         return sd
 
     def _normal2log(self):
