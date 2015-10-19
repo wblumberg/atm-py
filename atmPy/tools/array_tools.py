@@ -17,7 +17,7 @@ def find_closest(array, value):
     integer or array
         position of closest value(s)"""
 
-    if type(value).__name__ in ('float', 'int', 'float64'):
+    if type(value).__name__ in ('float', 'int', 'float64', 'int64'):
         return np.abs(array - value).argmin()
 
     elif type(value).__name__ in ('list', 'ndarray'):

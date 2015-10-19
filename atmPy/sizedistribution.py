@@ -793,7 +793,7 @@ class SizeDist_TS(SizeDist):
 
         if type(ax).__name__ in axes_types:
             color = plt_tools.color_cycle[len(ax.get_lines())]
-            ax.get_figure()
+            f = ax.get_figure()
         else:
             f, ax = plt.subplots()
             color = plt_tools.color_cycle[0]

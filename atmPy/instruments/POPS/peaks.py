@@ -129,7 +129,7 @@ def read_csv(fname, log = True, since_midnight = True):
     if type(fname).__name__ == 'list':
         first = True
         for file in fname:
-            if 'Peak.txt' not in file:
+            if ('Peak.txt' not in file) and ('Peak.csv' not in file):
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)

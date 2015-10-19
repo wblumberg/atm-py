@@ -166,8 +166,6 @@ class TimeSeries(object):
             wcal = np.array([161., 190., 255.]) / 255.
             boundary = bmap.drawmapboundary(fill_color=wcal)
 
-
-            # Fill the continents with the land color map.fillcontinents(color=’coral’,lake_color=’aqua’)
             grau = 0.9
             continents = bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
             costlines = bmap.drawcoastlines()

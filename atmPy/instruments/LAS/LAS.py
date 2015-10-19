@@ -8,7 +8,7 @@ Created on Mon Nov 10 11:43:10 2014
 import numpy as np
 import pandas as pd
 import datetime
-# from StringIO import StringIO as io
+from StringIO import StringIO as io
 import pylab as plt
 from scipy.interpolate import UnivariateSpline
 import warnings
@@ -135,16 +135,15 @@ def _readFromFakeXLS(fname):
 #     return singleHist
 
 
-# def _string2Dataframe(data):
-#     sb = io(data)
-#     dataFrame = pd.read_csv(sb, sep=' ', names=('d', 'amp')).sort('d')
-#     return dataFrame
+def _string2Dataframe(data):
+    sb = io(data)
+    dataFrame = pd.read_csv(sb, sep=' ', names=('d', 'amp')).sort('d')
+    return dataFrame
 
 
 def read_Calibration_fromString(data):
     '''
     unit of diameter must be nm
-    e.g.:
 data = """140 88
 150 102
 173 175
