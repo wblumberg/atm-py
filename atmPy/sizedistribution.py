@@ -40,6 +40,7 @@ def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     ############
 
     para = optimization.curve_fit(math_functions.gauss, x, y, p0=param)
+
     amp = para[0][0]
     sigma = para[0][2]
     if log:
@@ -221,7 +222,7 @@ class SizeDist(object):
     Object defining a log normal aerosol size distribution
 
 
-    Attributes
+    Arguments
     ----------
     bincenters:         NumPy array, optional
                         this is if you actually want to pass the bincenters, if False they will be calculated
@@ -422,6 +423,7 @@ class SizeDist(object):
              showMinorTickLabels=True,
              removeTickLabels=["700", "900"],
              fit_res=True,
+             fit_res_scale = 'log',
              ax=None,
              ):
         """
@@ -435,6 +437,8 @@ class SizeDist(object):
             list of tick labels aught to be removed (in case there are overlapping)
         fit_res: bool [True], optional
             allows plotting of fitresults if fit_normal was previously executed
+        fit_res: string
+            If fit_normal was done using log = False, you want to set this to linear!
         ax: axis object [None], optional
             option to provide axis to plot on
 
@@ -462,7 +466,13 @@ class SizeDist(object):
         if fit_res:
             if 'data_fit_normal' in dir(self):
                 amp, pos, sigma = self.data_fit_normal.values[0, :3]
-                normal_dist = math_functions.gauss(np.log10(self.bincenters), amp, np.log10(pos), sigma)
+                if fit_res_scale == 'log':
+                    normal_dist = math_functions.gauss(np.log10(self.bincenters), amp, np.log10(pos), sigma)
+                elif fit_res_scale =='linear':
+                    normal_dist = math_functions.gauss(self.bincenters, amp, pos, sigma)
+                else:
+                    txt = '"fit_res_scale has to be either log or linear'
+                    raise ValueError(txt)
                 a.plot(self.bincenters, normal_dist, color=plt_tools.color_cycle[1], linewidth=2,
                        label='fit with norm. dist.')
                 a.legend()
