@@ -112,7 +112,7 @@ def get_label(distType):
 
 # Todo: Docstring is wrong
 # Todo: implement into the Layer Series
-def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
+def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     """
     !!!Tis Docstring need fixn
     Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
@@ -143,8 +143,9 @@ def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
                                                        noOfAngles=noOfAngles)
     # out['mie_curve'] = mie
-    #todo: aod for LS needed
-    # AOD_layer = np.zeros((len(sdls.layercenters)))
+    if aod:
+        AOD_layer = np.zeros((len(sdls.layercenters)))
+
     extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
     # print('extCoeffPerLayer: ', extCoeffPerLayer.shape)
     angular_scatt_func_effective = pd.DataFrame()
@@ -159,10 +160,10 @@ def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
         # print('extinction_coefficient: ', extinction_coefficient.shape)
         # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
 
-        # todo: more AOD stuff
-        # layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
-        # AOD_perBin = extinction_coefficient * layerThickness
-        # AOD_layer[i] = AOD_perBin.values.sum()
+        if aod:
+            layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
+            AOD_perBin = extinction_coefficient * layerThickness
+            AOD_layer[i] = AOD_perBin.values.sum()
 
         extCoeffPerLayer[i] = extinction_coefficient
 
@@ -194,10 +195,10 @@ def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
 
         #     print(mie.extinction_crossection)
 
-    #todo: and more AOD here
-    # out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
-    # out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
-    # out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
+    if aod:
+        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
+        out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
 
     extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
@@ -215,6 +216,7 @@ def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     out['wavelength'] = wavelength
     out['index_of_refraction'] = n
     out['bin_centers'] = sd.bincenters
+    out['angular_scatt_func'] = angular_scatt_func_effective
     # opt_properties = OpticalProperties(out, self.bins)
     # opt_properties.wavelength = wavelength
     # opt_properties.index_of_refractio = n
@@ -1158,93 +1160,15 @@ class SizeDist_LS(SizeDist):
         return -slope, AOD_dict
 
     def calculate_optical_properties(self, wavelength, n, noOfAngles=100):
-        """
-        Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
-        plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
-
-        Parameters
-        ----------
-        wavelength: float.
-            wavelength of the scattered light, unit: nm
-        n: float.
-            Index of refraction of the scattering particles
-        noOfAngles: int, optional.
-            Number of scattering angles to be calculated. This mostly effects calculations which depend on the phase
-            function.
-
-        Returns
-        -------
-        OpticalProperty instance
-
-        """
-        out = {}
-        out['n'] = n
-        out['wavelength'] = wavelength
-        sdls = self.convert2numberconcentration()
-        # pdb.set_trace()
-        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
-                                                           noOfAngles=noOfAngles)
-        # out['mie_curve'] = mie
-
-        AOD_layer = np.zeros((len(sdls.layercenters)))
-        extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
-        angular_scatt_func_effective = pd.DataFrame()
-        asymmetry_parameter_LS = np.zeros((len(sdls.layercenters)))
-        # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
-        for i, lc in enumerate(sdls.layercenters):
-            laydata = sdls.data.loc[lc].values
-            # print(laydata)
-            extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
-            # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
-
-            layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
-            AOD_perBin = extinction_coefficient * layerThickness
-            AOD_layer[i] = AOD_perBin.values.sum()
-            extCoeffPerLayer[i] = extinction_coefficient
-
-
-            # return laydata, mie.scattering_crossection
-
-            scattering_cross_eff = laydata * mie.scattering_crossection
-
-            pfe = (laydata * angular_scatt_func).sum(axis=1)  # sum of all angular_scattering_intensities
-            # pfe2 = pfe.copy()
-            # angular_scatt_func_effective[lc] =  pfe
-            # asymmetry_parameter_LS[i] = (pfe.values*np.cos(pfe.index.values)).sum()/pfe.values.sum()
-            x_2p = pfe.index.values
-            y_2p = pfe.values
-            # limit to [0,pi]
-            y_1p = y_2p[x_2p < np.pi]
-            x_1p = x_2p[x_2p < np.pi]
-            # integ = integrate.simps(y_1p*np.sin(x_1p),x_1p)
-            # y_phase_func = y_1p/integ
-            y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
-            asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
-            # return mie,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
-            angular_scatt_func_effective[
-                lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
-            # return mie.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
-            # return extinction_coefficient, angular_scatt_func_effective
-            # return AOD_layer, pfe, angular_scatt_func_effective[lc]
-
-
-            #     print(mie.extinction_crossection)
-        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
-        out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
-        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
-        out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
-        out['asymmetry_param'] = pd.DataFrame(asymmetry_parameter_LS, index=sdls.layercenters,
-                                              columns=['asymmetry_param'])
-        # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
-        # out['OptPropInstance']= OpticalProperties(out, self.bins)
-
-        warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
+        out = _calculate_optical_properties(self, wavelength, n, aod = True, noOfAngles=noOfAngles)
         opt_properties = OpticalProperties(out, self.bins)
         opt_properties.wavelength = wavelength
         opt_properties.index_of_refractio = n
-        opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+        opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
         opt_properties.parent_dist_LS = self
         return opt_properties
+
+
 
     def add_layer(self, sd, layerboundery):
         """
@@ -1557,7 +1481,8 @@ class SizeDist_LS(SizeDist):
 # Todo: some functions should be switched of
 class OpticalProperties(object):
     def __init__(self, data, bins):
-        self.data = data['extCoeffPerLayer']
+        # self.data = data['extCoeffPerLayer']
+        self.data = data['extCoeff_perrow_perbin']
         self.data_orig = data
         self.AOD = data['AOD']
         self.bins = bins
