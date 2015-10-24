@@ -12,7 +12,7 @@ import scipy.optimize as optimization
 from scipy import integrate
 from scipy import stats
 from atmPy import vertical_profile
-import pdb
+from atmPy.aerosols import hygroscopic_growth as hg
 
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
@@ -112,7 +112,7 @@ def get_label(distType):
 
 # Todo: Docstring is wrong
 # Todo: implement into the Layer Series
-def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
+def _calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     """
     !!!Tis Docstring need fixn
     Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
@@ -143,7 +143,7 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
                                                        noOfAngles=noOfAngles)
     # out['mie_curve'] = mie
-
+    #todo: aod for LS needed
     # AOD_layer = np.zeros((len(sdls.layercenters)))
     extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
     # print('extCoeffPerLayer: ', extCoeffPerLayer.shape)
@@ -159,9 +159,11 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
         # print('extinction_coefficient: ', extinction_coefficient.shape)
         # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
 
+        # todo: more AOD stuff
         # layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
         # AOD_perBin = extinction_coefficient * layerThickness
         # AOD_layer[i] = AOD_perBin.values.sum()
+
         extCoeffPerLayer[i] = extinction_coefficient
 
 
@@ -191,9 +193,12 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
 
 
         #     print(mie.extinction_crossection)
+
+    #todo: and more AOD here
     # out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
     # out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
     # out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
+
     extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
     out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
@@ -262,6 +267,7 @@ class SizeDist(object):
 
 
         self.bins = bins
+        self.__index_of_refraction = None
         # if type(bincenters) == np.ndarray:
         #     self.bincenters = bincenters
         # else:
@@ -301,29 +307,146 @@ class SizeDist(object):
     def binwidth(self):
         return self.__binwidth
 
+    @property
+    def index_of_refraction(self):
+        return self.__index_of_refraction
 
-    def grow_particles(self, shift=1):
-        """This function shifts the data by "shift" columns to the right
-        Argurments
-        ----------
-        shift: int.
-            number of columns to shift.
+    @index_of_refraction.setter
+    def index_of_refraction(self,n):
+        if not self.__index_of_refraction:
+            self.__index_of_refraction = n
+        elif self.__index_of_refraction:
+            txt = """Security stop. This is to prevent you from unintentionally changing this value.
+            The index of refraction is already set to %.2f, either by you or by another function, e.g. apply_hygro_growth.
+            If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
+            raise ValueError(txt)
 
-        Returns
-        -------
-        New dist_LS instance
-        Growth ratio (mean,std) """
 
-        dist_grow = self.copy()
-        gf = dist_grow.bincenters[shift:] / dist_grow.bincenters[:-shift]
-        gf_mean = gf.mean()
-        gf_std = gf.std()
+    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
+        """
+        how: string ['shift_bins', 'shift_data']
+        """
 
-        shape = dist_grow.data.shape[1]
-        dist_grow.data[:] = 0
-        dist_grow.data.iloc[:, shift:] = self.data.values[:, :shape - shift]
+        if not self.index_of_refraction:
+            txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
+            raise ValueError(txt)
+        out_I = {}
+        dist_g = self.copy()
+        dist_g.convert2numberconcentration()
 
-        return dist_grow, (gf_mean, gf_std)
+        gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
+        out_I['growth_factor'] = gf
+        if how == 'shift_bins':
+            if not isinstance(gf, (float,int)):
+                txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
+                It is %s'''%(type(RH).__name__)
+                raise TypeError(txt)
+
+            dist_g.bins = dist_g.bins * gf
+            dist_g.__index_of_refraction = n_mix
+        elif how == 'shift_data':
+            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0],dist_g.bins,gf.max())
+            bin_num = test['data'].shape[0]
+            data_new = np.zeros((dist_g.data.shape[0],bin_num))
+            for e,i in enumerate(dist_g.data.values):
+                out = dist_g._hygro_growht_shift_data(i,dist_g.bins,gf[e])
+                dt = out['data']
+                diff = bin_num - dt.shape[0]
+                dt = np.append(dt, np.zeros(diff))
+                data_new[e] = dt
+            df = pd.DataFrame(data_new)
+            df.index = dist_g.data.index
+            # return df
+            dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
+            df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
+            df.index = dist_g.data.index
+            dist_g.index_of_refraction = df
+        else:
+            txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
+            raise ValueError(txt)
+        out_I['size_distribution'] = dist_g
+        return out_I
+
+
+    def _hygro_growht_shift_data(self, data, bins, gf):
+        """data: 1D array
+        bins: 1D array
+        gf: float"""
+        bins = bins.copy()
+        if np.any(gf < 1):
+            txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
+            raise ValueError(txt)
+
+        shifted = bins*gf
+        ml = array_tools.find_closest(bins, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+
+        if np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+        no_extra_bins = bins[ml].shape[0] - np.unique(bins[ml]).shape[0] + 1
+
+        ######### Ad bins to shift data into
+
+        last_two = np.log10(bins[- (no_extra_bins + 1):])
+        step_width = last_two[-1] - last_two[-2]
+        new_bins = np.zeros(no_extra_bins)
+        for i in range(no_extra_bins):
+            new_bins[i] = np.log10(bins[-1]) + ((i + 1) * step_width)
+        newbins = 10**new_bins
+        bins = np.append(bins,newbins)
+        shifted = (bins * gf)[:-no_extra_bins]
+
+        ######## and again ########################
+
+        ml = array_tools.find_closest(bins, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+
+        if np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+
+        ##### percentage of particles moved to next bin ...')
+
+        shifted_w = shifted[1:] - shifted[:-1]
+
+        fract_first = (bins[mh] - shifted)[:-1]/shifted_w
+        fract_last = (shifted - bins[ml])[1:]/shifted_w
+
+        data_new = np.zeros(data.shape[0]+ no_extra_bins)
+        data_new[no_extra_bins - 1:-1] += fract_first * data
+        data_new[no_extra_bins:] += fract_last * data
+
+    #     data = np.append(data, np.zeros(no_extra_bins))
+        out = {}
+        out['bins'] = bins
+        out['data'] = data_new
+        out['num_extr_bins'] = no_extra_bins
+        return out
+
+
+    # def grow_particles(self, shift=1):
+    #     """This function shifts the data by "shift" columns to the right
+    #     Argurments
+    #     ----------
+    #     shift: int.
+    #         number of columns to shift.
+    #
+    #     Returns
+    #     -------
+    #     New dist_LS instance
+    #     Growth ratio (mean,std) """
+    #
+    #     dist_grow = self.copy()
+    #     gf = dist_grow.bincenters[shift:] / dist_grow.bincenters[:-shift]
+    #     gf_mean = gf.mean()
+    #     gf_std = gf.std()
+    #
+    #     shape = dist_grow.data.shape[1]
+    #     dist_grow.data[:] = 0
+    #     dist_grow.data.iloc[:, shift:] = self.data.values[:, :shape - shift]
+    #
+    #     return dist_grow, (gf_mean, gf_std)
 
     def calculate_optical_properties(self, wavelength, n):
         out = calculate_optical_properties(self, wavelength, n)
@@ -936,15 +1059,36 @@ class SizeDist_LS(SizeDist):
 
     """
 
-    def __init__(self, data, bins, distributionType, layerbounderies, bincenters=False, fixGaps=True):
-        super(SizeDist_LS, self).__init__(data, bins, distributionType, bincenters=False, fixGaps=True)
+    def __init__(self, data, bins, distributionType, layerbounderies, fixGaps=True):
+        super(SizeDist_LS, self).__init__(data, bins, distributionType, fixGaps=True)
         if type(layerbounderies).__name__ == 'NoneType':
             self.layerbounderies = np.empty((0, 2))
-            self.layercenters = np.array([])
+            # self.layercenters = np.array([])
         else:
             self.layerbounderies = layerbounderies
-            newlb = np.unique(layerbounderies.flatten())
-            self.layercenters = (newlb[1:] + newlb[:-1]) / 2.
+
+    @property
+    def layercenters(self):
+        return self.__layercenters
+
+    @property
+    def layerbounderies(self):
+        return self.__layerbouderies
+
+    @layerbounderies.setter
+    def layerbounderies(self,lb):
+        self.__layerbouderies = lb
+        newlb = np.unique(self.layerbounderies.flatten())
+        self.__layercenters = (newlb[1:] + newlb[:-1]) / 2.
+        self.data.index = self.layercenters
+
+    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
+        out = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
+        sd = out['size_distribution']
+        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
+        sd_LS.index_of_refraction = sd.index_of_refraction
+        out['size_distribution'] = sd_LS
+        return out
 
     def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
         """Calculates the Anstrome coefficience (overall, layerdependent)
