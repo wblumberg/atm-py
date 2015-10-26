@@ -138,24 +138,38 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     out['n'] = n
     out['wavelength'] = wavelength
     sdls = sd.convert2numberconcentration()
-    index = sd.data.index
-    # pdb.set_trace()
-    mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+    index = sdls.data.index
+
+    if isinstance(n, pd.DataFrame):
+        n_multi = True
+    else:
+        n_multi = False
+
+    if not n_multi:
+        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
                                                        noOfAngles=noOfAngles)
-    # out['mie_curve'] = mie
+
     if aod:
         AOD_layer = np.zeros((len(sdls.layercenters)))
 
     extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
-    # print('extCoeffPerLayer: ', extCoeffPerLayer.shape)
     angular_scatt_func_effective = pd.DataFrame()
     asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
-    # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
+
+    # print('\n oben mie.extinction_crossection: %s \n'%(mie.extinction_crossection))
+
     for i, lc in enumerate(sdls.data.index.values):
         laydata = sdls.data.iloc[i].values
         # print('laydata: ',laydata.shape)
         # print(laydata)
+        if n_multi:
+            mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n.iloc[i].values[0],
+                                                       noOfAngles=noOfAngles)
         extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
+
+        # print('\n oben ext_coef %s \n'%extinction_coefficient)
+
+
         # print('mie.extinction_crossection ', mie.extinction_crossection.shape)
         # print('extinction_coefficient: ', extinction_coefficient.shape)
         # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
@@ -215,7 +229,7 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     # out['OptPropInstance']= OpticalProperties(out, self.bins)
     out['wavelength'] = wavelength
     out['index_of_refraction'] = n
-    out['bin_centers'] = sd.bincenters
+    out['bin_centers'] = sdls.bincenters
     out['angular_scatt_func'] = angular_scatt_func_effective
     # opt_properties = OpticalProperties(out, self.bins)
     # opt_properties.wavelength = wavelength
@@ -315,13 +329,13 @@ class SizeDist(object):
 
     @index_of_refraction.setter
     def index_of_refraction(self,n):
-        if not self.__index_of_refraction:
-            self.__index_of_refraction = n
-        elif self.__index_of_refraction:
-            txt = """Security stop. This is to prevent you from unintentionally changing this value.
-            The index of refraction is already set to %.2f, either by you or by another function, e.g. apply_hygro_growth.
-            If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
-            raise ValueError(txt)
+        # if not self.__index_of_refraction:
+        self.__index_of_refraction = n
+        # elif self.__index_of_refraction:
+        #     txt = """Security stop. This is to prevent you from unintentionally changing this value.
+        #     The index of refraction is already set to %.2f, either by you or by another function, e.g. apply_hygro_growth.
+        #     If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
+        #     raise ValueError(txt)
 
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
@@ -1022,6 +1036,7 @@ class SizeDist_TS(SizeDist):
         lays = SizeDist_LS(empty_frame, self.bins, self.distributionType, None)
 
         for e, end_h_l in enumerate(layer_edges[1:]):
+            print(e)
             start_h_l = layer_edges[e]
             layer = hk.data.Altitude.iloc[
                 np.where(np.logical_and(start_h_l < hk.data.Altitude.values, hk.data.Altitude.values < end_h_l))]
@@ -1029,7 +1044,9 @@ class SizeDist_TS(SizeDist):
             end_t = layer.index.max()
             dist_tmp = self.zoom_time(start=start_t, end=end_t)
             avrg = dist_tmp.average_overAllTime()
+            # return avrg,lays
             lays.add_layer(avrg, (start_h_l, end_h_l))
+            print('worked')
         lays.parent_dist_TS = self
         lays.parent_timeseries = hk
         return lays
@@ -1087,6 +1104,7 @@ class SizeDist_LS(SizeDist):
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         out = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
         sd = out['size_distribution']
+        # gf = out['growth_factor']
         sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
         sd_LS.index_of_refraction = sd.index_of_refraction
         out['size_distribution'] = sd_LS
@@ -1159,7 +1177,9 @@ class SizeDist_LS(SizeDist):
 
         return -slope, AOD_dict
 
-    def calculate_optical_properties(self, wavelength, n, noOfAngles=100):
+    def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
+        if not n:
+            n = self.index_of_refraction
         out = _calculate_optical_properties(self, wavelength, n, aod = True, noOfAngles=noOfAngles)
         opt_properties = OpticalProperties(out, self.bins)
         opt_properties.wavelength = wavelength
@@ -1192,13 +1212,16 @@ class SizeDist_LS(SizeDist):
         if (np.where(layerbounderiesU == layerboundery[1])[0] - np.where(layerbounderiesU == layerboundery[0])[0])[
             0] != 1:
             raise ValueError('The new layer is overlapping with an existing layer!')
+        self.data = self.data.append(sd.data)
         self.layerbounderies = layerbounderies
-        self.layerbounderies.sort(axis=0)
-        layercenter = np.array(layerboundery).sum() / 2.
-        self.layercenters = np.append(self.layercenters, layercenter)
-        self.layercenters.sort()
-        sd.data.index = np.array([layercenter])
-        self.data = self.data.append(sd.data).sort()
+        # self.layerbounderies.sort(axis=0)
+        #
+        # layercenter = np.array(layerboundery).sum() / 2.
+        # self.layercenters = np.append(self.layercenters, layercenter)
+        # self.layercenters.sort()
+        # sd.data.index = np.array([layercenter])
+
+        # self.data = self.data.append(sd.data)
         return
 
     def _getXYZ(self):
@@ -1519,8 +1542,8 @@ class OpticalProperties(object):
         g.set_label(label)
         a.legend()
         # a.set_xlim(0, 3000)
-        a.set_xlabel('Altitude (m)')
-        a.set_ylabel('AOD')
+        a.set_ylabel('Altitude (m)')
+        a.set_xlabel('AOD')
         txt = '''$\lambda = %s$ nm
 n = %s
 AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_orig['AOD'])
@@ -1632,7 +1655,7 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
 
 def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters=100, heightlimits=[0, 6000],
                                           noOflayers=100, layerHeight=[500., 4000.], layerThickness=[100., 300.],
-                                          layerDensity=[1000., 5000.], layerModecenter=[200., 800.], ):
+                                          layerDensity=[1000., 5000.], layerModecenter=[200., 800.], widthOfAerosolMode = 0.2 ):
     gaussian = lambda x, mu, sig: np.exp(-(x - mu) ** 2 / (2 * sig ** 2))
 
     lbt = np.linspace(heightlimits[0], heightlimits[1], noOflayers + 1)
@@ -1646,7 +1669,7 @@ def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters
     for e, stra in enumerate(layercenter):
         for i, lay in enumerate(layerHeight):
             sdtmp = simulate_sizedistribution(diameter=diameter, numberOfDiameters=numberOfDiameters,
-                                              widthOfAerosolMode=0.2, centerOfAerosolMode=layerModecenter[i],
+                                              widthOfAerosolMode=widthOfAerosolMode, centerOfAerosolMode=layerModecenter[i],
                                               numberOfParticsInMode=layerDensity[i])
             layerArray[e] += sdtmp.data.values[0] * gaussian(stra, layerHeight[i], layerThickness[i])
 
@@ -1761,9 +1784,18 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
     sp = lambda r, l: 2. * np.pi * r / l
     for e, d in enumerate(diam):
         radius = d / 2.
+
+        # print('sp(radius, wavelength)', sp(radius, wavelength))
+        # print('n', n)
+        # print('d', d)
+
         mie = bhmie.bhmie_hagen(sp(radius, wavelength), n, noOfAngles, diameter=d)
         values = mie.return_Values_as_dict()
         extinction_efficiency[e] = values['extinction_efficiency']
+
+        # print("values['extinction_crosssection']",values['extinction_crosssection'])
+
+
         scattering_efficiency[e] = values['scattering_efficiency']
         absorption_efficiency[e] = values['extinction_efficiency'] - values['scattering_efficiency']
 
@@ -1773,6 +1805,8 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
 
         # phase_function_natural[d] = values['phaseFct_natural']['Phase_function_natural'].values
         angular_scattering_natural[d] = mie.get_angular_scatt_func().natural.values
+
+        # print('\n')
 
     # phase_function_natural.index = values['phaseFct_natural'].index
     angular_scattering_natural.index = mie.get_angular_scatt_func().index
@@ -1808,4 +1842,47 @@ def _get_coefficients(crossection, cn):
     crossection *= 1e-12  # conversion from um^2 to m^2
     cn *= 1e6  # conversion from cm^-3 to m^-3
     coefficient = cn * crossection
+
+    # print('cn',cn)
+    # print('crossection', crossection)
+    # print('coeff',coefficient)
+    # print('\n')
+
     return coefficient
+
+
+def test_ext_coeff_vertical_profile():
+    #todo: make this a real test
+    dist = simulate_sizedistribution_layerseries(layerHeight=[3000.0, 3000.0],
+                                               layerDensity=[1000.0, 100.0],
+                                               layerModecenter=[100.0, 100.0],
+                                               layerThickness=[6000, 6000],
+                                               widthOfAerosolMode = 0.01,
+                                               noOflayers=3,
+                                               numberOfDiameters=1000)
+    dist.plot()
+
+
+    dist = dist.zoom_diameter(99,101)
+    avg = dist.average_overAllAltitudes()
+    f,a = avg.plot()
+    a.set_xscale('linear')
+
+    opt = dist.calculate_optical_properties(550, n = 1.455)
+    opt_II = dist.calculate_optical_properties(550, n = 1.1)
+    opt_III = dist.calculate_optical_properties(550, n = 4.)
+
+    ext = opt.get_extinction_coeff_verticle_profile()
+    ext_II = opt_II.get_extinction_coeff_verticle_profile()
+    ext_III = opt_III.get_extinction_coeff_verticle_profile()
+
+    tvI_is = (ext_III.data/ext.data).values[0][0]
+    tvI_want = 14.3980239083
+    tvII_is = (ext_II.data/ext.data).values[0][0]
+    tvII_want = 0.05272993413
+
+    print('small deviations could come from averaging over multiple bins with slightly different diameter')
+    print('test values 1 is/should_be: %s/%s'%(tvI_is,tvI_want))
+    print('test values 2 is/should_be: %s/%s'%(tvII_is,tvII_want))
+
+    return False

@@ -42,8 +42,8 @@ def _read_file(fname):
 
     data.drop(range(20), inplace=True)  # dropping the first x lines, since the time is often dwrong
 
-    time_series = data.Year.astype(str) + '-' + data.Month.astype(str) + '-' + data.Day.astype(
-        str) + ' ' + data.Hours.apply(lambda x: '%02i' % x) + ':' + data.Minutes.apply(
+    time_series = data.Year.astype(str) + '-' + data.Month.apply(lambda x: '%02i' % x) + '-' + data.Day.apply(
+        lambda x: '%02i' % x) + ' ' + data.Hours.apply(lambda x: '%02i' % x) + ':' + data.Minutes.apply(
         lambda x: '%02i' % x) + ':' + data.Seconds.apply(lambda x: '%05.2f' % x)
     data.index = pd.Series(pd.to_datetime(time_series, format=time_tools.get_time_formate()))
 

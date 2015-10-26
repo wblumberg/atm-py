@@ -13,6 +13,7 @@ from atmPy import atmosphere_standards as atm_std
 
 def _read_housekeeping(fname):
     """Reads housekeeping file (fname; csv-format) returns a pandas data frame instance."""
+    print('reading %s'%fname)
     try:
         df = pd.read_csv(fname, error_bad_lines=False)
     except ValueError:
@@ -55,6 +56,7 @@ def read_csv(fname):
             for i in houseKeeping_file_endings:
                 if i in file:
                     is_hk = True
+                    break
                 else:
                     is_hk = False
             if is_hk:
@@ -64,8 +66,7 @@ def read_csv(fname):
                 elif first:
                     data = hktmp.data.copy()
                     first = False
-                    continue
-
+                    # continue
                 else:
                     data = pd.concat((data, hktmp.data))
                     hk = POPSHouseKeeping(data)
