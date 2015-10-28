@@ -24,6 +24,7 @@ def ensure_column_exists(df, col_name, col_alt = False):
                     pass
         if not renamed:
             txt = 'Column %s not found.'%col_name
-            txt += 'Neither one of the alternatives: %s'(col_alt)
+            if col_alt:
+                txt += 'Neither one of the alternatives: %s'(col_alt)
             raise AttributeError(txt)
     return

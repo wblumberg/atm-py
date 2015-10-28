@@ -177,7 +177,6 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
     where = array_tools.find_closest(time_series.data.Altitude.values, dist_ls.layercenters)
     alts = time_series.data.Altitude.values[where]
     solar_elev = time_series.data.Solar_position_elevation.values[where]
-    solar_az = time_series.data.Solar_position_azimuth.values[where]
     # time = time_series.data.index[where]
 
     what_mSASP_sees_aerosols = pd.DataFrame()

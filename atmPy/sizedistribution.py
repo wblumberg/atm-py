@@ -13,7 +13,7 @@ from scipy import integrate
 from scipy import stats
 from atmPy import vertical_profile
 from atmPy.aerosols import hygroscopic_growth as hg
-
+from atmPy.tools import pandas_tools
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
@@ -1036,7 +1036,6 @@ class SizeDist_TS(SizeDist):
         lays = SizeDist_LS(empty_frame, self.bins, self.distributionType, None)
 
         for e, end_h_l in enumerate(layer_edges[1:]):
-            print(e)
             start_h_l = layer_edges[e]
             layer = hk.data.Altitude.iloc[
                 np.where(np.logical_and(start_h_l < hk.data.Altitude.values, hk.data.Altitude.values < end_h_l))]
@@ -1046,9 +1045,15 @@ class SizeDist_TS(SizeDist):
             avrg = dist_tmp.average_overAllTime()
             # return avrg,lays
             lays.add_layer(avrg, (start_h_l, end_h_l))
-            print('worked')
         lays.parent_dist_TS = self
         lays.parent_timeseries = hk
+
+        data = hk.data.copy()
+        data['Time_UTC'] = data.index
+        data.index = data.Altitude
+        data = data.sort_index()
+        data = data.reindex(lays.layercenters,method = 'nearest')
+        lays.housekeeping = vertical_profile.VerticalProfile(data)
         return lays
 
 
@@ -1097,11 +1102,22 @@ class SizeDist_LS(SizeDist):
     @layerbounderies.setter
     def layerbounderies(self,lb):
         self.__layerbouderies = lb
-        newlb = np.unique(self.layerbounderies.flatten())
-        self.__layercenters = (newlb[1:] + newlb[:-1]) / 2.
+        # newlb = np.unique(self.layerbounderies.flatten()) # the unique is sorting the data, which is not reallyt what we want!
+        # self.__layercenters = (newlb[1:] + newlb[:-1]) / 2.
+        self.__layercenters = (self.layerbounderies[:,0] + self.layerbounderies[:,1]) / 2.
         self.data.index = self.layercenters
 
-    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
+    def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
+        """ see docstring of atmPy.sizedistribution.SizeDist for more information
+        Parameters
+        ----------
+        kappa: float
+        RH: bool, float, or array.
+            If None, RH from self.housekeeping will be taken"""
+
+        if np.any(RH):
+            pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
+            RH = self.housekeeping.data.Relative_humidity.values
         out = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
         sd = out['size_distribution']
         # gf = out['growth_factor']
