@@ -10,19 +10,20 @@ import warnings
 #read_fromFile = fileIO.read_Calibration_fromFile
 #read_fromString = fileIO.read_Calibration_fromString
 
-def _msg(txt, save, out_file):
-    print(txt)
+def _msg(txt, save, out_file, verbose):
+    if verbose:
+        print(txt)
     if save:
         out_file.write(str(txt) + '\n')
 
 
-def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False):
+def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False, verbose = True):
     """Prints the bins assosiated with what is seen on the POPS user interface and the serial output, respectively.
 
     Parameters
     ----------
-    fname: string
-        name of file containing a calibration
+    fname: string or calibration instance
+        name of file containing a calibration or a calibration instance it self
     n_bins: int
         number of bins
     imin: float [1.4], optional
@@ -32,13 +33,17 @@ def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False):
     save: bool or string.
         If result is saved into file given by string.
 
+
     Returns
     -------
     matplotlib axes instance
     pandas DataFrame instance
     """
+    if isinstance(fname, str):
+        cal = read_csv(fname)
+    else:
+        cal = fname
 
-    cal = read_csv(fname)
     bin_ed = np.linspace(imin, imax, n_bins + 1)
     bin_center_log = 10 ** ((bin_ed[:-1] + bin_ed[1:]) / 2.)
     bin_center_lin = ((10 ** bin_ed[:-1] + 10 ** bin_ed[1:]) / 2.)
@@ -54,70 +59,80 @@ def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False):
     txt = '''
 bin edges (digitizer bins)
 --------------------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
 
     for e, i in enumerate(bin_ed):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
     # bin_center_cal = cal.calibrationFunction(bin_center)
 
 
     txt = '''
 bin centers (digitizer bins)
 ----------------------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
     for e, i in enumerate(bin_center_lin):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
 
     txt = '''
 bin centers of logarithms (digitizer bins)
 ----------------------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
     for e, i in enumerate(bin_center_log):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
 
     txt = '''
 
 bin edges (nm)
 --------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
     for e, i in enumerate(bin_ed_cal):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
     # bin_center_cal = cal.calibrationFunction(bin_center)
 
 
     txt = '''
 bin centers (nm)
 ----------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
     for e, i in enumerate(bin_center_lin_cal):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
 
     txt = '''
 bin centers of logarithms (nm)
 ----------------'''
-    _msg(txt, save, save_file)
+    _msg(txt, save, save_file, verbose)
     for e, i in enumerate(bin_center_log_cal):
-        _msg(i, save, save_file)
+        _msg(i, save, save_file, verbose)
 
-    df = pd.DataFrame(bin_center_lin_cal, index=bin_center_log, columns=['Bin_centers'])
+    out = {}
+
+    df_bin_c = pd.DataFrame(bin_center_lin_cal, index=bin_center_log, columns=['Bin_centers'])
+    df_bin_e = pd.DataFrame(bin_ed_cal, index = bin_ed, columns = ['Bin_edges'])
     # a = df.Bin_centers.plot()
 
-    f, a = plt.subplots()
-    d = df.Bin_centers.values[1:-1]
-    g, = a.plot(np.arange(len(d)) + 2, d)
-    g.set_linestyle('')
-    g.set_marker('o')
-    # g.set_label('')
-    a.set_yscale('log')
-    a.set_xlim((1, 16))
-    a.set_ylim((100, 3000))
-    a.set_ylabel('Bin center (nm)')
-    a.grid(which='both')
-    a.set_xlabel('POPS bin')
-
+    if verbose:
+        f, a = plt.subplots()
+        d = df_bin_c.Bin_centers.values[1:-1]
+        g, = a.plot(np.arange(len(d)) + 2, d)
+        g.set_linestyle('')
+        g.set_marker('o')
+        # g.set_label('')
+        a.set_yscale('log')
+        a.set_xlim((1, 16))
+        a.set_ylim((100, 3000))
+        a.set_ylabel('Bin center (nm)')
+        a.grid(which='both')
+        a.set_xlabel('POPS bin')
+        out['axes'] = a
+    else:
+        out['axes'] = None
 
     # a.set_title('Bin')
-    return a, df
+
+
+    out['bincenters_v_int'] = df_bin_c
+    out['binedges_v_int'] = df_bin_e
+    return out
 
 
 def _string2Dataframe(data, log=True):
@@ -187,7 +202,10 @@ class calibration:
         self.data = dataTabel
         self.calibrationFunction = self.get_calibrationFunctionSpline()
         
-        
+    def get_interface_bins(self, n_bins, imin=1.4, imax=4.8, save=False, verbose = False):
+        out = get_interface_bins(self, n_bins, imin=imin, imax=imax, save=save, verbose = verbose)
+        return out
+
     def save_csv(self,fname):
         save_Calibration(self,fname)
         return

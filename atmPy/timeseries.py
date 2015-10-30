@@ -124,7 +124,7 @@ class TimeSeries(object):
         axes = self.data.plot(subplots=True, figsize=(plt.rcParams['figure.figsize'][0], self.data.shape[1] * 4))
         return axes
 
-    def plot_map(self, three_d=False):
+    def plot_map(self, resolution = 'c', three_d=False):
         """Plots a map of the flight path
 
         Note
@@ -137,10 +137,14 @@ class TimeSeries(object):
             If flight path is plotted in 3D. unfortunately this does not work very well (only costlines)
         """
 
-        lon_center = (self.data.Lon.values.max() + self.data.Lon.values.min()) / 2.
-        lat_center = (self.data.Lat.values.max() + self.data.Lat.values.min()) / 2.
+        data = self.data.copy()
+        data = data.loc[:,['Lon','Lat']]
+        data = data.dropna()
 
-        points = np.array([self.data.Lat.values, self.data.Lon.values]).transpose()
+        lon_center = (data.Lon.values.max() + data.Lon.values.min()) / 2.
+        lat_center = (data.Lat.values.max() + data.Lat.values.min()) / 2.
+
+        points = np.array([data.Lat.values, data.Lon.values]).transpose()
         distances_from_center_lat = np.zeros(points.shape[0])
         distances_from_center_lon = np.zeros(points.shape[0])
         for e, p in enumerate(points):
@@ -160,7 +164,7 @@ class TimeSeries(object):
                            lon_0=lon_center,
                            width=width,
                            height=height,
-                           resolution='f')
+                           resolution=resolution)
 
             # Fill the globe with a blue color
             wcal = np.array([161., 190., 255.]) / 255.
@@ -169,7 +173,7 @@ class TimeSeries(object):
             grau = 0.9
             continents = bmap.fillcontinents(color=[grau, grau, grau], lake_color=wcal)
             costlines = bmap.drawcoastlines()
-            x, y = bmap(self.data.Lon.values, self.data.Lat.values)
+            x, y = bmap(data.Lon.values, data.Lat.values)
             path = bmap.plot(x, y,
                              color='m')
             return bmap
@@ -180,7 +184,7 @@ class TimeSeries(object):
                        lon_0=lon_center,
                        width=width,
                        height=height,
-                       resolution='f')
+                       resolution=resolution)
 
             fig = plt.figure()
             ax = Axes3D(fig)
@@ -231,7 +235,13 @@ class TimeSeries(object):
         if end:
             end = time_tools.string2timestamp(end)
 
-        housek.data = housek.data.truncate(before=start, after=end)
+        try:
+            housek.data = housek.data.truncate(before=start, after=end)
+        except KeyError:
+            txt = '''This error is most likely related to the fact that the index of the timeseries is not in order.
+                  Run the sort_index() attribute of the DataFrame'''
+            raise KeyError(txt)
+
         if copy:
             return housek
         else:

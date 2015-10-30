@@ -1010,23 +1010,31 @@ class SizeDist_TS(SizeDist):
         return avgDist
 
     def convert2layerseries(self, hk, layer_thickness=10, force=False):
-        """convertes the time series to a layer series
+        """convertes the time series to a layer series.
 
         Note
         ----
-        The the housekeeping instance has to have a column called "Height" and which is monotonicly in- or decreasing
+        nan values are excluded when an average is taken over a the time that corresponds to the particular layer
+        (altitude). If there are only nan values nan is returned and there is a gap in the Layerseries.
+
+        The the housekeeping instance has to have a column called "Altitude" and which is monotonicly in- or decreasing
 
         Arguments
         ---------
         hk: housekeeping instance
         layer_thickness (optional): [10] thickness of each generated layer in meter"""
+        if any(np.isnan(hk.data.Altitude)):
+            txt = """The Altitude contains nan values. Either fix this first, eg. with pandas interpolate function"""
+            raise ValueError(txt)
 
         if ((hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).min() < 0) and (
                     (hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).max() > 0):
             if force:
                 hk.data = hk.data.sort(columns='Altitude')
             else:
-                raise ValueError('Given altitude data is not monotonic. This is not possible (yet).')
+                txt = '''Given altitude data is not monotonic. This is not possible (yet). Use force if you
+know what you are doing'''
+                raise ValueError(txt)
 
         start_h = round(hk.data.Altitude.values.min() / layer_thickness) * layer_thickness
         end_h = round(hk.data.Altitude.values.max() / layer_thickness) * layer_thickness
@@ -1052,6 +1060,11 @@ class SizeDist_TS(SizeDist):
         data['Time_UTC'] = data.index
         data.index = data.Altitude
         data = data.sort_index()
+        if not data.index.is_unique: #this is needed in case there are duplicate indeces
+            grouped = data.groupby(level = 0)
+            data = grouped.last()
+
+        lays.housekeeping = data
         data = data.reindex(lays.layercenters,method = 'nearest')
         lays.housekeeping = vertical_profile.VerticalProfile(data)
         return lays
