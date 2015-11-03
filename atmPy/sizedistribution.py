@@ -284,6 +284,7 @@ class SizeDist(object):
 
         self.bins = bins
         self.__index_of_refraction = None
+        self.__growth_factor = None
         # if type(bincenters) == np.ndarray:
         #     self.bincenters = bincenters
         # else:
@@ -337,6 +338,9 @@ class SizeDist(object):
         #     If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
         #     raise ValueError(txt)
 
+    @property
+    def growth_factor(self):
+        return self.__growth_factor
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
@@ -346,12 +350,12 @@ class SizeDist(object):
         if not self.index_of_refraction:
             txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
             raise ValueError(txt)
-        out_I = {}
+        # out_I = {}
         dist_g = self.copy()
         dist_g.convert2numberconcentration()
 
         gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
-        out_I['growth_factor'] = gf
+        # out_I['growth_factor'] = gf
         if how == 'shift_bins':
             if not isinstance(gf, (float,int)):
                 txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
@@ -380,8 +384,10 @@ class SizeDist(object):
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
             raise ValueError(txt)
-        out_I['size_distribution'] = dist_g
-        return out_I
+
+        dist_g.__growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
+        # out_I['size_distribution'] = dist_g
+        return dist_g
 
 
     def _hygro_growht_shift_data(self, data, bins, gf):
@@ -465,7 +471,7 @@ class SizeDist(object):
     #     return dist_grow, (gf_mean, gf_std)
 
     def calculate_optical_properties(self, wavelength, n):
-        out = calculate_optical_properties(self, wavelength, n)
+        out = _calculate_optical_properties(self, wavelength, n)
         return out
 
 
@@ -1128,16 +1134,18 @@ class SizeDist_LS(SizeDist):
         RH: bool, float, or array.
             If None, RH from self.housekeeping will be taken"""
 
-        if np.any(RH):
+        if not np.any(RH):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
-        out = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
-        sd = out['size_distribution']
+        # return kappa,RH,how
+        sd = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
+        # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
         sd_LS.index_of_refraction = sd.index_of_refraction
-        out['size_distribution'] = sd_LS
-        return out
+        sd_LS._SizeDist__growth_factor = sd.growth_factor
+        # out['size_distribution'] = sd_LS
+        return sd_LS
 
     def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
         """Calculates the Anstrome coefficience (overall, layerdependent)
@@ -1360,7 +1368,8 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    def plot_particle_concentration(self, ax=None, label=None, rotate=True):
+    #todo: when you want to plot one plot on existing one it will rotated it twice!
+    def plot_particle_concentration(self, ax=None, label=None):
         """Plots the particle concentration as a function of altitude.
 
         Parameters
@@ -1375,22 +1384,43 @@ class SizeDist_LS(SizeDist):
 
         """
 
-        ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
-        ax.set_xlabel('Altitude (m)')
+        # ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
+        # ax.set_xlabel('Altitude (m)')
+        #
+        # if rotate:
+        #     g = ax.get_lines()[-1]
+        #     x, y = g.get_xydata().transpose()
+        #     xlim = ax.get_xlim()
+        #     ylim = ax.get_ylim()
+        #     ax.set_xlim(ylim)
+        #     ax.set_ylim(xlim)
+        #     g.set_xdata(y)
+        #     g.set_ydata(x)
+        #     xlabel = ax.get_xlabel()
+        #     ylabel = ax.get_ylabel()
+        #     ax.set_xlabel(ylabel)
+        #     ax.set_ylabel(xlabel)
 
-        if rotate:
-            g = ax.get_lines()[-1]
-            x, y = g.get_xydata().transpose()
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
-            ax.set_xlim(ylim)
-            ax.set_ylim(xlim)
-            g.set_xdata(y)
-            g.set_ydata(x)
-            xlabel = ax.get_xlabel()
-            ylabel = ax.get_ylabel()
-            ax.set_xlabel(ylabel)
-            ax.set_ylabel(xlabel)
+
+        if type(ax).__name__ in axes_types:
+            color = plt_tools.color_cycle[len(ax.get_lines())]
+            f = ax.get_figure()
+        else:
+            f, ax = plt.subplots()
+            color = plt_tools.color_cycle[0]
+
+        # layers = self.convert2numberconcentration()
+
+        particles = self.get_particle_concentration().dropna()
+
+        ax.plot(particles.Count_rate.values, particles.index.values, color=color, linewidth=2)
+
+        if label:
+            ax.get_lines()[-1].set_label(label)
+            ax.legend()
+
+        ax.set_ylabel('Altitude (m)')
+        ax.set_xlabel('Particle number concentration (cm$^{-3})$')
         return ax
 
     def plot_fitres(self, amp=True, rotate=True):
@@ -1480,8 +1510,10 @@ class SizeDist_LS(SizeDist):
         dist = self.copy()
         dist.data = dist.data.truncate(before=bottom, after=top)
         where = np.where(np.logical_and(dist.layercenters < top, dist.layercenters > bottom))
-        dist.layercenters = dist.layercenters[where]
+        # dist.layercenters = dist.layercenters[where]
         dist.layerbounderies = dist.layerbounderies[where]
+        if 'data_fit_normal' in dir(dist):
+            dist.data_fit_normal = dist.data_fit_normal.iloc[where]
         return dist
 
     # dist = self.copy()
