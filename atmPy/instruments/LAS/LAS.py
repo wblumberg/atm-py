@@ -8,15 +8,65 @@ Created on Mon Nov 10 11:43:10 2014
 import numpy as np
 import pandas as pd
 import datetime
-# from StringIO import StringIO as io
+from StringIO import StringIO as io
 import pylab as plt
 from scipy.interpolate import UnivariateSpline
 import warnings
 from matplotlib.colors import LogNorm
+from atmPy import sizedistribution
 
 
 
-def readFromFakeXLS(fname):
+def read_csv(fname):
+    las = _readFromFakeXLS(fname)
+    sd,hk = _separate_sizedist_and_housekeep(las)
+    bins = _get_bins(sd)
+    dist = sizedistribution.SizeDist_TS(sd,bins,"numberConcentration")
+    return dist
+
+
+def _separate_sizedist_and_housekeep(las):
+    """Beside separating size distribution and housekeeping this
+    function also converts the data to a numberconcentration (#/cc)
+
+    Parameters
+    ----------
+    las: pandas.DataFrame"""
+
+    sd = las.copy()
+    hk = las.copy()
+    k = sd.keys()
+    where = np.argwhere(k == 'Flow sccm') + 1
+    khk = k[: where]
+    sd = sd.drop(khk, axis=1)
+    hsd = k[where:]
+    hk = hk.drop(hsd, axis=1)
+
+    hk['Sample sccm'] = hk['Sample sccm'].astype(float)
+
+    hk['Accum. Secs'] = hk['Accum. Secs'].astype(float)
+
+    # normalize to time and flow
+    sd = sd.mul(60./hk['Sample sccm'] / hk['Accum. Secs'], axis = 0 )
+    return sd,hk
+
+def _get_bins(frame, log=False):
+    """
+    get the bins from the column labels of the size distribution DataFrame.
+    """
+    frame = frame.copy()
+
+    bins = np.zeros(frame.keys().shape[0]+1)
+    for e, i in enumerate(frame.keys()):
+        bin_s, bin_e = i.split(' ')
+        bin_s = float(bin_s)
+        bin_e = float(bin_e)
+        bins[e] = bin_s
+        bins[e+1] = bin_e
+    return bins #binCenters
+
+
+def _readFromFakeXLS(fname):
     """reads and shapes a XLS file produced by the LAS instrument"""
     fr = pd.read_csv(fname, sep='\t')
     newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
@@ -28,86 +78,61 @@ def readFromFakeXLS(fname):
     return fr
 
 
-def removeHousekeeping(frame):
-    """
-    Limits the frame to the collumns which have the number concentrations in them
-    """
-    frame = frame.copy()
-    k = frame.keys()
-    k = k[:int(np.argwhere(k == 'Flow sccm'))+1]
-    frame = frame.drop(k, axis=1)
-    return frame
 
 
-def getBinCenters(frame, binedges=False, log=False):
-    """
-    LAS gives the bin edges, this calculates the bin centers.
-    if log is True, the center will be with respect to the log10 ... log(d_{n+1})-log(d_{n})
-    if binedges is True, frame is not really a frame but the binedges (array with dtype=float)
-    Make sure you are running "removeHousekeeping" first
-    """
-    frame = frame.copy()
-    
-    if binedges:
-        if log:
-            binCenters = 10**((np.log10(frame[:-1]) + np.log10(frame[1:]))/2.)
-        else:
-            
-            binCenters = (frame[:-1] + frame[1:])/2.
-    else:
-        binCenters = np.zeros(frame.keys().shape)
-        for e, i in enumerate(frame.keys()):
-            bin_s, bin_e = i.split(' ')
-            bin_s = float(bin_s)
-            bin_e = float(bin_e)
-            normTo = bin_e - bin_s
-            frame[i] = frame[i].divide(normTo)
-            if log:
-                binCenters[e] = 10**((np.log10(bin_e) + np.log10(bin_s))/2.)
-            else:
-                binCenters[e] = (bin_e + bin_s)/2.
-    return binCenters
+# def _getBinCenters(frame, binedges=False, log=False):
+#     """
+#     LAS gives the bin edges, this calculates the bin centers.
+#     if log is True, the center will be with respect to the log10 ... log(d_{n+1})-log(d_{n})
+#     if binedges is True, frame is not really a frame but the binedges (array with dtype=float)
+#     Make sure you are running "removeHousekeeping" first
+#     """
+#     frame = frame.copy()
+#
+#     if binedges:
+#         if log:
+#             binCenters = 10**((np.log10(frame[:-1]) + np.log10(frame[1:]))/2.)
+#         else:
+#
+#             binCenters = (frame[:-1] + frame[1:])/2.
+#     else:
+#         binCenters = np.zeros(frame.keys().shape)
+#         for e, i in enumerate(frame.keys()):
+#             bin_s, bin_e = i.split(' ')
+#             bin_s = float(bin_s)
+#             bin_e = float(bin_e)
+#             normTo = bin_e - bin_s
+#             frame[i] = frame[i].divide(normTo)
+#             if log:
+#                 binCenters[e] = 10**((np.log10(bin_e) + np.log10(bin_s))/2.)
+#             else:
+#                 binCenters[e] = (bin_e + bin_s)/2.
+#     return binCenters
 
 
-def frameToXYZ(frame, binCenters, timeDelta = False):
-    """This creates a three same shaped arrays, so it can be plotted using pcolor, contour ...
-    Inputs:
-        \t frame - has to be run through "removeHousekeeping"
-        \t binCenters - can be obtained using "getBinCenters" 
-        \t timeDelta - time offset in hours"""
-#    binCenters = getBinCenters(frame)
-    frame = frame.copy()
-    histArray = frame.values.astype(np.float)
-    histArray[np.isnan(histArray)] = 0   
-    BINS_center = np.meshgrid(np.zeros(frame.index.values.shape[0]), binCenters)[1].transpose()
-    timeMesh = np.zeros(frame.shape, dtype="datetime64[ms]").transpose()
-    for e, i in enumerate(timeMesh):
-        timeMesh[e] = frame.index.values
-        if timeDelta:
-            timeMesh[e] += timeDelta
-    return timeMesh.transpose().astype(datetime.datetime), BINS_center, histArray
 
 
-def getTimeIntervalFromFrame(frame, start, end):
-    """cutes out a particular time interval from frame.
-    e.g.: getTimeIntervalFromFrame(frame,'2014-10-31 18:10:00','2014-10-31 18:10:00')"""
-    frame = frame.copy()
-    if start:
-        frame = frame.truncate(before = start)
 
-    if end:
-        frame = frame.truncate(after = end)
-    
-    return frame
+# def getTimeIntervalFromFrame(frame, start, end):
+#     """cutes out a particular time interval from frame.
+#     e.g.: getTimeIntervalFromFrame(frame,'2014-10-31 18:10:00','2014-10-31 18:10:00')"""
+#     frame = frame.copy()
+#     if start:
+#         frame = frame.truncate(before = start)
+#
+#     if end:
+#         frame = frame.truncate(after = end)
+#
+#     return frame
 
-
-def frame2singleDistribution(frame):
-    frame = frame.copy()
-    singleHist = np.zeros(frame.shape[1])
-    for i in xrange(frame.shape[1]):
-        singleHist[i] = np.nansum(frame.values[:,i])
-    singleHist /= frame.shape[0]
-    return singleHist
+#
+# def frame2singleDistribution(frame):
+#     frame = frame.copy()
+#     singleHist = np.zeros(frame.shape[1])
+#     for i in xrange(frame.shape[1]):
+#         singleHist[i] = np.nansum(frame.values[:,i])
+#     singleHist /= frame.shape[0]
+#     return singleHist
 
 
 def _string2Dataframe(data):
@@ -119,7 +144,6 @@ def _string2Dataframe(data):
 def read_Calibration_fromString(data):
     '''
     unit of diameter must be nm
-    e.g.:
 data = """140 88
 150 102
 173 175
@@ -154,28 +178,28 @@ def save_Calibration(calibrationInstance, fname):
     calibrationInstance.data.to_csv(fname, index = False)
     return
 
-def plot_distMap_LAS(fr_d,binEdgensLAS_d):
-    binCenters = getBinCenters(binEdgensLAS_d , binedges= True, log = True)
-    TIME_LAS,D_LAS,DNDP_LAS = frameToXYZ(fr_d, binCenters)
-    f,a = plt.subplots()
-    pcIm = a.pcolormesh(TIME_LAS,D_LAS,
-                 DNDP_LAS,
-                 norm = LogNorm(),#vmin = 3,vmax = distZoom.data.values.max()),#vmin = 1e-5),
-    #              cmap=plt.cm.RdYlBu_r,
-    #              cmap = plt.cm.terrain_r,
-                  cmap = hm.get_colorMap_intensity(),#plt.cm.hot_r, #PuBuGn,
-    #            shading='gouraud',
-                 )
-    a.semilogy()
-    a.set_ylim((150,2500))
-    a.set_ylabel('Diameter (nm)')
-    a.set_xlabel('Time')
-    a.set_title('LAS')
-    cb = f.colorbar(pcIm)
-    cb.set_label("Particle number (cm$^{-3}\,$s$^{-1}$)")
-    f.autofmt_xdate()
-#    a.yaxis.set_minor_formatter(FormatStrFormatter("%i"))
-#    a.yaxis.set_major_formatter(FormatStrFormatter("%i"))
+# def plot_distMap_LAS(fr_d,binEdgensLAS_d):
+#     binCenters = getBinCenters(binEdgensLAS_d , binedges= True, log = True)
+#     TIME_LAS,D_LAS,DNDP_LAS = frameToXYZ(fr_d, binCenters)
+#     f,a = plt.subplots()
+#     pcIm = a.pcolormesh(TIME_LAS,D_LAS,
+#                  DNDP_LAS,
+#                  norm = LogNorm(),#vmin = 3,vmax = distZoom.data.values.max()),#vmin = 1e-5),
+#     #              cmap=plt.cm.RdYlBu_r,
+#     #              cmap = plt.cm.terrain_r,
+#                   cmap = hm.get_colorMap_intensity(),#plt.cm.hot_r, #PuBuGn,
+#     #            shading='gouraud',
+#                  )
+#     a.semilogy()
+#     a.set_ylim((150,2500))
+#     a.set_ylabel('Diameter (nm)')
+#     a.set_xlabel('Time')
+#     a.set_title('LAS')
+#     cb = f.colorbar(pcIm)
+#     cb.set_label("Particle number (cm$^{-3}\,$s$^{-1}$)")
+#     f.autofmt_xdate()
+# #    a.yaxis.set_minor_formatter(FormatStrFormatter("%i"))
+# #    a.yaxis.set_major_formatter(FormatStrFormatter("%i"))
 
     
 class calibration:

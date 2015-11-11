@@ -12,9 +12,9 @@ import scipy.optimize as optimization
 from scipy import integrate
 from scipy import stats
 from atmPy import vertical_profile
-import pdb
+from atmPy.aerosols import hygroscopic_growth as hg
+from atmPy.tools import pandas_tools
 
-# TODO: Get rid of references to hagmods so we don't need them.
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
 # TODO: Fix distrTypes so they are consistent with our understanding.
@@ -24,6 +24,7 @@ distTypes = {'log normal': ['dNdlogDp', 'dSdlogDp', 'dVdlogDp'],
              'surface': ['dSdlogDp', 'dSdDp'],
              'volume': ['dVdlogDp', 'dVdDp']}
 
+axes_types = ('AxesSubplot', 'AxesHostAxes')
 
 def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     """Fits a normal distribution to a """
@@ -39,6 +40,7 @@ def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     ############
 
     para = optimization.curve_fit(math_functions.gauss, x, y, p0=param)
+
     amp = para[0][0]
     sigma = para[0][2]
     if log:
@@ -110,7 +112,7 @@ def get_label(distType):
 
 # Todo: Docstring is wrong
 # Todo: implement into the Layer Series
-def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
+def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     """
     !!!Tis Docstring need fixn
     Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
@@ -136,30 +138,47 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     out['n'] = n
     out['wavelength'] = wavelength
     sdls = sd.convert2numberconcentration()
-    index = sd.data.index
-    # pdb.set_trace()
-    mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
-                                                       noOfAngles=noOfAngles)
-    # out['mie_curve'] = mie
+    index = sdls.data.index
 
-    # AOD_layer = np.zeros((len(sdls.layercenters)))
+    if isinstance(n, pd.DataFrame):
+        n_multi = True
+    else:
+        n_multi = False
+
+    if not n_multi:
+        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+                                                       noOfAngles=noOfAngles)
+
+    if aod:
+        AOD_layer = np.zeros((len(sdls.layercenters)))
+
     extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
-    # print('extCoeffPerLayer: ', extCoeffPerLayer.shape)
     angular_scatt_func_effective = pd.DataFrame()
     asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
-    # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
+
+    # print('\n oben mie.extinction_crossection: %s \n'%(mie.extinction_crossection))
+
     for i, lc in enumerate(sdls.data.index.values):
         laydata = sdls.data.iloc[i].values
         # print('laydata: ',laydata.shape)
         # print(laydata)
+        if n_multi:
+            mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n.iloc[i].values[0],
+                                                       noOfAngles=noOfAngles)
         extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
+
+        # print('\n oben ext_coef %s \n'%extinction_coefficient)
+
+
         # print('mie.extinction_crossection ', mie.extinction_crossection.shape)
         # print('extinction_coefficient: ', extinction_coefficient.shape)
         # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
 
-        # layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
-        # AOD_perBin = extinction_coefficient * layerThickness
-        # AOD_layer[i] = AOD_perBin.values.sum()
+        if aod:
+            layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
+            AOD_perBin = extinction_coefficient * layerThickness
+            AOD_layer[i] = AOD_perBin.values.sum()
+
         extCoeffPerLayer[i] = extinction_coefficient
 
 
@@ -189,9 +208,12 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
 
 
         #     print(mie.extinction_crossection)
-    # out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
-    # out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
-    # out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
+
+    if aod:
+        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
+        out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
+
     extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
     out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
@@ -207,7 +229,8 @@ def calculate_optical_properties(sd, wavelength, n, noOfAngles=100):
     # out['OptPropInstance']= OpticalProperties(out, self.bins)
     out['wavelength'] = wavelength
     out['index_of_refraction'] = n
-    out['bin_centers'] = sd.bincenters
+    out['bin_centers'] = sdls.bincenters
+    out['angular_scatt_func'] = angular_scatt_func_effective
     # opt_properties = OpticalProperties(out, self.bins)
     # opt_properties.wavelength = wavelength
     # opt_properties.index_of_refractio = n
@@ -220,7 +243,7 @@ class SizeDist(object):
     Object defining a log normal aerosol size distribution
 
 
-    Attributes
+    Arguments
     ----------
     bincenters:         NumPy array, optional
                         this is if you actually want to pass the bincenters, if False they will be calculated
@@ -246,53 +269,209 @@ class SizeDist(object):
     * Diameters are specified in nanometers
 
     """
-
-    def __init__(self, data, bins, distrType, bincenters=False, fixGaps=True):
-
-        self.bins = bins
-        if type(bincenters) == np.ndarray:
-            self.bincenters = bincenters
-        else:
-            self.bincenters = (bins[1:] + bins[:-1]) / 2.
-        self.binwidth = (bins[1:] - bins[:-1])
-        self.distributionType = distrType
+    # todo: write setters and getters for bins and bincenter, so when one is changed the otherone is automatically
+    #  changed too
+    def __init__(self, data, bins, distrType,
+                 # bincenters=False,
+                 fixGaps=True):
 
         if type(data).__name__ == 'NoneType':
-            cols = []
-            for e, i in enumerate(bins[:-1]):
-                cols.append(str(i) + '-' + str(bins[e + 1]))
-            self.data = pd.DataFrame(columns=cols)
+            self.data = pd.DataFrame()
         else:
             self.data = data
 
-            if fixGaps:
-                self.fillGaps()
 
-    def grow_particles(self, shift=1):
-        """This function shifts the data by "shift" columns to the right
-        Argurments
-        ----------
-        shift: int.
-            number of columns to shift.
 
-        Returns
-        -------
-        New dist_LS instance
-        Growth ratio (mean,std) """
+        self.bins = bins
+        self.__index_of_refraction = None
+        self.__growth_factor = None
+        # if type(bincenters) == np.ndarray:
+        #     self.bincenters = bincenters
+        # else:
+        #     self.bincenters = (bins[1:] + bins[:-1]) / 2.
+        # self.binwidth = (bins[1:] - bins[:-1])
+        self.distributionType = distrType
+        if fixGaps:
+            self.fillGaps()
 
-        dist_grow = self.copy()
-        gf = dist_grow.bincenters[shift:] / dist_grow.bincenters[:-shift]
-        gf_mean = gf.mean()
-        gf_std = gf.std()
 
-        shape = dist_grow.data.shape[1]
-        dist_grow.data[:] = 0
-        dist_grow.data.iloc[:, shift:] = self.data.values[:, :shape - shift]
+    @property
+    def bins(self):
+        return self.__bins
 
-        return dist_grow, (gf_mean, gf_std)
+    @bins.setter
+    def bins(self,array):
+        bins_st = array.astype(int).astype(str)
+        col_names = []
+        for e,i in enumerate(bins_st):
+            if e == len(bins_st) - 1:
+                break
+            col_names.append(bins_st[e] + '-' + bins_st[e+1])
+        self.data.columns = col_names
+
+
+        self.__bins = array
+        self.__bincenters = (array[1:] + array[:-1]) / 2.
+        self.__binwidth = (array[1:] - array[:-1])
+
+
+
+    @property
+    def bincenters(self):
+        return self.__bincenters
+
+    @property
+    def binwidth(self):
+        return self.__binwidth
+
+    @property
+    def index_of_refraction(self):
+        return self.__index_of_refraction
+
+    @index_of_refraction.setter
+    def index_of_refraction(self,n):
+        # if not self.__index_of_refraction:
+        self.__index_of_refraction = n
+        # elif self.__index_of_refraction:
+        #     txt = """Security stop. This is to prevent you from unintentionally changing this value.
+        #     The index of refraction is already set to %.2f, either by you or by another function, e.g. apply_hygro_growth.
+        #     If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
+        #     raise ValueError(txt)
+
+    @property
+    def growth_factor(self):
+        return self.__growth_factor
+
+    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
+        """
+        how: string ['shift_bins', 'shift_data']
+        """
+
+        if not self.index_of_refraction:
+            txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
+            raise ValueError(txt)
+        # out_I = {}
+        dist_g = self.copy()
+        dist_g.convert2numberconcentration()
+
+        gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
+        # out_I['growth_factor'] = gf
+        if how == 'shift_bins':
+            if not isinstance(gf, (float,int)):
+                txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
+                It is %s'''%(type(RH).__name__)
+                raise TypeError(txt)
+
+            dist_g.bins = dist_g.bins * gf
+            dist_g.__index_of_refraction = n_mix
+        elif how == 'shift_data':
+            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0],dist_g.bins,gf.max())
+            bin_num = test['data'].shape[0]
+            data_new = np.zeros((dist_g.data.shape[0],bin_num))
+            for e,i in enumerate(dist_g.data.values):
+                out = dist_g._hygro_growht_shift_data(i,dist_g.bins,gf[e])
+                dt = out['data']
+                diff = bin_num - dt.shape[0]
+                dt = np.append(dt, np.zeros(diff))
+                data_new[e] = dt
+            df = pd.DataFrame(data_new)
+            df.index = dist_g.data.index
+            # return df
+            dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
+            df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
+            df.index = dist_g.data.index
+            dist_g.index_of_refraction = df
+        else:
+            txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
+            raise ValueError(txt)
+
+        dist_g.__growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
+        # out_I['size_distribution'] = dist_g
+        return dist_g
+
+
+    def _hygro_growht_shift_data(self, data, bins, gf):
+        """data: 1D array
+        bins: 1D array
+        gf: float"""
+        bins = bins.copy()
+        if np.any(gf < 1):
+            txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
+            raise ValueError(txt)
+
+        shifted = bins*gf
+        ml = array_tools.find_closest(bins, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+
+        if np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+        no_extra_bins = bins[ml].shape[0] - np.unique(bins[ml]).shape[0] + 1
+
+        ######### Ad bins to shift data into
+
+        last_two = np.log10(bins[- (no_extra_bins + 1):])
+        step_width = last_two[-1] - last_two[-2]
+        new_bins = np.zeros(no_extra_bins)
+        for i in range(no_extra_bins):
+            new_bins[i] = np.log10(bins[-1]) + ((i + 1) * step_width)
+        newbins = 10**new_bins
+        bins = np.append(bins,newbins)
+        shifted = (bins * gf)[:-no_extra_bins]
+
+        ######## and again ########################
+
+        ml = array_tools.find_closest(bins, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+
+        if np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+
+        ##### percentage of particles moved to next bin ...')
+
+        shifted_w = shifted[1:] - shifted[:-1]
+
+        fract_first = (bins[mh] - shifted)[:-1]/shifted_w
+        fract_last = (shifted - bins[ml])[1:]/shifted_w
+
+        data_new = np.zeros(data.shape[0]+ no_extra_bins)
+        data_new[no_extra_bins - 1:-1] += fract_first * data
+        data_new[no_extra_bins:] += fract_last * data
+
+    #     data = np.append(data, np.zeros(no_extra_bins))
+        out = {}
+        out['bins'] = bins
+        out['data'] = data_new
+        out['num_extr_bins'] = no_extra_bins
+        return out
+
+
+    # def grow_particles(self, shift=1):
+    #     """This function shifts the data by "shift" columns to the right
+    #     Argurments
+    #     ----------
+    #     shift: int.
+    #         number of columns to shift.
+    #
+    #     Returns
+    #     -------
+    #     New dist_LS instance
+    #     Growth ratio (mean,std) """
+    #
+    #     dist_grow = self.copy()
+    #     gf = dist_grow.bincenters[shift:] / dist_grow.bincenters[:-shift]
+    #     gf_mean = gf.mean()
+    #     gf_std = gf.std()
+    #
+    #     shape = dist_grow.data.shape[1]
+    #     dist_grow.data[:] = 0
+    #     dist_grow.data.iloc[:, shift:] = self.data.values[:, :shape - shift]
+    #
+    #     return dist_grow, (gf_mean, gf_std)
 
     def calculate_optical_properties(self, wavelength, n):
-        out = calculate_optical_properties(self, wavelength, n)
+        out = _calculate_optical_properties(self, wavelength, n)
         return out
 
 
@@ -389,6 +568,7 @@ class SizeDist(object):
              showMinorTickLabels=True,
              removeTickLabels=["700", "900"],
              fit_res=True,
+             fit_res_scale = 'log',
              ax=None,
              ):
         """
@@ -402,6 +582,8 @@ class SizeDist(object):
             list of tick labels aught to be removed (in case there are overlapping)
         fit_res: bool [True], optional
             allows plotting of fitresults if fit_normal was previously executed
+        fit_res: string
+            If fit_normal was done using log = False, you want to set this to linear!
         ax: axis object [None], optional
             option to provide axis to plot on
 
@@ -411,7 +593,7 @@ class SizeDist(object):
 
 
         """
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
@@ -429,7 +611,13 @@ class SizeDist(object):
         if fit_res:
             if 'data_fit_normal' in dir(self):
                 amp, pos, sigma = self.data_fit_normal.values[0, :3]
-                normal_dist = math_functions.gauss(np.log10(self.bincenters), amp, np.log10(pos), sigma)
+                if fit_res_scale == 'log':
+                    normal_dist = math_functions.gauss(np.log10(self.bincenters), amp, np.log10(pos), sigma)
+                elif fit_res_scale =='linear':
+                    normal_dist = math_functions.gauss(self.bincenters, amp, pos, sigma)
+                else:
+                    txt = '"fit_res_scale has to be either log or linear'
+                    raise ValueError(txt)
                 a.plot(self.bincenters, normal_dist, color=plt_tools.color_cycle[1], linewidth=2,
                        label='fit with norm. dist.')
                 a.legend()
@@ -482,10 +670,11 @@ class SizeDist(object):
             endIdx = array_tools.find_closest(sd.bins, end)
         else:
             endIdx = len(self.bincenters)
-        sd.binwidth = self.binwidth[startIdx:endIdx]
-        sd.bins = self.bins[startIdx:endIdx + 1]
-        sd.bincenters = self.bincenters[startIdx:endIdx]
+        # sd.binwidth = self.binwidth[startIdx:endIdx]
         sd.data = self.data.iloc[:, startIdx:endIdx]
+        sd.bins = self.bins[startIdx:endIdx + 1]
+        # sd.bincenters = self.bincenters[startIdx:endIdx]
+
         return sd
 
     def _normal2log(self):
@@ -643,7 +832,6 @@ class SizeDist_TS(SizeDist):
              ax=None,
              fit_pos=True,
              cmap=plt_tools.get_colorMap_intensity(),
-
              colorbar=True):
 
         """ plots an intensity plot of all data
@@ -668,7 +856,7 @@ class SizeDist_TS(SizeDist):
         X, Y, Z = self._getXYZ()
         Z = np.ma.masked_invalid(Z)
 
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
@@ -758,9 +946,9 @@ class SizeDist_TS(SizeDist):
 
         """
 
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             color = plt_tools.color_cycle[len(ax.get_lines())]
-            ax.get_figure()
+            f = ax.get_figure()
         else:
             f, ax = plt.subplots()
             color = plt_tools.color_cycle[0]
@@ -828,23 +1016,31 @@ class SizeDist_TS(SizeDist):
         return avgDist
 
     def convert2layerseries(self, hk, layer_thickness=10, force=False):
-        """convertes the time series to a layer series
+        """convertes the time series to a layer series.
 
         Note
         ----
-        The the housekeeping instance has to have a column called "Height" and which is monotonicly in- or decreasing
+        nan values are excluded when an average is taken over a the time that corresponds to the particular layer
+        (altitude). If there are only nan values nan is returned and there is a gap in the Layerseries.
+
+        The the housekeeping instance has to have a column called "Altitude" and which is monotonicly in- or decreasing
 
         Arguments
         ---------
         hk: housekeeping instance
         layer_thickness (optional): [10] thickness of each generated layer in meter"""
+        if any(np.isnan(hk.data.Altitude)):
+            txt = """The Altitude contains nan values. Either fix this first, eg. with pandas interpolate function"""
+            raise ValueError(txt)
 
         if ((hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).min() < 0) and (
                     (hk.data.Altitude.values[1:] - hk.data.Altitude.values[:-1]).max() > 0):
             if force:
                 hk.data = hk.data.sort(columns='Altitude')
             else:
-                raise ValueError('Given altitude data is not monotonic. This is not possible (yet).')
+                txt = '''Given altitude data is not monotonic. This is not possible (yet). Use force if you
+know what you are doing'''
+                raise ValueError(txt)
 
         start_h = round(hk.data.Altitude.values.min() / layer_thickness) * layer_thickness
         end_h = round(hk.data.Altitude.values.max() / layer_thickness) * layer_thickness
@@ -861,9 +1057,22 @@ class SizeDist_TS(SizeDist):
             end_t = layer.index.max()
             dist_tmp = self.zoom_time(start=start_t, end=end_t)
             avrg = dist_tmp.average_overAllTime()
+            # return avrg,lays
             lays.add_layer(avrg, (start_h_l, end_h_l))
         lays.parent_dist_TS = self
         lays.parent_timeseries = hk
+
+        data = hk.data.copy()
+        data['Time_UTC'] = data.index
+        data.index = data.Altitude
+        data = data.sort_index()
+        if not data.index.is_unique: #this is needed in case there are duplicate indeces
+            grouped = data.groupby(level = 0)
+            data = grouped.last()
+
+        lays.housekeeping = data
+        data = data.reindex(lays.layercenters,method = 'nearest')
+        lays.housekeeping = vertical_profile.VerticalProfile(data)
         return lays
 
 
@@ -893,15 +1102,50 @@ class SizeDist_LS(SizeDist):
 
     """
 
-    def __init__(self, data, bins, distributionType, layerbounderies, bincenters=False, fixGaps=True):
-        super(SizeDist_LS, self).__init__(data, bins, distributionType, bincenters=False, fixGaps=True)
+    def __init__(self, data, bins, distributionType, layerbounderies, fixGaps=True):
+        super(SizeDist_LS, self).__init__(data, bins, distributionType, fixGaps=True)
         if type(layerbounderies).__name__ == 'NoneType':
             self.layerbounderies = np.empty((0, 2))
-            self.layercenters = np.array([])
+            # self.layercenters = np.array([])
         else:
             self.layerbounderies = layerbounderies
-            newlb = np.unique(layerbounderies.flatten())
-            self.layercenters = (newlb[1:] + newlb[:-1]) / 2.
+
+    @property
+    def layercenters(self):
+        return self.__layercenters
+
+    @property
+    def layerbounderies(self):
+        return self.__layerbouderies
+
+    @layerbounderies.setter
+    def layerbounderies(self,lb):
+        self.__layerbouderies = lb
+        # newlb = np.unique(self.layerbounderies.flatten()) # the unique is sorting the data, which is not reallyt what we want!
+        # self.__layercenters = (newlb[1:] + newlb[:-1]) / 2.
+        self.__layercenters = (self.layerbounderies[:,0] + self.layerbounderies[:,1]) / 2.
+        self.data.index = self.layercenters
+
+    def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
+        """ see docstring of atmPy.sizedistribution.SizeDist for more information
+        Parameters
+        ----------
+        kappa: float
+        RH: bool, float, or array.
+            If None, RH from self.housekeeping will be taken"""
+
+        if not np.any(RH):
+            pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
+            RH = self.housekeeping.data.Relative_humidity.values
+        # return kappa,RH,how
+        sd = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
+        # sd = out['size_distribution']
+        # gf = out['growth_factor']
+        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
+        sd_LS.index_of_refraction = sd.index_of_refraction
+        sd_LS._SizeDist__growth_factor = sd.growth_factor
+        # out['size_distribution'] = sd_LS
+        return sd_LS
 
     def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
         """Calculates the Anstrome coefficience (overall, layerdependent)
@@ -970,94 +1214,18 @@ class SizeDist_LS(SizeDist):
 
         return -slope, AOD_dict
 
-    def calculate_optical_properties(self, wavelength, n, noOfAngles=100):
-        """
-        Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
-        plotting the layer and diameter dependent extinction coefficient gives you an idea what dominates the overall AOD.
-
-        Parameters
-        ----------
-        wavelength: float.
-            wavelength of the scattered light, unit: nm
-        n: float.
-            Index of refraction of the scattering particles
-        noOfAngles: int, optional.
-            Number of scattering angles to be calculated. This mostly effects calculations which depend on the phase
-            function.
-
-        Returns
-        -------
-        OpticalProperty instance
-
-        """
-        out = {}
-        out['n'] = n
-        out['wavelength'] = wavelength
-        sdls = self.convert2numberconcentration()
-        # pdb.set_trace()
-        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
-                                                           noOfAngles=noOfAngles)
-        # out['mie_curve'] = mie
-
-        AOD_layer = np.zeros((len(sdls.layercenters)))
-        extCoeffPerLayer = np.zeros((len(sdls.layercenters), len(sdls.bincenters)))
-        angular_scatt_func_effective = pd.DataFrame()
-        asymmetry_parameter_LS = np.zeros((len(sdls.layercenters)))
-        # asymmetry_parameter_LS_alt = np.zeros((len(sdls.layercenters)))
-        for i, lc in enumerate(sdls.layercenters):
-            laydata = sdls.data.loc[lc].values
-            # print(laydata)
-            extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
-            # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
-
-            layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
-            AOD_perBin = extinction_coefficient * layerThickness
-            AOD_layer[i] = AOD_perBin.values.sum()
-            extCoeffPerLayer[i] = extinction_coefficient
-
-
-            # return laydata, mie.scattering_crossection
-
-            scattering_cross_eff = laydata * mie.scattering_crossection
-
-            pfe = (laydata * angular_scatt_func).sum(axis=1)  # sum of all angular_scattering_intensities
-            # pfe2 = pfe.copy()
-            # angular_scatt_func_effective[lc] =  pfe
-            # asymmetry_parameter_LS[i] = (pfe.values*np.cos(pfe.index.values)).sum()/pfe.values.sum()
-            x_2p = pfe.index.values
-            y_2p = pfe.values
-            # limit to [0,pi]
-            y_1p = y_2p[x_2p < np.pi]
-            x_1p = x_2p[x_2p < np.pi]
-            # integ = integrate.simps(y_1p*np.sin(x_1p),x_1p)
-            # y_phase_func = y_1p/integ
-            y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
-            asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
-            # return mie,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
-            angular_scatt_func_effective[
-                lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
-            # return mie.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
-            # return extinction_coefficient, angular_scatt_func_effective
-            # return AOD_layer, pfe, angular_scatt_func_effective[lc]
-
-
-            #     print(mie.extinction_crossection)
-        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
-        out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
-        out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
-        out['extCoeffPerLayer'] = pd.DataFrame(extCoeffPerLayer, index=sdls.layercenters, columns=sdls.data.columns)
-        out['asymmetry_param'] = pd.DataFrame(asymmetry_parameter_LS, index=sdls.layercenters,
-                                              columns=['asymmetry_param'])
-        # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
-        # out['OptPropInstance']= OpticalProperties(out, self.bins)
-
-        warnings.warn('ACTION required: what to do with gaps in the layers when clauclating the AOD?!?')
+    def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
+        if not n:
+            n = self.index_of_refraction
+        out = _calculate_optical_properties(self, wavelength, n, aod = True, noOfAngles=noOfAngles)
         opt_properties = OpticalProperties(out, self.bins)
         opt_properties.wavelength = wavelength
         opt_properties.index_of_refractio = n
-        opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+        opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
         opt_properties.parent_dist_LS = self
         return opt_properties
+
+
 
     def add_layer(self, sd, layerboundery):
         """
@@ -1081,13 +1249,16 @@ class SizeDist_LS(SizeDist):
         if (np.where(layerbounderiesU == layerboundery[1])[0] - np.where(layerbounderiesU == layerboundery[0])[0])[
             0] != 1:
             raise ValueError('The new layer is overlapping with an existing layer!')
+        self.data = self.data.append(sd.data)
         self.layerbounderies = layerbounderies
-        self.layerbounderies.sort(axis=0)
-        layercenter = np.array(layerboundery).sum() / 2.
-        self.layercenters = np.append(self.layercenters, layercenter)
-        self.layercenters.sort()
-        sd.data.index = np.array([layercenter])
-        self.data = self.data.append(sd.data).sort()
+        # self.layerbounderies.sort(axis=0)
+        #
+        # layercenter = np.array(layerboundery).sum() / 2.
+        # self.layercenters = np.append(self.layercenters, layercenter)
+        # self.layercenters.sort()
+        # sd.data.index = np.array([layercenter])
+
+        # self.data = self.data.append(sd.data)
         return
 
     def _getXYZ(self):
@@ -1130,7 +1301,8 @@ class SizeDist_LS(SizeDist):
              plotOnTheseAxes=False,
              cmap=plt_tools.get_colorMap_intensity(),
              fit_pos=True,
-             ax=None):
+             ax=None,
+             colorbar = True):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
 
         Arguments
@@ -1147,7 +1319,7 @@ class SizeDist_LS(SizeDist):
         """
         X, Y, Z = self._getXYZ()
         Z = np.ma.masked_invalid(Z)
-        if type(ax).__name__ == 'AxesSubplot':
+        if type(ax).__name__ in axes_types:
             a = ax
             f = a.get_figure()
         else:
@@ -1171,9 +1343,12 @@ class SizeDist_LS(SizeDist):
         a.get_yaxis().set_tick_params(direction='out', which='both')
         a.get_xaxis().set_tick_params(direction='out', which='both')
 
-        cb = f.colorbar(pc)
-        label = get_label(self.distributionType)
-        cb.set_label(label)
+        if colorbar:
+            cb = f.colorbar(pc)
+            label = get_label(self.distributionType)
+            cb.set_label(label)
+        else:
+            cb = None
 
         if self.distributionType != 'calibration':
             a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
@@ -1193,7 +1368,8 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    def plot_particle_concentration(self, ax=None, label=None, rotate=True):
+    #todo: when you want to plot one plot on existing one it will rotated it twice!
+    def plot_particle_concentration(self, ax=None, label=None):
         """Plots the particle concentration as a function of altitude.
 
         Parameters
@@ -1208,22 +1384,43 @@ class SizeDist_LS(SizeDist):
 
         """
 
-        ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
-        ax.set_xlabel('Altitude (m)')
+        # ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
+        # ax.set_xlabel('Altitude (m)')
+        #
+        # if rotate:
+        #     g = ax.get_lines()[-1]
+        #     x, y = g.get_xydata().transpose()
+        #     xlim = ax.get_xlim()
+        #     ylim = ax.get_ylim()
+        #     ax.set_xlim(ylim)
+        #     ax.set_ylim(xlim)
+        #     g.set_xdata(y)
+        #     g.set_ydata(x)
+        #     xlabel = ax.get_xlabel()
+        #     ylabel = ax.get_ylabel()
+        #     ax.set_xlabel(ylabel)
+        #     ax.set_ylabel(xlabel)
 
-        if rotate:
-            g = ax.get_lines()[-1]
-            x, y = g.get_xydata().transpose()
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
-            ax.set_xlim(ylim)
-            ax.set_ylim(xlim)
-            g.set_xdata(y)
-            g.set_ydata(x)
-            xlabel = ax.get_xlabel()
-            ylabel = ax.get_ylabel()
-            ax.set_xlabel(ylabel)
-            ax.set_ylabel(xlabel)
+
+        if type(ax).__name__ in axes_types:
+            color = plt_tools.color_cycle[len(ax.get_lines())]
+            f = ax.get_figure()
+        else:
+            f, ax = plt.subplots()
+            color = plt_tools.color_cycle[0]
+
+        # layers = self.convert2numberconcentration()
+
+        particles = self.get_particle_concentration().dropna()
+
+        ax.plot(particles.Count_rate.values, particles.index.values, color=color, linewidth=2)
+
+        if label:
+            ax.get_lines()[-1].set_label(label)
+            ax.legend()
+
+        ax.set_ylabel('Altitude (m)')
+        ax.set_xlabel('Particle number concentration (cm$^{-3})$')
         return ax
 
     def plot_fitres(self, amp=True, rotate=True):
@@ -1313,8 +1510,10 @@ class SizeDist_LS(SizeDist):
         dist = self.copy()
         dist.data = dist.data.truncate(before=bottom, after=top)
         where = np.where(np.logical_and(dist.layercenters < top, dist.layercenters > bottom))
-        dist.layercenters = dist.layercenters[where]
+        # dist.layercenters = dist.layercenters[where]
         dist.layerbounderies = dist.layerbounderies[where]
+        if 'data_fit_normal' in dir(dist):
+            dist.data_fit_normal = dist.data_fit_normal.iloc[where]
         return dist
 
     # dist = self.copy()
@@ -1366,7 +1565,8 @@ class SizeDist_LS(SizeDist):
 # Todo: some functions should be switched of
 class OpticalProperties(object):
     def __init__(self, data, bins):
-        self.data = data['extCoeffPerLayer']
+        # self.data = data['extCoeffPerLayer']
+        self.data = data['extCoeff_perrow_perbin']
         self.data_orig = data
         self.AOD = data['AOD']
         self.bins = bins
@@ -1392,13 +1592,19 @@ class OpticalProperties(object):
 
     def plot_AOD_cum(self, color=plt_tools.color_cycle[0], linewidth=2, ax=None, label='cumulative AOD',
                      extra_info=True):
-        a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
-        g = a.get_lines()[-1]
+        if not ax:
+            f,a = plt.subplots()
+        else:
+            a = ax
+        # a = self.data_orig['AOD_cum'].plot(color=color, linewidth=linewidth, ax=ax, label=label)
+        g, = a.plot(self.data_orig['AOD_cum']['AOD per Layer'], self.data_orig['AOD_cum'].index, color=color, linewidth=linewidth, label=label)
+
+        # g = a.get_lines()[-1]
         g.set_label(label)
         a.legend()
         # a.set_xlim(0, 3000)
-        a.set_xlabel('Altitude (m)')
-        a.set_ylabel('AOD')
+        a.set_ylabel('Altitude (m)')
+        a.set_xlabel('AOD')
         txt = '''$\lambda = %s$ nm
 n = %s
 AOD = %.4f''' % (self.data_orig['wavelength'], self.data_orig['n'], self.data_orig['AOD'])
@@ -1510,7 +1716,7 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
 
 def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters=100, heightlimits=[0, 6000],
                                           noOflayers=100, layerHeight=[500., 4000.], layerThickness=[100., 300.],
-                                          layerDensity=[1000., 5000.], layerModecenter=[200., 800.], ):
+                                          layerDensity=[1000., 5000.], layerModecenter=[200., 800.], widthOfAerosolMode = 0.2 ):
     gaussian = lambda x, mu, sig: np.exp(-(x - mu) ** 2 / (2 * sig ** 2))
 
     lbt = np.linspace(heightlimits[0], heightlimits[1], noOflayers + 1)
@@ -1524,7 +1730,7 @@ def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters
     for e, stra in enumerate(layercenter):
         for i, lay in enumerate(layerHeight):
             sdtmp = simulate_sizedistribution(diameter=diameter, numberOfDiameters=numberOfDiameters,
-                                              widthOfAerosolMode=0.2, centerOfAerosolMode=layerModecenter[i],
+                                              widthOfAerosolMode=widthOfAerosolMode, centerOfAerosolMode=layerModecenter[i],
                                               numberOfParticsInMode=layerDensity[i])
             layerArray[e] += sdtmp.data.values[0] * gaussian(stra, layerHeight[i], layerThickness[i])
 
@@ -1639,9 +1845,18 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
     sp = lambda r, l: 2. * np.pi * r / l
     for e, d in enumerate(diam):
         radius = d / 2.
+
+        # print('sp(radius, wavelength)', sp(radius, wavelength))
+        # print('n', n)
+        # print('d', d)
+
         mie = bhmie.bhmie_hagen(sp(radius, wavelength), n, noOfAngles, diameter=d)
         values = mie.return_Values_as_dict()
         extinction_efficiency[e] = values['extinction_efficiency']
+
+        # print("values['extinction_crosssection']",values['extinction_crosssection'])
+
+
         scattering_efficiency[e] = values['scattering_efficiency']
         absorption_efficiency[e] = values['extinction_efficiency'] - values['scattering_efficiency']
 
@@ -1651,6 +1866,8 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
 
         # phase_function_natural[d] = values['phaseFct_natural']['Phase_function_natural'].values
         angular_scattering_natural[d] = mie.get_angular_scatt_func().natural.values
+
+        # print('\n')
 
     # phase_function_natural.index = values['phaseFct_natural'].index
     angular_scattering_natural.index = mie.get_angular_scatt_func().index
@@ -1686,4 +1903,47 @@ def _get_coefficients(crossection, cn):
     crossection *= 1e-12  # conversion from um^2 to m^2
     cn *= 1e6  # conversion from cm^-3 to m^-3
     coefficient = cn * crossection
+
+    # print('cn',cn)
+    # print('crossection', crossection)
+    # print('coeff',coefficient)
+    # print('\n')
+
     return coefficient
+
+
+def test_ext_coeff_vertical_profile():
+    #todo: make this a real test
+    dist = simulate_sizedistribution_layerseries(layerHeight=[3000.0, 3000.0],
+                                               layerDensity=[1000.0, 100.0],
+                                               layerModecenter=[100.0, 100.0],
+                                               layerThickness=[6000, 6000],
+                                               widthOfAerosolMode = 0.01,
+                                               noOflayers=3,
+                                               numberOfDiameters=1000)
+    dist.plot()
+
+
+    dist = dist.zoom_diameter(99,101)
+    avg = dist.average_overAllAltitudes()
+    f,a = avg.plot()
+    a.set_xscale('linear')
+
+    opt = dist.calculate_optical_properties(550, n = 1.455)
+    opt_II = dist.calculate_optical_properties(550, n = 1.1)
+    opt_III = dist.calculate_optical_properties(550, n = 4.)
+
+    ext = opt.get_extinction_coeff_verticle_profile()
+    ext_II = opt_II.get_extinction_coeff_verticle_profile()
+    ext_III = opt_III.get_extinction_coeff_verticle_profile()
+
+    tvI_is = (ext_III.data/ext.data).values[0][0]
+    tvI_want = 14.3980239083
+    tvII_is = (ext_II.data/ext.data).values[0][0]
+    tvII_want = 0.05272993413
+
+    print('small deviations could come from averaging over multiple bins with slightly different diameter')
+    print('test values 1 is/should_be: %s/%s'%(tvI_is,tvI_want))
+    print('test values 2 is/should_be: %s/%s'%(tvII_is,tvII_want))
+
+    return False

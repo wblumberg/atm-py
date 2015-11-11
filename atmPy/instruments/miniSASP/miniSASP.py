@@ -315,7 +315,22 @@ def simulate_from_rayleigh(time_series,
             # temp = time_series.data.Temperature
             # pressure = time_series.data.Barometric_pressure_Pa
             lb = pd.DataFrame(index=layerbounderies)
-            hkt = time_series.data.loc[:, ["Temperature", "Altitude", "Pressure_Pa"]]
+            select_list = ["Temperature", "Altitude", "Pressure_Pa"]
+
+            bla = []
+            for i in ["Temperature", "Altitude", "Pressure_Pa"]:
+                if i not in time_series.data.columns:
+                    bla.append(i)
+
+            if len(bla) != 0:
+                txt='The underlying housekeeping data has to have the following attributes for this operation to work: %s'%(["Temperature", "Altitude", "Pressure_Pa"])
+                txt+='\nmissing:'
+                for i in bla:
+                    txt += '\n \t' + i
+                # print(txt)
+                raise AttributeError(txt)
+
+            hkt = time_series.data.loc[:, select_list]
 
             hkt.index = hkt.Altitude
             hkt = hkt.sort_index()
@@ -921,12 +936,14 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
                 if rayleigh:
                     rayleigh_corr = 0
             else:
+                # print('mach ick')
                 aodt = rayleigh[float(columns[i * 2])].loc[:, ['rayleigh']]
                 intenst = intens.copy()
                 intenst.index = intenst.index.droplevel(['Time', 'Sunelevation'])
                 aodt_sit = pd.concat([aodt, intenst]).sort_index().interpolate()
                 aodt_sit = aodt_sit.groupby(aodt_sit.index).mean().reindex(intenst.index)
                 rayleigh_corr = aodt_sit.rayleigh.values / np.sin(intens.index.get_level_values(2))
+                # return aodt
 
             if not airmassfct:
                 amf_corr = np.sin(intens.index.get_level_values(2))

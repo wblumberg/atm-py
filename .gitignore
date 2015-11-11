@@ -9,3 +9,4 @@ examples/data/size_distribution.cvs
 .idea/
 setup.py.old
 .spyderworkspace
+*__pycache__/

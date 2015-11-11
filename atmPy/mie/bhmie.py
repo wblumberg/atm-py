@@ -526,3 +526,35 @@ if __name__ == "__main__":
     s1,s2,qext,qsca,qback,gsca = bhh.return_Values()   
     
     s1,s2,qext,qsca,qback,gsca = bhmie(x_sizePara,n_refraction,nang_no)
+
+
+def test_extinction_coeff():
+    wl = .55
+    d = .1
+    ref = 1.455
+    sp = lambda wl,d : 2*np.pi/wl * d/2
+    mie = bhmie_hagen(sp(wl,d),ref, 100, diameter=d)
+    mo_I = mie.return_Values_as_dict()
+
+    wl = .55
+    d = .1
+    ref = 1.1
+    sp = lambda wl,d : 2*np.pi/wl * d/2
+    mie = bhmie_hagen(sp(wl,d),ref, 100, diameter=d)
+    mo_II = mie.return_Values_as_dict()
+
+    wl = .55
+    d = .1
+    ref = 4.
+    sp = lambda wl,d : 2*np.pi/wl * d/2
+    mie = bhmie_hagen(sp(wl,d),ref, 100, diameter=d)
+    mo_III = mie.return_Values_as_dict()
+
+    test_I_is = mo_II['extinction_crosssection']/mo_I['extinction_crosssection']
+    test_I_should = 0.0527297452683
+    test_II_is = mo_III['extinction_crosssection']/mo_I['extinction_crosssection']
+    test_II_should = 14.3981634837
+
+    print('test value 1 is/should be: %s/%s'%(test_I_is, test_I_should))
+    print('test value 2 is/should be: %s/%s'%(test_II_is, test_II_should))
+
