@@ -149,6 +149,8 @@ def remove_tick_labels(ax, remove_list, axis = 'x', which = 'major'):
         list of labels to be removed
     axis: str ['x', 'y']
         which the labels ought to be removed
+    which: str ['major', minor']
+        which type of tick label to be applied to
     """
 
     if not isinstance(remove_list, (list,np.ndarray)):
