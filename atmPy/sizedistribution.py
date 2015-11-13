@@ -250,7 +250,7 @@ class SizeDist(object):
     distributionType:
                         log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
                         natural: 'dNdDp','dSdDp','dVdDp'
-                        number: 'dNdlogDp', 'dNdDp'
+                        number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
                         surface: 'dSdlogDp','dSdDp'
                         volume: 'dVdlogDp','dVdDp'
     data:   pandas dataFrame, optional
@@ -777,22 +777,22 @@ class SizeDist(object):
 
 
 class SizeDist_TS(SizeDist):
-    """
+    """Returns a SizeDistribution_TS instance.
 
+    Parameters:
+    -----------
     data: pandas dataFrame with
-                 - column names (each name is something like this: '150-200')
-                 - index is time (at some point this should be arbitrary, convertable to altitude for example?)
-       unit conventions:
-             - diameters: nanometers
-             - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
-       distributionType:  
-             log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
-             natural: 'dNdDp','dSdDp','dVdDp'
-             number: 'dNdlogDp', 'dNdDp'
-             surface: 'dSdlogDp','dSdDp'
-             volume: 'dVdlogDp','dVdDp'
-       bincenters: this is if you actually want to pass the bincenters, if False they will be calculated
-
+         - column names (each name is something like this: '150-200')
+         - index is time (at some point this should be arbitrary, convertable to altitude for example?)
+    unit conventions:
+         - diameters: nanometers
+         - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
+    distributionType:
+         log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
+         natural: 'dNdDp','dSdDp','dVdDp'
+         number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
+         surface: 'dSdlogDp','dSdDp'
+         volume: 'dVdlogDp','dVdDp'
        """
 
     def fit_normal(self, log=True, p0=[10, 180, 0.2]):
@@ -1096,7 +1096,7 @@ class SizeDist_LS(SizeDist):
        distributionType:  
              log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
              natural: 'dNdDp','dSdDp','dVdDp'
-             number: 'dNdlogDp', 'dNdDp'
+             number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
              surface: 'dSdlogDp','dSdDp'
              volume: 'dVdlogDp','dVdDp'
 
