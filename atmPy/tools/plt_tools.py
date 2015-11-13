@@ -139,6 +139,40 @@ def get_colorMap_heat():
     hag_cmap.set_bad('black')
     return hag_cmap
 
+def remove_tick_labels(ax, remove_list, axis = 'x', which = 'major'):
+    """Removes all tick labels from an axes instance which are equal to entries in remove_list.
+
+    Parameters
+    ----------
+    ax: Matplotlib axes instance
+    remove_list: list of str.
+        list of labels to be removed
+    axis: str ['x', 'y']
+        which the labels ought to be removed
+    """
+
+    if not isinstance(remove_list, (list,np.ndarray)):
+        raise TypeError('remove_list has to be iterable (list, array, etc.)')
+    f = ax.get_figure()
+    f.canvas.draw()
+
+    if axis == 'x':
+        axis = ax.xaxis
+    elif axis == 'y':
+        axis = ax.yaxis
+    else:
+        raise ValueError()
+
+    if which == 'major':
+        ticks = axis.get_major_ticks()
+    elif which =='minor':
+        ticks = axis.get_minor_ticks()
+    else:
+        raise ValueError()
+    for i in ticks:
+        if i.label.get_text() in remove_list:
+            i.label.set_visible(False)
+    return
 
 def wavelength_to_rgb(wavelength, gamma=0.8, scale=1):
     '''This converts a given wavelength of light to an
