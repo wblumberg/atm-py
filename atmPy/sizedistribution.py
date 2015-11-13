@@ -932,7 +932,7 @@ class SizeDist_TS(SizeDist):
         f.autofmt_xdate()
         return f, a, a2
 
-    def plot_particle_concetration(self, ax=None, label=None):
+    def plot_particle_concentration(self, ax=None, label=None):
         """Plots the particle rate as a function of time.
 
         Parameters
