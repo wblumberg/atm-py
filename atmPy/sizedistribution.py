@@ -879,6 +879,9 @@ class SizeDist_TS(SizeDist):
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
 
+        a.get_yaxis().set_tick_params(direction='out', which='both')
+        a.get_xaxis().set_tick_params(direction='out', which='both')
+
         if self.distributionType == 'calibration':
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
