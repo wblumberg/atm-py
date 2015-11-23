@@ -14,6 +14,8 @@ def kappa_simple(k,RH, n = None):
     Size distribution and hygroscopic properties of aerosol particles from dry-season biomass burning
     in Amazonia. Atmospheric Chemistry and Physics Discussions, 5(5), 8149–8207. doi:10.5194/acpd-5-8149-2005
 
+    latex expression: $\sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}$
+
     Arguments
     ---------
     k: float
