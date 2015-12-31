@@ -10,8 +10,8 @@ import warnings
 #from StringIO import StringIO as io
 #from POPS_lib import calibration
 
-defaultBins = np.array([0.15, 0.168, 0.188, 0.211, 0.236, 0.264, 0.296, 0.332, 0.371, 0.416, 0.466, 0.522, 0.584, 0.655, 0.864, 1.14, 1.505, 1.987, 2.623, 3.462])
-defaultBins *= 1000
+#defaultBins = np.array([0.15, 0.168, 0.188, 0.211, 0.236, 0.264, 0.296, 0.332, 0.371, 0.416, 0.466, 0.522, 0.584, 0.655, 0.864, 1.14, 1.505, 1.987, 2.623, 3.462])
+defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 
 
 #######
@@ -20,13 +20,13 @@ def _read_PeakFile_Binary(fname, version = 'current', deltaTime=0):
     """returns a peak instance
     fname: ...
     deltaTime: if you want to apply a timedelay in seconds"""
-    directory, fname = os.path.split(fname)
+    directory, filename = os.path.split(fname)
     if version == 'current':
         data = _binary2array_labview_clusters(fname)
-        dataFrame = _PeakFileArray2dataFrame(data,fname, deltaTime, log = False, since_midnight = False)
+        dataFrame = _PeakFileArray2dataFrame(data,filename, deltaTime, log = False, since_midnight = False)
     elif version == '01':
         data = _BinaryFile2Array(fname)
-        dataFrame = _PeakFileArray2dataFrame(data,fname,deltaTime)
+        dataFrame = _PeakFileArray2dataFrame(data,filename,deltaTime)
     else:
         txt = 'This version does not exist: '%version
         raise ValueError(txt)
@@ -212,7 +212,7 @@ def _BinaryFile2Array(fname):
     return data
 
 
-def _binary2array_labview_clusters(fname):
+def _binary2array_labview_clusters(fname, skip = 20):
 
     def read_time(file, entry_format = '>QQ'):
         entry_size = calcsize(entry_format)
@@ -240,21 +240,42 @@ def _binary2array_labview_clusters(fname):
             thearray[i,1:] = entry
         return thearray
 
-    rein = open(fname, mode='rb')
-    rein.read(20) # This is some time of header ... no idea what exactly
-
-    array_list = []
     while 1:
-        try:
-            time = read_time(rein)
-        except:
-            break
-        length = read_array_length(rein)
-        array = read_array(rein, length,time)
-        array_list.append(array)
+        wrong_skip = False
+        rein = open(fname, mode='rb')
+        rein.read(skip) # This is some time of header ... no idea what exactly
+        array_list = []
+        while 1:
+            try:
+                time = read_time(rein)
+                length = read_array_length(rein)
+                array = read_array(rein, length,time)
+                array_list.append(array)
+            except:
+                break
 
-    full_array = np.concatenate(array_list)
-    rein.close()
+            lc = array[:,-1]
+
+            # If a peak file was created on startup it will have a different header
+            # length compared to when it was created because the maximum file size
+            # was reached. The following test if the structure was correct an will
+            # adjust the header length if necessary.
+            if np.any(np.logical_and(lc != 1, lc != 0)):
+                if skip == 0:
+                    txt = "Sorry, this should not happen ... need fixn!!"
+                    raise ValueError(txt)
+                wrong_skip = True
+                skip = 0
+
+
+        full_array = np.concatenate(array_list)
+        rein.close()
+
+        if wrong_skip:
+            continue
+        else:
+            break
+
     return full_array
 
 
@@ -505,8 +526,11 @@ class peaks:
         """see doc-string of _peak2Distribution"""
         return self._peak2Distribution(bins = bins,distributionType = 'calibration',differentialStyle = 'dNdDp')
         
-    def peak2numberdistribution(self, bins = defaultBins):
+    def peak2sizedistribution(self, bins = 'default'):
         """see doc-string of _peak2Distribution"""
+        if type(bins) == str:
+            if bins == 'default':
+                bins = defaultBins
         return self._peak2Distribution(bins = bins, differentialStyle='dNdDp')
         
 #    def peak2calibration(self, bins = 200, ampMin = 20):
