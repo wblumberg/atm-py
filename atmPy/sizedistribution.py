@@ -345,6 +345,10 @@ class SizeDist(object):
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
         how: string ['shift_bins', 'shift_data']
+            If the shift_bins the growth factor has to be the same for all lines in
+            data (important for timeseries and vertical profile.
+            If gf changes (as probably the case in TS and LS) you want to use
+            'shift_data'
         """
 
         if not self.index_of_refraction:

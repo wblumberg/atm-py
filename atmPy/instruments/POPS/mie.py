@@ -72,8 +72,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
         dRange = np.logspace(np.log10(radiusRangeInMikroMeter[0]),np.log10(radiusRangeInMikroMeter[1]),noOfdiameters,base = 100) #radius range 
         
     event = Mie(silent = True, design = POPSdesign, indexOfRef = IOR, diameter = 'dynamic') # Ref. for indexOfRef.  Patterson 2004
-    event.set_nang(noOfAngles) 
-#     event.set_wavelength(WavelengthInUm)
+    event.set_nang(noOfAngles)
     event.POPSdimensions['mirror(top)-jet distance (mm)'] = float(mirrorJetDist)
     
     singleLine = False
@@ -86,9 +85,6 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
         exWavelengthInUm = WavelengthInUm
     
 
-        
-
-    
     if broadened:
         if broadened['style'] == 'gauss':
             wc = broadened['center'] 
@@ -116,10 +112,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
         singleLine = True
         
     output = np.zeros((exWavelengthInUm.shape[0]+1,dRange.shape[0]))
-#     return exWavelengthInUm,normalizer
     for e,i in enumerate(exWavelengthInUm):
-        # print("%s/%s wavelength" % (e + 1, noOfwl))
-#         print e,int(len(exWavelengthInUm)/2), normalizer[e]
         event.set_wavelength(i)
         perpInt = []
         for i in dRange:
@@ -130,7 +123,6 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
         scatteringEfficiency = np.array(perpInt)
 #         if broadened:     
         output[0]+= normalizer[e] * scatteringEfficiency/normalizer.sum()
-    #data['label'] = '%s ior'%IOR
         if len(exWavelengthInUm) == 1:
             return diameter, scatteringEfficiency
         elif not singleLine: #why am I doing that?
@@ -472,8 +464,7 @@ class Mie():
         
         if len(s1Selection) != nn:
             raise ValueError('not possible %s %s'%(len(s1Selection),len(self.angleIndexArray)))
-            
-        #what = "parallel"
+
         
         if polarization == "parallel":
             IntMatrix = ((np.cos(self.offAngleMatrix))**2 * s2Matrix) + ((np.sin(self.offAngleMatrix))**2 * s1Matrix)  
