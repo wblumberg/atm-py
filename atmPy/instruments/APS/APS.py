@@ -7,7 +7,7 @@ Created on Mon Jan 26 16:42:47 2015
 import numpy as np
 import pandas as pd
 from atmPy import sizedistribution
-from atmPy.instruments.tools import diameter_binning
+from atmPy.instruments.tools import dia
 
 def bincenters2BinStuff(bincenters):
     if type(bincenters) != np.ndarray:
