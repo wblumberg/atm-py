@@ -901,9 +901,12 @@ def load_sunintensities_TS(fname):
 
 
 class Sun_Intensities_TS(timeseries.TimeSeries):
-    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, additional_axes=False,
+    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, all_on_one_axis = False,
+             additional_axes=False,
+             errors = False,
              rayleigh=True):
-        """plots ...
+        """plots ... sorry, but this is a messi function. Things should have been done different, e.g too much data
+         processing whith the data not put out ... need fixn
         Arguments
         ---------
         offset: list
@@ -913,6 +916,8 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
             False: data is corrected to correct for the slant angle
         rayleigh: bool or the aod part of the output of miniSASP.simulate_from_size_dist_LS.
             make sure there is no airmassfkt included in this!!
+        all_on_one_axis: bool or axes instance
+            if True all is plotted in one axes. If axes instances this axis is used.
         """
 
         m_size = 5
@@ -920,13 +925,21 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
         l_width = 2
         gridspec_kw = {'wspace': 0.05}
         no_axes = 4
+        if all_on_one_axis:
+            no_axes = 1
         if additional_axes:
             no_axes = no_axes + additional_axes
-        f, a = plt.subplots(1, no_axes, gridspec_kw=gridspec_kw)
+
+        if type(all_on_one_axis).__name__ == 'AxesSubplot':
+            a = all_on_one_axis
+            f = a.get_figure()
+        else:
+            f, a = plt.subplots(1, no_axes, gridspec_kw=gridspec_kw)
         columns = ['460.3', '460.3 max', '550.4', '550.4 max', '671.2', '671.2 max', '860.7', '860.7 max']
         # peaks_max = [460.3, '460.3 max', 550.4, '550.4 max', 860.7, '860.7 max', 671.2,
         #        '671.2 max']
-        f.set_figwidth(15)
+        if not all_on_one_axis:
+            f.set_figwidth(15)
         #################
         for i in range(int(len(columns) / 2)):
             col = plt_tools.wavelength_to_rgb(columns[i * 2]) * 0.8
@@ -949,8 +962,14 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
                 amf_corr = np.sin(intens.index.get_level_values(2))
             else:
                 amf_corr = 1
+            if not all_on_one_axis:
+                atmp = a[i]
+            else:
+                atmp = a
 
-            g, = a[i].plot((offset[i] - np.log(intens) - rayleigh_corr) * amf_corr, x)
+
+            y = (offset[i] - np.log(intens) - rayleigh_corr) * amf_corr
+            g, = atmp.plot(y, x)
             g.set_label('%s nm' % columns[i * 2])
             g.set_linestyle('')
             g.set_marker('o')
@@ -973,23 +992,29 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
                 g.set_linewidth(l_width)
                 g.set_label(None)
 
-            if i != 0:
-                a[i].set_yticklabels([])
+            if i != 0 and not all_on_one_axis:
+                atmp.set_yticklabels([])
 
             if i == 4:
                 break
-
-        if legend:
-            for aa in a:
-                aa.legend()
-        if airmassfct:
+        if all_on_one_axis:
+            a.legend()
+        else:
+            if legend:
+                for aa in a:
+                    aa.legend()
+        if not airmassfct:
             txt = 'OD'
         else:
             txt = 'OD * (air-mass factor)'
-
-        a[0].set_xlabel(txt)
-        a[0].xaxis.set_label_coords(2.05, -0.07)
-        a[0].set_ylabel('Altitude (m)')
+        if all_on_one_axis:
+            atmp = a
+        else:
+            atmp = a[0]
+        atmp.set_xlabel(txt)
+        if not all_on_one_axis:
+            atmp.xaxis.set_label_coords(2.05, -0.07)
+        atmp.set_ylabel('Altitude (m)')
         return a
 
     def add_sun_elevetion(self, picco):

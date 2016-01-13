@@ -1,5 +1,6 @@
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import FuncFormatter
+from matplotlib import ticker
 import numpy as np
 ###
 
@@ -139,6 +140,73 @@ def get_colorMap_heat():
     hag_cmap.set_bad('black')
     return hag_cmap
 
+def remove_tick_labels(ax, remove_list, axis = 'x', which = 'major'):
+    """Removes all tick labels from an axes instance which are equal to entries in remove_list.
+
+    Parameters
+    ----------
+    ax: Matplotlib axes instance
+    remove_list: list of str.
+        list of labels to be removed
+    axis: str ['x', 'y']
+        which the labels ought to be removed
+    which: str ['major', minor']
+        which type of tick label to be applied to
+    """
+
+    if not isinstance(remove_list, (list,np.ndarray)):
+        raise TypeError('remove_list has to be iterable (list, array, etc.)')
+    f = ax.get_figure()
+    f.canvas.draw()
+
+    if axis == 'x':
+        axis = ax.xaxis
+    elif axis == 'y':
+        axis = ax.yaxis
+    else:
+        raise ValueError()
+
+    if which == 'major':
+        ticks = axis.get_major_ticks()
+    elif which =='minor':
+        ticks = axis.get_minor_ticks()
+    else:
+        raise ValueError()
+    for i in ticks:
+        if i.label.get_text() in remove_list:
+            i.label.set_visible(False)
+    return
+
+def scale_format_ticklabels(a,scale = 1, format = '{:.0f}', axis = 'x', which = 'major'):
+    """Scales and changes format of tick labels
+
+    Parameters
+    ----------
+    a: AxesSubplot or Colorbar instance
+        The plot that needs to be changed. It is also possible to pass a colorbar instance.
+    scale: float
+        Axis values are multiplied with this number
+    format: str
+        Check out this page for examples: https://mkaz.github.io/2012/10/10/python-string-format/
+    axis: str ['x','y']
+        which of the axis to apply the function to.
+    which: str ['major', 'minor']
+        which of the tick labels to apply the function to."""
+
+    ticks = ticker.FuncFormatter(lambda x, pos: format.format(x*scale))
+    if type(a).__name__ == 'Colorbar':
+        a.formatter = ticks
+        a.update_ticks()
+    else:
+        if axis == 'x':
+            axt = a.xaxis
+        elif axis == 'y':
+            axt = a.yaxis
+        if which == 'major':
+            axt.set_major_formatter(ticks)
+        elif which == 'minor':
+            axt.set_minor_formatter(ticks)
+    return ticks
 
 def wavelength_to_rgb(wavelength, gamma=0.8, scale=1):
     '''This converts a given wavelength of light to an

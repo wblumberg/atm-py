@@ -85,6 +85,42 @@ def read_csv(fname, fixGaps=True):
         raise TypeError('not a valid object type')
     return distRein
 
+def read_hdf(f_name, keep_open = False, populate_namespace = False):
+    hdf = pd.HDFStore(f_name)
+
+    content = hdf.keys()
+    out = []
+    for i in content:
+#         print(i)
+        storer = hdf.get_storer(i)
+        attrs = storer.attrs.atmPy_attrs
+        if not attrs:
+            continue
+        elif attrs['type'].__name__ == 'SizeDist_TS':
+            dist_new = SizeDist_TS(hdf[i], attrs['bins'], attrs['distributionType'])
+        elif attrs['type'].__name__ == 'SizeDist':
+            dist_new = SizeDist(hdf[i], attrs['bins'], attrs['distributionType'])
+        elif attrs['type'].__name__ == 'SizeDist_LS':
+            dist_new = SizeDist_LS(hdf[i], attrs['bins'], attrs['distributionType'], attrs['layerbounderies'])
+        else:
+            txt = 'Unknown data type: %s'%attrs['type'].__name__
+            raise TypeError(txt)
+
+        fit_res = i+'/data_fit_normal'
+        if fit_res in content:
+            dist_new.data_fit_normal = hdf[fit_res]
+
+        if populate_namespace:
+            if attrs['variable_name']:
+                populate_namespace[attrs['variable_name']] = dist_new
+
+        out.append(dist_new)
+
+    if keep_open:
+        return hdf,out
+    else:
+        hdf.close()
+        return out
 
 def get_label(distType):
     """ Return the appropriate label for a particular distribution type
@@ -250,7 +286,7 @@ class SizeDist(object):
     distributionType:
                         log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
                         natural: 'dNdDp','dSdDp','dVdDp'
-                        number: 'dNdlogDp', 'dNdDp'
+                        number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
                         surface: 'dSdlogDp','dSdDp'
                         volume: 'dVdlogDp','dVdDp'
     data:   pandas dataFrame, optional
@@ -345,6 +381,10 @@ class SizeDist(object):
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
         how: string ['shift_bins', 'shift_data']
+            If the shift_bins the growth factor has to be the same for all lines in
+            data (important for timeseries and vertical profile.
+            If gf changes (as probably the case in TS and LS) you want to use
+            'shift_data'
         """
 
         if not self.index_of_refraction:
@@ -660,6 +700,49 @@ class SizeDist(object):
         self.data.to_csv(fname, mode='a')
         return
 
+    def save_hdf(self, hdf, variable_name = None, info = '', force = False):
+
+        if variable_name:
+            table_name = '/atmPy/aerosols/sizedistribution/'+variable_name
+            if table_name in hdf.keys():
+                    if not force:
+                        txt = 'Table name (variable_name) exists. If you want to overwrite it set force to True.'
+                        raise KeyError(txt)
+        else:
+            e = 0
+            while 1:
+                table_name = '/atmPy/aerosols/sizedistribution/'+ type(self).__name__ + '_%.3i'%e
+                if table_name in hdf.keys():
+                    e+=1
+                else:
+                    break
+
+
+        hdf.put(table_name, self.data)
+
+        storer = hdf.get_storer(table_name)
+
+        attrs = {}
+        attrs['variable_name'] = variable_name
+        attrs['info'] = info
+        attrs['type'] = type(self)
+        attrs['bins'] = self.bins
+        attrs['index_of_refraction'] = self.index_of_refraction
+        attrs['distributionType'] = self.distributionType
+
+        if 'layerbounderies' in dir(self):
+            attrs['layerbounderies'] = self.layerbounderies
+
+        storer.attrs.atmPy_attrs = attrs
+
+        if 'data_fit_normal' in dir(self):
+            table_name = table_name + '/data_fit_normal'
+            hdf.put(table_name, self.data_fit_normal)
+            storer = hdf.get_storer(table_name)
+            storer.attrs.atmPy_attrs = None
+
+        return hdf
+
     def zoom_diameter(self, start=None, end=None):
         sd = self.copy()
         if start:
@@ -777,22 +860,22 @@ class SizeDist(object):
 
 
 class SizeDist_TS(SizeDist):
-    """
+    """Returns a SizeDistribution_TS instance.
 
+    Parameters:
+    -----------
     data: pandas dataFrame with
-                 - column names (each name is something like this: '150-200')
-                 - index is time (at some point this should be arbitrary, convertable to altitude for example?)
-       unit conventions:
-             - diameters: nanometers
-             - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
-       distributionType:  
-             log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
-             natural: 'dNdDp','dSdDp','dVdDp'
-             number: 'dNdlogDp', 'dNdDp'
-             surface: 'dSdlogDp','dSdDp'
-             volume: 'dVdlogDp','dVdDp'
-       bincenters: this is if you actually want to pass the bincenters, if False they will be calculated
-
+         - column names (each name is something like this: '150-200')
+         - index is time (at some point this should be arbitrary, convertable to altitude for example?)
+    unit conventions:
+         - diameters: nanometers
+         - flowrates: cc (otherwise, axis label need to be adjusted an caution needs to be taken when dealing is AOD)
+    distributionType:
+         log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
+         natural: 'dNdDp','dSdDp','dVdDp'
+         number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
+         surface: 'dSdlogDp','dSdDp'
+         volume: 'dVdlogDp','dVdDp'
        """
 
     def fit_normal(self, log=True, p0=[10, 180, 0.2]):
@@ -879,6 +962,9 @@ class SizeDist_TS(SizeDist):
         a.set_ylim((self.bins[0], self.bins[-1]))
         a.set_xlabel('Time (UTC)')
 
+        a.get_yaxis().set_tick_params(direction='out', which='both')
+        a.get_xaxis().set_tick_params(direction='out', which='both')
+
         if self.distributionType == 'calibration':
             a.set_ylabel('Amplitude (digitizer bins)')
         else:
@@ -932,7 +1018,7 @@ class SizeDist_TS(SizeDist):
         f.autofmt_xdate()
         return f, a, a2
 
-    def plot_particle_concetration(self, ax=None, label=None):
+    def plot_particle_concentration(self, ax=None, label=None):
         """Plots the particle rate as a function of time.
 
         Parameters
@@ -1096,7 +1182,7 @@ class SizeDist_LS(SizeDist):
        distributionType:  
              log normal: 'dNdlogDp','dSdlogDp','dVdlogDp'
              natural: 'dNdDp','dSdDp','dVdDp'
-             number: 'dNdlogDp', 'dNdDp'
+             number: 'dNdlogDp', 'dNdDp', 'numberConcentration'
              surface: 'dSdlogDp','dSdDp'
              volume: 'dVdlogDp','dVdDp'
 
@@ -1217,6 +1303,9 @@ class SizeDist_LS(SizeDist):
     def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
         if not n:
             n = self.index_of_refraction
+        if not n:
+            txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+            raise ValueError(txt)
         out = _calculate_optical_properties(self, wavelength, n, aod = True, noOfAngles=noOfAngles)
         opt_properties = OpticalProperties(out, self.bins)
         opt_properties.wavelength = wavelength

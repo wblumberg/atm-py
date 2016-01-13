@@ -10,29 +10,40 @@ import warnings
 #from StringIO import StringIO as io
 #from POPS_lib import calibration
 
-defaultBins = np.array([0.15, 0.168, 0.188, 0.211, 0.236, 0.264, 0.296, 0.332, 0.371, 0.416, 0.466, 0.522, 0.584, 0.655, 0.864, 1.14, 1.505, 1.987, 2.623, 3.462])
-defaultBins *= 1000
+#defaultBins = np.array([0.15, 0.168, 0.188, 0.211, 0.236, 0.264, 0.296, 0.332, 0.371, 0.416, 0.466, 0.522, 0.584, 0.655, 0.864, 1.14, 1.505, 1.987, 2.623, 3.462])
+defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 
 
 #######
 #### Peak file
-def _read_PeakFile_Binary(fname, deltaTime=0):
+def _read_PeakFile_Binary(fname, version = 'current', deltaTime=0):
     """returns a peak instance
     fname: ...
     deltaTime: if you want to apply a timedelay in seconds"""
-    data = _BinaryFile2Array(fname)
-    directory, fname = os.path.split(fname)
-    dataFrame = _PeakFileArray2dataFrame(data,fname,deltaTime)
+    directory, filename = os.path.split(fname)
+    if version == 'current':
+        data = _binary2array_labview_clusters(fname)
+        dataFrame = _PeakFileArray2dataFrame(data,filename, deltaTime, log = False, since_midnight = False)
+    elif version == '01':
+        data = _BinaryFile2Array(fname)
+        dataFrame = _PeakFileArray2dataFrame(data,filename,deltaTime)
+    else:
+        txt = 'This version does not exist: '%version
+        raise ValueError(txt)
+
     peakInstance = peaks(dataFrame)
     return peakInstance
 
 
-def read_binary(fname):
+def read_binary(fname, version = 'current'):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
     ---------
     fname: string or list of strings
+    version: str
+        'current' - current :-)
+        '01': before summer-fall 2015
     """
 
     m = None
@@ -43,7 +54,7 @@ def read_binary(fname):
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)
-            mt = _read_PeakFile_Binary(file)
+            mt = _read_PeakFile_Binary(file, version = version)
             if first:
                 m = mt
                 first = False
@@ -153,11 +164,33 @@ def read_csv(fname, log = True, since_midnight = True):
 
 
 
-def read_cal_process_peakFile(fname, cal, bins, averageOverTime='60S'):
+def read_cal_process_peakFile(fname, cal, bins, average_over_time=False, normalize = False):
+    """short cut to read, calibrate and furter process the peak file data
+    Arguments
+    ---------
+    fname: str
+        filename
+    cal: calibration instance
+    bins: array like
+        bin-edges for binning of peak data to sizedistributions
+    average_over_time: bool or str
+        Downsampling of data, e.g. '60S' will downsample to 60 seconds
+    normalize: float
+        data will be divided by this number
+
+    Returns
+    -------
+    size_dist_TS instance
+    """
+
     peakdf = read_binary(fname)
     peakdf.apply_calibration(cal)
     dist = peakdf.peak2numberdistribution(bins=bins)
-    dist = dist.average_overTime(averageOverTime)
+    if average_over_time:
+        dist = dist.average_overTime(average_over_time)
+    if normalize:
+        dist.data *= 1./normalize
+    dist = dist.convert2dNdlogDp()
     return dist
 
 
@@ -178,6 +211,72 @@ def _BinaryFile2Array(fname):
     rein.close()
     return data
 
+
+def _binary2array_labview_clusters(fname, skip = 20):
+
+    def read_time(file, entry_format = '>QQ'):
+        entry_size = calcsize(entry_format)
+        record = file.read(entry_size)
+        et = unpack(entry_format, record)
+        subsec = et[1] * 2**-64
+        timet = et[0] + subsec
+        return timet
+
+    def read_array_length(file, entry_format = '>i'):
+        entry_size = calcsize(entry_format)
+        record = file.read(entry_size)
+        lengtht  = unpack(entry_format, record)[0]
+        return lengtht
+
+    def read_array(file, length, time, entry_format = '>LHBBB'):
+        entry_size = calcsize(entry_format)
+
+        thearray = np.zeros((length,6))
+
+        for i in range(length):
+            record = rein.read(entry_size)
+            entry = unpack(entry_format, record)
+            thearray[i,0] = time
+            thearray[i,1:] = entry
+        return thearray
+
+    while 1:
+        wrong_skip = False
+        rein = open(fname, mode='rb')
+        rein.read(skip) # This is some time of header ... no idea what exactly
+        array_list = []
+        while 1:
+            try:
+                time = read_time(rein)
+                length = read_array_length(rein)
+                array = read_array(rein, length,time)
+                array_list.append(array)
+            except:
+                break
+
+            lc = array[:,-1]
+
+            # If a peak file was created on startup it will have a different header
+            # length compared to when it was created because the maximum file size
+            # was reached. The following test if the structure was correct an will
+            # adjust the header length if necessary.
+            if np.any(np.logical_and(lc != 1, lc != 0)):
+                if skip == 0:
+                    txt = "Sorry, this should not happen ... need fixn!!"
+                    raise ValueError(txt)
+                wrong_skip = True
+                skip = 0
+
+
+        full_array = np.concatenate(array_list)
+        rein.close()
+
+        if wrong_skip:
+            continue
+        else:
+            break
+
+    return full_array
 
 
 def _PeakFileArray2dataFrame(data,fname,deltaTime, log = True, since_midnight = True):
@@ -370,6 +469,10 @@ class peaks:
     
         """
         notMasked = np.where(self.data.Masked == 0)
+        # print('lenNotMasked', len(notMasked))
+        # if len(notMasked) < 2:
+        #     txt = 'peak file contains no valid peak information. Origins could be problems with the calibration!'
+        #     raise ValueError(txt)
         unique = np.unique(self.data.index.values[notMasked])
         N = np.zeros((unique.shape[0],bins.shape[0]-1))
     
@@ -386,6 +489,7 @@ class peaks:
         N = N.astype(np.float)
     
         deltaT = (unique[1:]-unique[:-1]) / np.timedelta64(1,'s')
+
         deltaT = np.append(deltaT[0],deltaT)
         deltaT = np.repeat(np.array([deltaT]),bins.shape[0]-1, axis=0)
         N/=deltaT.transpose()
@@ -409,7 +513,9 @@ class peaks:
         if distributionType == 'calibration':
             return sizedistribution.SizeDist_TS(dataFrame, bins, 'calibration')
         else:
-            return sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp')
+            dist = sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp')
+            dist = dist.convert2dNdlogDp()
+            return dist
         
 #    def peak2numberdistribution_dNdlogDp(self, bins = defaultBins):
 #        return self._peak2Distribution(bins = bins, differentialStyle='dNdlogDp')
@@ -420,8 +526,11 @@ class peaks:
         """see doc-string of _peak2Distribution"""
         return self._peak2Distribution(bins = bins,distributionType = 'calibration',differentialStyle = 'dNdDp')
         
-    def peak2numberdistribution(self, bins = defaultBins):
+    def peak2sizedistribution(self, bins = 'default'):
         """see doc-string of _peak2Distribution"""
+        if type(bins) == str:
+            if bins == 'default':
+                bins = defaultBins
         return self._peak2Distribution(bins = bins, differentialStyle='dNdDp')
         
 #    def peak2calibration(self, bins = 200, ampMin = 20):

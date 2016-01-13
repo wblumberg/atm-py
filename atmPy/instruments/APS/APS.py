@@ -6,9 +6,8 @@ Created on Mon Jan 26 16:42:47 2015
 """
 import numpy as np
 import pandas as pd
-import sys
-sys.path.append('/Users/htelg/projecte/POPS/prog/')
-from POPS_lib import sizedistribution
+from atmPy import sizedistribution
+from atmPy.instruments.tools import diameter_binning
 
 def bincenters2BinStuff(bincenters):
     if type(bincenters) != np.ndarray:
