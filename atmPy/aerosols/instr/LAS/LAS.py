@@ -5,23 +5,23 @@ Created on Mon Nov 10 11:43:10 2014
 @author: htelg
 """
 
+import datetime
+import warnings
+
 import numpy as np
 import pandas as pd
-import datetime
-from StringIO import StringIO as io
 import pylab as plt
+from StringIO import StringIO as io
 from scipy.interpolate import UnivariateSpline
-import warnings
-from matplotlib.colors import LogNorm
-from atmPy import sizedistribution
 
+from atmPy.aerosols.sd import sizedistribution
 
 
 def read_csv(fname):
     las = _readFromFakeXLS(fname)
     sd,hk = _separate_sizedist_and_housekeep(las)
     bins = _get_bins(sd)
-    dist = sizedistribution.SizeDist_TS(sd,bins,"numberConcentration")
+    dist = sizedistribution.SizeDist_TS(sd, bins, "numberConcentration")
     return dist
 
 

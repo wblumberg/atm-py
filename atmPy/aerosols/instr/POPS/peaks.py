@@ -1,12 +1,15 @@
-import numpy as np
-from struct import unpack, calcsize
-import pandas as pd
 import datetime
 import os
-from atmPy.tools import miscell_tools as misc
-import pylab as plt
-from atmPy import sizedistribution
 import warnings
+from struct import unpack, calcsize
+
+import numpy as np
+import pandas as pd
+import pylab as plt
+
+from atmPy.aerosols.sd import sizedistribution
+from atmPy.tools import miscell_tools as misc
+
 #from StringIO import StringIO as io
 #from POPS_lib import calibration
 

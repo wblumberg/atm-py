@@ -1,9 +1,11 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 from atmPy import timeseries
-from atmPy.instruments.POPS import calibration
-from atmPy import sizedistribution
+from atmPy.aerosols.instr.POPS import calibration
+from atmPy.aerosols.sd import sizedistribution
 from atmPy.tools import time_tools
+
 
 def read_radiosonde_csv(fname, cal):
     """reads a csv file and returns a TimeSeries
@@ -49,5 +51,5 @@ def read_radiosonde_csv(fname, cal):
 #     fname_cal = '/Users/htelg/data/POPS_calibrations/150622_china_UAV.csv'
     cal = calibration.read_csv(cal)
     ib = cal.get_interface_bins(20)
-    sd = sizedistribution.SizeDist_TS(sd,ib['binedges_v_int'].values.transpose()[0],'numberConcentration')
+    sd = sizedistribution.SizeDist_TS(sd, ib['binedges_v_int'].values.transpose()[0], 'numberConcentration')
     return sd,hk

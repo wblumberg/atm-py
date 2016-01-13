@@ -8,11 +8,14 @@ author: Hagen Telg
 last modified: September 2011
 '''
 
-import wx
 import os
-import numpy as np
-from atmPy.instruments.POPS import peaks, calibration
+
 import matplotlib
+import numpy as np
+import wx
+from atmPy.instruments.POPS import peaks
+
+from atmPy.aerosols.instr.POPS import calibration
 
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
