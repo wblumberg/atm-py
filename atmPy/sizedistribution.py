@@ -85,6 +85,42 @@ def read_csv(fname, fixGaps=True):
         raise TypeError('not a valid object type')
     return distRein
 
+def read_hdf(f_name, keep_open = False, populate_namespace = False):
+    hdf = pd.HDFStore(f_name)
+
+    content = hdf.keys()
+    out = []
+    for i in content:
+#         print(i)
+        storer = hdf.get_storer(i)
+        attrs = storer.attrs.atmPy_attrs
+        if not attrs:
+            continue
+        elif attrs['type'].__name__ == 'SizeDist_TS':
+            dist_new = SizeDist_TS(hdf[i], attrs['bins'], attrs['distributionType'])
+        elif attrs['type'].__name__ == 'SizeDist':
+            dist_new = SizeDist(hdf[i], attrs['bins'], attrs['distributionType'])
+        elif attrs['type'].__name__ == 'SizeDist_LS':
+            dist_new = SizeDist_LS(hdf[i], attrs['bins'], attrs['distributionType'], attrs['layerbounderies'])
+        else:
+            txt = 'Unknown data type: %s'%attrs['type'].__name__
+            raise TypeError(txt)
+
+        fit_res = i+'/data_fit_normal'
+        if fit_res in content:
+            dist_new.data_fit_normal = hdf[fit_res]
+
+        if populate_namespace:
+            if attrs['variable_name']:
+                populate_namespace[attrs['variable_name']] = dist_new
+
+        out.append(dist_new)
+
+    if keep_open:
+        return hdf,out
+    else:
+        hdf.close()
+        return out
 
 def get_label(distType):
     """ Return the appropriate label for a particular distribution type
@@ -345,6 +381,10 @@ class SizeDist(object):
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
         how: string ['shift_bins', 'shift_data']
+            If the shift_bins the growth factor has to be the same for all lines in
+            data (important for timeseries and vertical profile.
+            If gf changes (as probably the case in TS and LS) you want to use
+            'shift_data'
         """
 
         if not self.index_of_refraction:
@@ -659,6 +699,49 @@ class SizeDist(object):
             raus.close()
         self.data.to_csv(fname, mode='a')
         return
+
+    def save_hdf(self, hdf, variable_name = None, info = '', force = False):
+
+        if variable_name:
+            table_name = '/atmPy/aerosols/sizedistribution/'+variable_name
+            if table_name in hdf.keys():
+                    if not force:
+                        txt = 'Table name (variable_name) exists. If you want to overwrite it set force to True.'
+                        raise KeyError(txt)
+        else:
+            e = 0
+            while 1:
+                table_name = '/atmPy/aerosols/sizedistribution/'+ type(self).__name__ + '_%.3i'%e
+                if table_name in hdf.keys():
+                    e+=1
+                else:
+                    break
+
+
+        hdf.put(table_name, self.data)
+
+        storer = hdf.get_storer(table_name)
+
+        attrs = {}
+        attrs['variable_name'] = variable_name
+        attrs['info'] = info
+        attrs['type'] = type(self)
+        attrs['bins'] = self.bins
+        attrs['index_of_refraction'] = self.index_of_refraction
+        attrs['distributionType'] = self.distributionType
+
+        if 'layerbounderies' in dir(self):
+            attrs['layerbounderies'] = self.layerbounderies
+
+        storer.attrs.atmPy_attrs = attrs
+
+        if 'data_fit_normal' in dir(self):
+            table_name = table_name + '/data_fit_normal'
+            hdf.put(table_name, self.data_fit_normal)
+            storer = hdf.get_storer(table_name)
+            storer.attrs.atmPy_attrs = None
+
+        return hdf
 
     def zoom_diameter(self, start=None, end=None):
         sd = self.copy()

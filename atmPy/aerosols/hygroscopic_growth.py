@@ -39,6 +39,8 @@ def kappa_simple(k,RH, n = None):
 
     growths_factor = lambda k,RH: (1 + (k * (RH/(100 - RH))))**(1/3.)
     gf = growths_factor(k,RH)
+
+    # adjust index of refraction
     if n:
         nw = 1.33
         n_mix = lambda n,gf: (n + ((gf-1)*nw))/gf

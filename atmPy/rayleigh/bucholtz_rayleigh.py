@@ -6,7 +6,7 @@ Most functions are taken from the following reference:
 
 Bucholtz, A. (1995). Rayleigh-scattering calculations for the terrestrial atmosphere. Applied Optics, 34(15), 2765–2773. doi:10.1364/AO.34.002765
 
-@author: mtat76
+@author: hagne, mtat76
 """
 
 import numpy as np
