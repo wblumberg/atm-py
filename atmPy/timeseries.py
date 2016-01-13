@@ -1,15 +1,17 @@
 __author__ = 'htelg'
 
-import pylab as plt
-import pandas as pd
-from mpl_toolkits.basemap import Basemap
-from geopy.distance import vincenty
-import numpy as np
 from copy import deepcopy
-from atmPy.tools import time_tools
-from atmPy import solar
-import warnings
+
+import numpy as np
+import pandas as pd
+import pylab as plt
+from geopy.distance import vincenty
+from mpl_toolkits.basemap import Basemap
 from mpl_toolkits.mplot3d import Axes3D
+
+from atmPy.rad import solar
+from atmPy.tools import time_tools
+
 
 # Todo: get rid of this class
 # def merge_timeseries(ts_list):

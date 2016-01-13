@@ -2,7 +2,7 @@ import pandas as pd
 # from atmPy.tools import thermodynamics
 from atmPy import timeseries
 import numpy as np
-from atmPy.aerosols import sampling_efficiency as sampeff
+from atmPy.aerosols.phys.mech import sampling_efficiency as sampeff
 from atmPy.tools import pandas_tools
 
 _date_time_alts = ['uas_datetime']

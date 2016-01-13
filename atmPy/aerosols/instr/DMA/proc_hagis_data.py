@@ -1,16 +1,19 @@
-from atmPy.instruments.DMA import dma
-from atmPy.instruments.DMA import smps
-from matplotlib import colors
-import matplotlib.pyplot as plt
-from numpy import meshgrid
-import numpy as np
-from matplotlib.dates import date2num
-from matplotlib import dates
-import pandas as pd
-import os
-import glob
-from matplotlib import rc
 import csv
+import glob
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib import colors
+from matplotlib import dates
+from matplotlib import rc
+from matplotlib.dates import date2num
+from numpy import meshgrid
+
+from atmPy.aerosols.instr.DMA import dma
+from atmPy.aerosols.instr.DMA import smps
+
 
 def proc_scans(*args):
 

@@ -1,16 +1,19 @@
-from atmPy.atmosphere import Air
+import sys
 import tkinter as tk
-from tkinter import filedialog as fd
-from atmPy import aerosol
-import pandas as pd
 from datetime import datetime as dt
 from datetime import timedelta
 from math import floor
+from tkinter import filedialog as fd
+
 import matplotlib.pyplot as plt
-import sys
 import numpy as np
-from scipy.interpolate import interp1d
+import pandas as pd
 import statsmodels.api as sm
+from scipy.interpolate import interp1d
+
+from atmPy.aerosols import aerosol
+from atmPy.atmosphere import Air
+
 
 class SMPS(object):
     """
@@ -149,7 +152,7 @@ class SMPS(object):
                 fi = aerosol.ndistr(d, ne, gas.t)
 
                 # Mobility of multiply charged particles
-                z_mult = abs(ne*aerosol.z(d, gas, pos_neg))
+                z_mult = abs(ne * aerosol.z(d, gas, pos_neg))
 
                 # Diameter bin which contains the multiply charged particles
                 d_mult = aerosol.z2d(z_mult, gas, 1)
@@ -501,7 +504,7 @@ class SMPS(object):
             # Lower bound of the mobility
             zp = (1+beta/2)*zc
 
-            return aerosol.z2d(zm, self.air, 1)-aerosol.z2d(zp, self.air, 1)
+            return aerosol.z2d(zm, self.air, 1) - aerosol.z2d(zp, self.air, 1)
 
         for e, i in enumerate(diam):
             try:

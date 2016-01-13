@@ -14,17 +14,19 @@ This temporary script file is located here:
 # Check using http://omlc.ogi.edu/calc/mie_calc.html
 
 
-from atmPy.mie import bhmie
-import numpy as np
-import pylab as plt
-from atmPy.instruments.POPS import tools
 import os
 import sys
 import types
-from scipy.interpolate import interp1d
 
 import matplotlib.cm as mplcm
 import matplotlib.colors as colors
+import numpy as np
+import pylab as plt
+from scipy.interpolate import interp1d
+
+from atmPy.aerosols.instr.POPS import tools
+from atmPy.mie import bhmie
+
 
 ###########################
 def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
@@ -92,7 +94,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             noOfwl = broadened['noOfwl']
             fwxm = 2*np.sqrt(2*np.log(10))* fwhm /(2*np.sqrt(2*np.log(10)))
             exWavelengthInUm = np.linspace(wc - fwxm, wc+ fwxm, noOfwl)
-            normalizer = tools.gauss_function(exWavelengthInUm,wc,fwhm)
+            normalizer = tools.gauss_function(exWavelengthInUm, wc, fwhm)
         if broadened['style'] == 'custom':
             exWavelengthInUm = broadened['spectrum'][0]
             normalizer = broadened['spectrum'][1]
@@ -183,7 +185,7 @@ class Mie():
         if design == 'POPS 1': # This is the prototype, printed with the old 3D Printer
             mDiameter = self.POPSdimensions['mirror diameter (mm)'] = 25. 
             rMirror = 20. # radius of the underlying sphere of the spherical mirror
-            self.POPSdimensions['mirror(top)-jet distance (mm)'] = rMirror - tools.segment_hight(rMirror,mDiameter)
+            self.POPSdimensions['mirror(top)-jet distance (mm)'] = rMirror - tools.segment_hight(rMirror, mDiameter)
             self.POPSdimensions['angle: jet-mirrorNormal (rad)'] = np.pi/2. # This is the mean scattering angle (90 deg)
 
         elif design == 'POPS 2': # This is the prototype, printed with the old 3D Printer 
@@ -368,12 +370,12 @@ class Mie():
         h = self.POPSdimensions['mirror(top)-jet distance (mm)']
 #         print 'h', h
 #         print 'dm', dm
-        rSphere = tools.sphereRadius_fromGeometry(h,dm)         # 1.
-        alphMax = tools.alphamax_fromGeometry(h,dm)
+        rSphere = tools.sphereRadius_fromGeometry(h, dm)         # 1.
+        alphMax = tools.alphamax_fromGeometry(h, dm)
         sSphere = tools.arc_length(rSphere, h)
 #         sSphereA = tools.arc_length_alpha(rSphere, alphMax * 2.)          #for test purposes
 #         angleRangeArray, dataRangeArray = tools.find_angleRange(self.POPSdimensions['angle: jet-mirrorNormal (rad)'],alphMax,self.xAxis, data)
-        angleRangeArray, angleIndexArray = tools.find_angleRange(self.POPSdimensions['angle: jet-mirrorNormal (rad)'],alphMax,self.xAxis)
+        angleRangeArray, angleIndexArray = tools.find_angleRange(self.POPSdimensions['angle: jet-mirrorNormal (rad)'], alphMax, self.xAxis)
         stepWidth = sSphere/len(angleRangeArray)
         
         self.angleIndexArray = angleIndexArray
@@ -399,9 +401,9 @@ class Mie():
         
         
         
-        rs = tools.sphereSegment_radius(rSphere, angleMatrix -  np.pi/2.)
+        rs = tools.sphereSegment_radius(rSphere, angleMatrix - np.pi / 2.)
 #         print h
-        ss = tools.arc_length(rs,h)
+        ss = tools.arc_length(rs, h)
         
 #         print "ss"
 #         raw_input(ss.astype(int))
@@ -811,7 +813,7 @@ def calc_intensityAsFktOfRadius_Pops_1():
     
     mDiameter = event.POPSdimentions['mirror diameter (mm)'] = 25.
     rMirror = 20. # radius of the spherical mirror
-    event.POPSdimentions['mirror(top)-jet distance (mm)'] = rMirror - tools.segment_hight(rMirror,mDiameter)
+    event.POPSdimentions['mirror(top)-jet distance (mm)'] = rMirror - tools.segment_hight(rMirror, mDiameter)
     event.POPSdimentions['angle: jet-mirrorNormal (rad)'] = np.pi/2.
     
     xList = []
@@ -900,7 +902,7 @@ def gaussian_broadening():
         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         print(gaussianScaling)
         sumArray += gaussianScaling * data['y']
         
@@ -946,7 +948,7 @@ def dioctyl_sebacate():
         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         sumArray += gaussianScaling * data['y']
         
     data={}
@@ -1003,7 +1005,7 @@ def dioctyl_sebacate_netrual_v_paraPerp():
 #         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
 #         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         sumArray_natural += gaussianScaling * np.array(yList_natural)
         sumArray_parallel += gaussianScaling * np.array(yList_parallel)
         sumArray_perpendicular += gaussianScaling * np.array(yList_perpendicular)
@@ -1073,7 +1075,7 @@ def dioctyl_sebacate_netrual_v_paraPerp_exactAngleDependence():
 #         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
 #         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         sumArray_natural += gaussianScaling * np.array(yList_natural)
         sumArray_parallel += gaussianScaling * np.array(yList_parallel)
         sumArray_perpendicular += gaussianScaling * np.array(yList_perpendicular)
@@ -1143,7 +1145,7 @@ def dioctyl_sebacate_variousIndices():
 #         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
 #         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         sumArray_natural += gaussianScaling * np.array(yList_natural)
         sumArray_parallel += gaussianScaling * np.array(yList_parallel)
         sumArray_perpendicular += gaussianScaling * np.array(yList_perpendicular)
@@ -1214,7 +1216,7 @@ def different_MirrorDistance():
 #         data['label'] = str(round(l,5))+ '_' + str(round(event.n,4))
 #         dataList.append(data)
         
-        gaussianScaling = tools.gauss_function(l,.405,0.005) / 100.
+        gaussianScaling = tools.gauss_function(l, .405, 0.005) / 100.
         sumArray_natural += gaussianScaling * np.array(yList_natural)
         sumArray_parallel += gaussianScaling * np.array(yList_parallel)
         sumArray_perpendicular += gaussianScaling * np.array(yList_perpendicular)

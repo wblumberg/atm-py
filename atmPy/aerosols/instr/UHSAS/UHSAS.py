@@ -5,15 +5,17 @@ Created on Mon Nov 10 11:43:10 2014
 @author: htelg
 """
 
+import datetime
+import warnings
+from io import StringIO as io
+
 import numpy as np
 import pandas as pd
-import datetime
-from atmPy import sizedistribution
-from atmPy import timeseries
-from io import StringIO as io
-from scipy.interpolate import UnivariateSpline
-import warnings
 import pylab as plt
+from scipy.interpolate import UnivariateSpline
+
+from atmPy import timeseries
+from atmPy.aerosols.sd import sizedistribution
 
 
 def read_csv(fname, norm2time = True, norm2flow = True):
@@ -58,7 +60,7 @@ def _read_csv(fname, norm2time = True, norm2flow = True):
 #     return sd,hk
     bins = _get_bins(sd)
 #     return bins
-    dist = sizedistribution.SizeDist_TS(sd,bins,"numberConcentration")
+    dist = sizedistribution.SizeDist_TS(sd, bins, "numberConcentration")
     return dist, hk
 
 def _readFromFakeXLS(fname):

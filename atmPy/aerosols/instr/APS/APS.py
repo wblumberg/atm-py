@@ -6,8 +6,9 @@ Created on Mon Jan 26 16:42:47 2015
 """
 import numpy as np
 import pandas as pd
-from atmPy import sizedistribution
-from atmPy.instruments.tools import diameter_binning
+
+from atmPy.aerosols.sd import sizedistribution
+
 
 def bincenters2BinStuff(bincenters):
     if type(bincenters) != np.ndarray:
@@ -35,5 +36,5 @@ def load_PMEL_APS(fname):
     bincenters = tab.iloc[0,1:53].values*1000
     binedges,newColnames = bincenters2BinStuff(bincenters)
     reducedTab.columns = newColnames
-    dist = sizedistribution.aerosolSizeDistribution(reducedTab,binedges, 'dNdlogDp' )
+    dist = sizedistribution.aerosolSizeDistribution(reducedTab, binedges, 'dNdlogDp')
     return dist

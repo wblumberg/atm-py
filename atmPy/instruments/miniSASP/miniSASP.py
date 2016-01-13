@@ -5,17 +5,17 @@ Created on Thu Mar 19 21:23:22 2015
 @author: htelg
 """
 
-import pandas as pd
-import numpy as np
-from scipy import stats
-import pylab as plt
 import warnings
-from atmPy.tools import math_linear_algebra as mla
+import numpy as np
+import pandas as pd
+import pylab as plt
+from scipy import stats
 from atmPy.tools import array_tools, plt_tools
+from atmPy.tools import math_linear_algebra as mla
 # from scipy import integrate
 from atmPy import timeseries
-from atmPy import solar
-from atmPy.rayleigh import bucholtz_rayleigh as bray
+from atmPy.rad import solar
+from atmPy.rad.rayleigh import bucholtz_rayleigh as bray
 from atmPy import atmosphere_standards as atmstd
 from scipy import signal
 from atmPy.tools import time_tools
@@ -56,8 +56,8 @@ def read_csv(fname, verbose=False):
 # todo: see warning below
 def _recover_Negatives(series, verbose=True):
     series = series.values
-    where = np.where(series>2**16)
-    series[where] = (series[where]*2**16)/2**16
+    where = np.where(series > 2 ** 16)
+    series[where] = (series[where] * 2 ** 16) / 2 ** 16
     if where[0].shape[0] > 0:
         if verbose:
             warnings.warn("""This has to be checked!!! Dont know if i implemented it correctly! Arduino negatives become very large positive (unsigned longs)
@@ -76,21 +76,21 @@ def _extrapolate(x, y):
         - similar at the end just with the last two points.
     returns: nothing. everthing happens inplace
     """
-    
+
     xAtYnotNan = x.values[~np.isnan(y.values)][:2]
     YnotNan = y.values[~np.isnan(y.values)][:2]
-    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan,YnotNan)
+    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan, YnotNan)
 
     fkt = lambda x: intercept + (slope * x)
     y.values[0] = fkt(x.values[0])
 
     xAtYnotNan = x.values[~np.isnan(y.values)][-2:]
     YnotNan = y.values[~np.isnan(y.values)][-2:]
-    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan,YnotNan)
+    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan, YnotNan)
 
     fkt = lambda x: intercept + (slope * x)
     y.values[-1] = fkt(x.values[-1])
-    
+
     return
 
 
@@ -187,7 +187,6 @@ def simulate_from_size_dist_opt(opt_prop, airmassfct=True, rotations=2, sun_azim
         # get the sun position at the time when the plane was at the particular altitude,
         sol_el = solar_elev[altitude]
         sol_az = solar_az[altitude]
-
 
         # angles between mSASP positions and sun. This is used to pick the angle in the phase functions
         if sun_azimuth:
@@ -323,8 +322,9 @@ def simulate_from_rayleigh(time_series,
                     bla.append(i)
 
             if len(bla) != 0:
-                txt='The underlying housekeeping data has to have the following attributes for this operation to work: %s'%(["Temperature", "Altitude", "Pressure_Pa"])
-                txt+='\nmissing:'
+                txt = 'The underlying housekeeping data has to have the following attributes for this operation to work: %s' % (
+                ["Temperature", "Altitude", "Pressure_Pa"])
+                txt += '\nmissing:'
                 for i in bla:
                     txt += '\n \t' + i
                 # print(txt)
@@ -430,15 +430,16 @@ def angle_MSASP_sun(sun_elevation, sun_azimuth=0., no_angles=1000, no_rotations=
     angles.index.name = 'mSASP_azimuth'
     return angles
 
+
 def _simplefill(series):
     """Very simple function to fill missing values. Should only be used for 
     values which basically do not change like month and day. 
     Will most likely give strange results when the day does change.
     Returns: nothing everything happens inplace"""
-    
+
     series.values[0] = series.dropna().values[0]
     series.values[-1] = series.dropna().values[-1]
-    series.fillna(method='ffill', inplace = True)
+    series.fillna(method='ffill', inplace=True)
     return
 
 
@@ -556,7 +557,8 @@ class miniSASP(object):
             out_dict[i] = out
         return out_dict
 
-    def create_sky_brightness_altitude(self, picco, peaks='l', time_delta=(5, 20), revolution_period=26., key='Altitude',
+    def create_sky_brightness_altitude(self, picco, peaks='l', time_delta=(5, 20), revolution_period=26.,
+                                       key='Altitude',
                                        window=20, which='vertical'):
         """Creates a smoothened vertical profile of the sky brightness."""
         strevol = self.split_revolutions(peaks=peaks, time_delta=time_delta, revolution_period=revolution_period)
@@ -685,18 +687,18 @@ class miniSASP(object):
         month (optional): string of 2 digit integer
         """
         self.data = self.data[((self.data.Day != day) & (self.data.Month != month))]
-    
-    def read_file(self,fname):
+
+    def read_file(self, fname):
         df = pd.read_csv(fname,
                          encoding="ISO-8859-1",
                          skiprows=16,
                          header=None,
                          error_bad_lines=False,
-                         warn_bad_lines= False
-                        )
+                         warn_bad_lines=False
+                         )
 
         #### set column labels
-        collabels = ['PhotoAsh', 
+        collabels = ['PhotoAsh',
                      'PhotoBsh',
                      'PhotoCsh',
                      'PhotoDsh',
@@ -744,7 +746,6 @@ class miniSASP(object):
         df['GateLgArr'] = np.nan
         df['GateShArr'] = np.nan
         df['PhotoOffArr'] = np.nan
-
 
         ##### Case 0
         case = np.where(df.caseflag.values == 0)
@@ -812,31 +813,29 @@ class miniSASP(object):
         self.data.PhotoB = self.data.PhotoB.values.astype(float)
         self.data.PhotoC = self.data.PhotoC.values.astype(float)
         self.data.PhotoD = self.data.PhotoD.values.astype(float)
-        
+
     def normalizeToIntegrationTime(self):
         ##### normalize to integration time
-        self.data.PhotoAsh = self.data.PhotoAsh.values.astype(float)/self.data.GateShArr.values.astype(float)
-        self.data.PhotoA = self.data.PhotoA.values.astype(float)/self.data.GateLgArr.values.astype(float)
+        self.data.PhotoAsh = self.data.PhotoAsh.values.astype(float) / self.data.GateShArr.values.astype(float)
+        self.data.PhotoA = self.data.PhotoA.values.astype(float) / self.data.GateLgArr.values.astype(float)
 
-        self.data.PhotoBsh = self.data.PhotoBsh.values.astype(float)/self.data.GateShArr.values.astype(float)
-        self.data.PhotoB = self.data.PhotoB.values.astype(float)/self.data.GateLgArr.values.astype(float)
+        self.data.PhotoBsh = self.data.PhotoBsh.values.astype(float) / self.data.GateShArr.values.astype(float)
+        self.data.PhotoB = self.data.PhotoB.values.astype(float) / self.data.GateLgArr.values.astype(float)
 
-        self.data.PhotoCsh = self.data.PhotoCsh.values.astype(float)/self.data.GateShArr.values.astype(float)
-        self.data.PhotoC = self.data.PhotoC.values.astype(float)/self.data.GateLgArr.values.astype(float)
+        self.data.PhotoCsh = self.data.PhotoCsh.values.astype(float) / self.data.GateShArr.values.astype(float)
+        self.data.PhotoC = self.data.PhotoC.values.astype(float) / self.data.GateLgArr.values.astype(float)
 
-        self.data.PhotoDsh = self.data.PhotoDsh.values.astype(float)/self.data.GateShArr.values.astype(float)
-        self.data.PhotoD = self.data.PhotoD.values.astype(float)/self.data.GateLgArr.values.astype(float)
+        self.data.PhotoDsh = self.data.PhotoDsh.values.astype(float) / self.data.GateShArr.values.astype(float)
+        self.data.PhotoD = self.data.PhotoD.values.astype(float) / self.data.GateLgArr.values.astype(float)
 
-
-
-    def set_dateTime(self, millisscale = 10):
-        self.data.Seconds *= (millisscale/1000.)
+    def set_dateTime(self, millisscale=10):
+        self.data.Seconds *= (millisscale / 1000.)
         self.data.index = self.data.Seconds
 
-        self.data.Month = np.floor(self.data.MonthDay/100.)
+        self.data.Month = np.floor(self.data.MonthDay / 100.)
         _simplefill(self.data.Month)
 
-        self.data.Day = self.data.MonthDay - self.data.Month*100
+        self.data.Day = self.data.MonthDay - self.data.Month * 100
         _simplefill(self.data.Day)
         self.data.Month = self.data.Month.astype(int).apply(lambda x: '{0:0>2}'.format(x))
         self.data.Day = self.data.Day.astype(int).apply(lambda x: '{0:0>2}'.format(x))
@@ -845,30 +844,31 @@ class miniSASP(object):
         self.Day_P_1 = self.data.Day.copy()
         ## time from GPS
         # get rid of stepfunktion
-#         GPSunique = df.GPSReadSeconds.dropna().unique()
-#         for e,i in enumerate(GPSunique):
-#             where = np.where(df.GPSReadSeconds == i)[0][1:]
-#             self.data.GPSReadSeconds.values[where] = np.nan
+        #         GPSunique = df.GPSReadSeconds.dropna().unique()
+        #         for e,i in enumerate(GPSunique):
+        #             where = np.where(df.GPSReadSeconds == i)[0][1:]
+        #             self.data.GPSReadSeconds.values[where] = np.nan
 
         GPSunique = self.data.GPSHr.dropna().unique()
-        for e,i in enumerate(GPSunique):
+        for e, i in enumerate(GPSunique):
             where = np.where(self.data.GPSHr == i)[0][1:]
             self.data.GPSHr.values[where] = np.nan
 
         self.GPSHr_P_1 = self.data.GPSHr.copy()
         # extrapolate and interpolate the time    
         _extrapolate(self.data.index, self.data.GPSHr)
-        self.data.GPSHr.interpolate(method='index', inplace= True)
+        self.data.GPSHr.interpolate(method='index', inplace=True)
         self.data.GPSHr.dropna(inplace=True)
         self.GPSHr_P_2 = self.data.GPSHr.copy()
-        self.data.GPSHr = self.data.GPSHr.apply(lambda x: '%02i:%02i:%09.6f'%(x,60 * (x % 1), 60* ((60 * (x % 1)) %1)))
+        self.data.GPSHr = self.data.GPSHr.apply(
+            lambda x: '%02i:%02i:%09.6f' % (x, 60 * (x % 1), 60 * ((60 * (x % 1)) % 1)))
 
         ###### DateTime!!
-        dateTime = year + '-' +  self.data.Month + '-' + self.data.Day +' ' + self.data.GPSHr
+        dateTime = year + '-' + self.data.Month + '-' + self.data.Day + ' ' + self.data.GPSHr
         self.data.index = pd.Series(pd.to_datetime(dateTime, format="%Y-%m-%d %H:%M:%S.%f"), name='Time_UTC')
 
         self.data = self.data[pd.notnull(self.data.index)]  # gets rid of NaT
-    
+
     def recover_negative_values(self):
         """ this is most likely not working!"""
         _recover_Negatives(self.data.PhotoA, verbose=self.verbose)
@@ -879,19 +879,19 @@ class miniSASP(object):
         _recover_Negatives(self.data.PhotoBsh, verbose=self.verbose)
         _recover_Negatives(self.data.PhotoCsh, verbose=self.verbose)
         _recover_Negatives(self.data.PhotoDsh, verbose=self.verbose)
-    
+
     def remove_unused_columns(self):
-        self.data.drop('var1', axis=1, inplace= True)
-        self.data.drop('var2', axis=1, inplace= True)
-        self.data.drop('var3', axis=1, inplace= True)
-        self.data.drop('time', axis=1, inplace= True)
-        self.data.drop('GPSHr', axis=1, inplace= True)
-        self.data.drop('MonthDay', axis=1, inplace= True)
-        self.data.drop('Month', axis=1, inplace= True)
-        self.data.drop('Day', axis=1, inplace= True)
-        self.data.drop('GPSReadSeconds', axis=1, inplace= True)
-        self.data.drop('GateLgArr', axis=1, inplace= True)
-        self.data.drop('GateShArr', axis=1, inplace= True)
+        self.data.drop('var1', axis=1, inplace=True)
+        self.data.drop('var2', axis=1, inplace=True)
+        self.data.drop('var3', axis=1, inplace=True)
+        self.data.drop('time', axis=1, inplace=True)
+        self.data.drop('GPSHr', axis=1, inplace=True)
+        self.data.drop('MonthDay', axis=1, inplace=True)
+        self.data.drop('Month', axis=1, inplace=True)
+        self.data.drop('Day', axis=1, inplace=True)
+        self.data.drop('GPSReadSeconds', axis=1, inplace=True)
+        self.data.drop('GateLgArr', axis=1, inplace=True)
+        self.data.drop('GateShArr', axis=1, inplace=True)
 
 
 def load_sunintensities_TS(fname):
@@ -901,9 +901,9 @@ def load_sunintensities_TS(fname):
 
 
 class Sun_Intensities_TS(timeseries.TimeSeries):
-    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, all_on_one_axis = False,
+    def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, all_on_one_axis=False,
              additional_axes=False,
-             errors = False,
+             errors=False,
              rayleigh=True):
         """plots ... sorry, but this is a messi function. Things should have been done different, e.g too much data
          processing whith the data not put out ... need fixn
@@ -966,7 +966,6 @@ class Sun_Intensities_TS(timeseries.TimeSeries):
                 atmp = a[i]
             else:
                 atmp = a
-
 
             y = (offset[i] - np.log(intens) - rayleigh_corr) * amf_corr
             g, = atmp.plot(y, x)
@@ -1082,4 +1081,4 @@ class SkyBrightDict(dict):
             a.set_ylim((0.003, 0.025))
             a.set_xlabel('azimuth (rad)')
             l = a.legend(prop={'size': 8})
-        return ax,l
+        return ax, l
