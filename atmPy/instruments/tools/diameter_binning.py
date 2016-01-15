@@ -1,7 +1,9 @@
 """
-This module contains function that help with dialing with binning of the diameters
+This module contains function that help with dealing with binning of the diameters
 in a sizedistribution.
 """
+
+import numpy as np
 
 def bincenters2binsANDnames(bincenters):
     """This creates bin edges from bincenters
