@@ -911,7 +911,7 @@ class SizeDist_TS(SizeDist):
              vmin=None,
              norm='linear',
              showMinorTickLabels=True,
-             removeTickLabels=["700", "900"],
+             # removeTickLabels=["700", "900"],
              ax=None,
              fit_pos=True,
              cmap=plt_tools.get_colorMap_intensity(),
@@ -951,12 +951,6 @@ class SizeDist_TS(SizeDist):
         elif norm == 'linear':
             norm = None
 
-        # ToDo: The following screws up log-plotting, Is that stuff neaded anywhere else?
-        # if not vmax:
-        # vmax = Z.max()
-        # if not vmin:
-        #     vmin = Z.min()
-
         pc = a.pcolormesh(X, Y, Z, vmin=vmin, vmax=vmax, norm=norm, cmap=cmap)
         a.set_yscale('log')
         a.set_ylim((self.bins[0], self.bins[-1]))
@@ -976,16 +970,18 @@ class SizeDist_TS(SizeDist):
         else:
             cb = get_label(self.distributionType)
 
-        if self.distributionType != 'calibration':
-            a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
+        # if self.distributionType != 'calibration':
+            # a.yaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
 
-            f.canvas.draw()  # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
-            if showMinorTickLabels:
-                a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
-                ticks = a.yaxis.get_minor_ticks()
-                for i in ticks:
-                    if i.label.get_text() in removeTickLabels:
-                        i.label.set_visible(False)
+            # f.canvas.draw()  # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
+        if showMinorTickLabels:
+            minf = plt_tools.get_formatter_minor_log()
+            a.yaxis.set_minor_formatter(minf)
+                # a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+                # ticks = a.yaxis.get_minor_ticks()
+                # for i in ticks:
+                #     if i.label.get_text() in removeTickLabels:
+                #         i.label.set_visible(False)
 
         if fit_pos:
             if 'data_fit_normal' in dir(self):
