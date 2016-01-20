@@ -10,6 +10,7 @@ from atmPy.tools import time_tools
 from atmPy import solar
 import warnings
 from mpl_toolkits.mplot3d import Axes3D
+from atmPy.tools import pandas_tools
 
 # Todo: get rid of this class
 # def merge_timeseries(ts_list):
@@ -48,8 +49,13 @@ def load_csv(fname):
     data.index = pd.to_datetime(data.index)
     return TimeSeries(data)
 
+
+
+
 class TimeSeries(object):
     """
+    TODO: depersonalize!!! Try composition approach.
+
     This class simplifies the handling of housekeeping information from measurements.
     Typically this class is created by a housekeeping function of the particular instrument.
 
@@ -114,14 +120,17 @@ class TimeSeries(object):
     def copy(self):
         return deepcopy(self)
 
-    def plot_all(self):
+    def plot(self, **kwargs):
         """Plot each parameter separately versus time
+        Arguments
+        ---------
+        same as pandas.plot
 
         Returns
         -------
         list of matplotlib axes object """
 
-        axes = self.data.plot(subplots=True, figsize=(plt.rcParams['figure.figsize'][0], self.data.shape[1] * 4))
+        axes = self.data.plot(**kwargs)
         return axes
 
     def plot_map(self, resolution = 'c', three_d=False):
@@ -381,3 +390,35 @@ class TimeSeries(object):
             Path to the file."""
 
         self.data.to_csv(fname)
+
+
+class TimeSeries_2D(TimeSeries):
+    """
+    experimental!!
+    inherits TimeSeries
+
+    differences:
+        plotting
+    """
+    def __init__(self, *args):
+        super(TimeSeries_2D,self).__init__(*args)
+
+    def plot(self, xaxis = 0):
+        return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis)
+
+
+class TimeSeries_3D(TimeSeries):
+    """
+    experimental!!
+    inherits TimeSeries
+
+    differences:
+        plotting
+    """
+    def __init__(self, *args):
+        super(TimeSeries_3D,self).__init__(*args)
+
+    def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
+        f,a,pc,cb =  pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
+                                                yaxis = yaxis, sub_set = sub_set, kwargs = kwargs)
+        return f,a,pc,cb
