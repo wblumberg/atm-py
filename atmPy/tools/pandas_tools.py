@@ -53,6 +53,12 @@ def plot_dataframe_meshgrid(df, xaxis = 0):
     cb = f.colorbar(pc)
     a.set_xlabel(df.index.name)
     a.set_ylabel(df.columns.name)
+
+    # nans, screw up the scaling, therefore ...
+    if np.any(np.isnan(df.values)):
+        values = df.values
+        values = values[~ np.isnan(values)]
+        pc.set_clim((values.min(),values.max()))
     return f,a,pc,cb
 
 def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
