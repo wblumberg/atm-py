@@ -17,7 +17,7 @@ from atmPy.tools import math_linear_algebra as mla
 
 # from scipy import integrate
 from atmPy.radiation import bucholtz_rayleigh as bray, solar
-from atmPy.General import atmosphere_standards as atmstd, timeseries
+from atmPy.general import atmosphere_standards as atmstd, timeseries
 from scipy import signal
 from atmPy.tools import time_tools
 from copy import deepcopy

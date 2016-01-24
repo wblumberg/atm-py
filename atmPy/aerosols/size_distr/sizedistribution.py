@@ -10,7 +10,7 @@ from matplotlib.colors import LogNorm
 from scipy import integrate
 from scipy import stats
 
-from atmPy.General import vertical_profile, timeseries
+from atmPy.general import vertical_profile, timeseries
 from atmPy.aerosols import hygroscopic_growth as hg
 from atmPy.for_removal.mie import bhmie
 from atmPy.tools import pandas_tools
@@ -397,6 +397,13 @@ class SizeDist(object):
 
         gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
         # out_I['growth_factor'] = gf
+        nat = ['int', 'float']
+        if type(kappa).__name__ in nat or type(RH).__name__ in nat:
+            if how != 'shift_bins':
+                txt = "When kappa or RH ar not arrays 'how' has to be equal to 'shift_bins'"
+                raise ValueError(txt)
+
+
         if how == 'shift_bins':
             if not isinstance(gf, (float,int)):
                 txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.

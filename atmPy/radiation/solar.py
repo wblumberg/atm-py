@@ -6,7 +6,7 @@ import ephem
 import numpy as np
 import pandas as pd
 
-from atmPy.General.constants import a2r, r2a
+from atmPy.general.constants import a2r, r2a
 
 __julian = {"day": 0., "cent": 0.}
 
