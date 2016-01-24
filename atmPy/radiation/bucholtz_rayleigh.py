@@ -13,7 +13,7 @@ import numpy as np
 import pylab as plt
 from scipy import integrate
 
-from atmPy.General import atmosphere_standards as ats
+from atmPy.general import atmosphere_standards as ats
 from atmPy.tools import array_tools
 
 

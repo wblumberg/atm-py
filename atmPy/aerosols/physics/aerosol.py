@@ -3,7 +3,7 @@ from math import pi,exp,log10,sqrt,log
 
 from scipy.optimize import fsolve
 
-from atmPy.General import constants
+from atmPy.general import constants
 
 
 def z(d, gas, n):

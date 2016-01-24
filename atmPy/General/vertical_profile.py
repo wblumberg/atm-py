@@ -1,7 +1,7 @@
 import pandas as pd
 import pylab as plt
 
-from atmPy.General import timeseries
+from atmPy.general import timeseries
 from atmPy.tools import plt_tools
 
 
