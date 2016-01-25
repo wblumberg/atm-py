@@ -14,7 +14,7 @@ import pylab as plt
 from StringIO import StringIO as io
 from scipy.interpolate import UnivariateSpline
 
-from atmPy.aerosols.size_distr import sizedistribution
+from atmPy.aerosols.size_distribution import sizedistribution
 
 
 def read_csv(fname):

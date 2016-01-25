@@ -6,7 +6,7 @@ This module is out of date!
 """
 import pandas as pd
 
-from atmPy.aerosols.size_distr import sizedistribution
+from atmPy.aerosols.size_distribution import sizedistribution
 from atmPy.for_removal.tools import diameter_binning
 
 
