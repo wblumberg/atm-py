@@ -59,7 +59,7 @@ class TimeSeries(object):
     TODO: depersonalize!!! Try composition approach.
 
     This class simplifies the handling of housekeeping information from measurements.
-    Typically this class is created by a housekeeping function of the particular instrument.
+    Typically this class is created by a housekeeping function of the particular instruments.
 
     Notes
     -----
@@ -229,7 +229,7 @@ class TimeSeries(object):
 
         Example
         -------
-        >>> from atmPy.for_removal.piccolo import piccolo
+        >>> from atmPy.aerosols.instruments.piccolo import piccolo
         >>> launch = '2015-04-19 08:20:22'
         >>> landing = '2015-04-19 10:29:22'
         >>> hk = piccolo.read_file(filename) # create housekeeping instance
