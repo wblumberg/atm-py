@@ -15,7 +15,7 @@ import pylab as plt
 from scipy.interpolate import UnivariateSpline
 
 from atmPy.general import timeseries
-from atmPy.aerosols.size_distr import sizedistribution
+from atmPy.aerosols.size_distribution import sizedistribution
 
 
 def read_csv(fname, norm2time = True, norm2flow = True):
@@ -57,14 +57,14 @@ def _read_csv(fname, norm2time = True, norm2flow = True):
 #     return uhsas
     sd,hk = _separate_sizedist_and_housekeep(uhsas, norm2time = norm2time, norm2flow = norm2flow)
     hk = timeseries.TimeSeries(hk)
-#     return size_distr,hk
+#     return size_distribution,hk
     bins = _get_bins(sd)
 #     return bins
     dist = sizedistribution.SizeDist_TS(sd, bins, "numberConcentration")
     return dist, hk
 
 def _readFromFakeXLS(fname):
-    """reads and shapes a XLS file produced by the uhsas instrument"""
+    """reads and shapes a XLS file produced by the uhsas instruments"""
     fr = pd.read_csv(fname, sep='\t')
     newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
     fr.columns = newcolname
@@ -86,9 +86,9 @@ def _separate_sizedist_and_housekeep(uhsas, norm2time = True, norm2flow = True):
     ----------
     uhsas: pandas.DataFrame"""
 
-#     size_distr = uhsas.copy()
+#     size_distribution = uhsas.copy()
 #     hk = uhsas.copy()
-# #     return size_distr,hk
+# #     return size_distribution,hk
 
     first = False
     for e,col in enumerate(uhsas.columns):
@@ -106,16 +106,16 @@ def _separate_sizedist_and_housekeep(uhsas, norm2time = True, norm2flow = True):
 
 
 
-    # k = size_distr.keys()
+    # k = size_distribution.keys()
     # where = np.argwhere(k == 'Valve 0=bypass') + 1
 
     hk = uhsas.iloc[:,:first]
     sd = uhsas.iloc[:,first:last+1]
     # khk = k[: first]
-    # size_distr = size_distr.drop(khk, axis=1)
+    # size_distribution = size_distribution.drop(khk, axis=1)
     # hsd = k[where:]
     # hk = hk.drop(hsd, axis=1)
-#     return size_distr,hk
+#     return size_distribution,hk
     hk['Sample sccm'] = hk['Sample sccm'].astype(float)
 
     hk['Accum. Secs'] = hk['Accum. Secs'].astype(float)

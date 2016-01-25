@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pylab as plt
 
-from atmPy.aerosols.size_distr import sizedistribution
+from atmPy.aerosols.size_distribution import sizedistribution
 from atmPy.tools import miscell_tools as misc
 
 #from StringIO import StringIO as io

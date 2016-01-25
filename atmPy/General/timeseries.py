@@ -8,6 +8,7 @@ import pylab as plt
 from geopy.distance import vincenty
 from mpl_toolkits.basemap import Basemap
 from mpl_toolkits.mplot3d import Axes3D
+from atmPy.tools import pandas_tools
 
 from atmPy.radiation import solar
 from atmPy.tools import time_tools
@@ -50,10 +51,15 @@ def load_csv(fname):
     data.index = pd.to_datetime(data.index)
     return TimeSeries(data)
 
+
+
+
 class TimeSeries(object):
     """
+    TODO: depersonalize!!! Try composition approach.
+
     This class simplifies the handling of housekeeping information from measurements.
-    Typically this class is created by a housekeeping function of the particular instrument.
+    Typically this class is created by a housekeeping function of the particular instruments.
 
     Notes
     -----
@@ -116,14 +122,17 @@ class TimeSeries(object):
     def copy(self):
         return deepcopy(self)
 
-    def plot_all(self):
+    def plot(self, **kwargs):
         """Plot each parameter separately versus time
+        Arguments
+        ---------
+        same as pandas.plot
 
         Returns
         -------
         list of matplotlib axes object """
 
-        axes = self.data.plot(subplots=True, figsize=(plt.rcParams['figure.figsize'][0], self.data.shape[1] * 4))
+        axes = self.data.plot(**kwargs)
         return axes
 
     def plot_map(self, resolution = 'c', three_d=False):
@@ -220,7 +229,7 @@ class TimeSeries(object):
 
         Example
         -------
-        >>> from atmPy.for_removal.piccolo import piccolo
+        >>> from atmPy.aerosols.instruments.piccolo import piccolo
         >>> launch = '2015-04-19 08:20:22'
         >>> landing = '2015-04-19 10:29:22'
         >>> hk = piccolo.read_file(filename) # create housekeeping instance
@@ -383,3 +392,35 @@ class TimeSeries(object):
             Path to the file."""
 
         self.data.to_csv(fname)
+
+
+class TimeSeries_2D(TimeSeries):
+    """
+    experimental!!
+    inherits TimeSeries
+
+    differences:
+        plotting
+    """
+    def __init__(self, *args):
+        super(TimeSeries_2D,self).__init__(*args)
+
+    def plot(self, xaxis = 0):
+        return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis)
+
+
+class TimeSeries_3D(TimeSeries):
+    """
+    experimental!!
+    inherits TimeSeries
+
+    differences:
+        plotting
+    """
+    def __init__(self, *args):
+        super(TimeSeries_3D,self).__init__(*args)
+
+    def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
+        f,a,pc,cb =  pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
+                                                yaxis = yaxis, sub_set = sub_set, kwargs = kwargs)
+        return f,a,pc,cb

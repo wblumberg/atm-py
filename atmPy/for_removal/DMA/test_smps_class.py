@@ -1,4 +1,4 @@
-from atmPy.aerosols.instrument.DMA import dma, smps
+from atmPy.aerosols.instruments.DMA import dma, smps
 from atmPy.for_removal.DMA import smps
 #import atmPy.sizedistribution as sd
 from matplotlib import colors

@@ -24,8 +24,8 @@ import numpy as np
 import pylab as plt
 from scipy.interpolate import interp1d
 
-from atmPy.for_removal.POPS import tools
-from atmPy.for_removal.mie import bhmie
+from atmPy.aerosols.instruments.POPS import tools
+from atmPy.radiation.mie_scattering import bhmie
 
 
 ###########################
@@ -43,7 +43,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             broadened = False
             ):
     """
-    Performs mie calculations as a function of particle radius
+    Performs mie_scattering calculations as a function of particle radius
 
     Arguments
     ---------
@@ -140,7 +140,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
 ###########################################################    
 class Mie():
     """ Creates a Mie object
-    An introduction to mie scattering: http://omlc.org/education/ece532/class3/mie_math.html
+    An introduction to mie_scattering scattering: http://omlc.org/education/ece532/class3/mie_math.html
     
     What to do next:
     1. Define the following parameters:

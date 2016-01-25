@@ -2,7 +2,7 @@ import pandas as pd
 # from atmPy.tools import thermodynamics
 from atmPy.general import timeseries
 import numpy as np
-from atmPy.aerosols import sampling_efficiency as sampeff
+from atmPy.aerosols.physics import sampling_efficiency as sampeff
 from atmPy.tools import pandas_tools
 
 _date_time_alts = ['uas_datetime']
@@ -54,7 +54,7 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
                             lfe_diameter = 0.7 * 1e-3,
                             verbose = False):
 
-    """Returns the manta sample efficiency for the POPS instrument (up most inlet)
+    """Returns the manta sample efficiency for the POPS instruments (up most inlet)
 
     Parameters
     ----------
