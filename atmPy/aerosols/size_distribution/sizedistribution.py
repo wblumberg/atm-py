@@ -1,7 +1,9 @@
-import numpy as _np
-from matplotlib.colors import LogNorm
-import pylab as plt
 from copy import deepcopy
+
+import numpy as _np
+import pylab as plt
+from matplotlib.colors import LogNorm
+
 from atmPy.tools import plt_tools, math_functions, array_tools
 # from atmPy import timeseries
 import pandas as pd
@@ -12,11 +14,10 @@ import scipy.optimize as optimization
 # from scipy import integrate
 from scipy import stats
 from atmPy.general import vertical_profile
-from atmPy.aerosols import hygroscopic_growth as hg
+from atmPy.aerosols.physics import hygroscopic_growth as hg, optical_properties
 from atmPy.tools import pandas_tools
-from atmPy.aerosols import optical_properties
-from atmPy.aerosols import sizedist_moment_conversion
-
+from atmPy.aerosols.physics import optical_properties
+from atmPy.aerosols.size_distribution import sizedist_moment_conversion
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 

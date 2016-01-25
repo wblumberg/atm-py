@@ -1,10 +1,11 @@
-import pandas as pd
-from atmPy.data_archives.arm import _tools
 import numpy as np
+import pandas as pd
+from scipy.optimize import curve_fit
+
+from atmPy.aerosols.physics import hygroscopic_growth as hg
+from atmPy.data_archives.arm import _tools
 from atmPy.general import timeseries
 from atmPy.tools import math_functions
-from scipy.optimize import curve_fit
-from atmPy.aerosols import hygroscopic_growth as hg
 
 
 class Tdmahyg(_tools.ArmDict):
