@@ -1,9 +1,9 @@
 import pandas as pd
-from atmPy import timeseries
+from atmPy.general import timeseries
 import numpy as np
-from atmPy import vertical_profile
+from atmPy.general import vertical_profile
 from scipy import integrate
-from atmPy.mie import bhmie
+from atmPy.radiation.mie_scattering import bhmie
 from atmPy.aerosols import sizedist_moment_conversion as _sizedist_moment_conversion
 from copy import deepcopy as _deepcopy
 
