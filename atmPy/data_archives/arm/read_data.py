@@ -1,26 +1,58 @@
 from netCDF4 import Dataset as _Dataset
 import os as _os
 from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
+import pandas as _pd
 
 # arm_products = {'tdmasize':   {'read': _tdmasize._parse_netCDF,    'concat': _tdmasize._concat_rules},
 #                 'tdmaapssize':{'read': _tdmaapssize._parse_netCDF, 'concat': _tdmaapssize._concat_rules},
 #                 'tdmahyg':    {'read': _tdmahyg._parse_netCDF,     'concat': _tdmahyg._concat_rules}
 #               }
 
-_arm_products = {'tdmasize':   {'module': _tdmasize},
+arm_products = {'tdmasize':   {'module': _tdmasize},
                 'tdmaapssize':{'module': _tdmaapssize},
                 'tdmahyg':    {'module': _tdmahyg},
                 'aosacsm':    {'module': _aosacsm},
                 'noaaaos':    {'module': _noaaaos}
-              }
+                }
 
 
 
-def read_cdf(fname, concat = True, ignore_unknown = False, verbose = True, read_only = None):
+def read_cdf(fname,
+             data_product = None,
+             time_window = None,
+             concat = True,
+             ignore_unknown = False,
+             verbose = True,
+             read_only = None):
+    """
+    Reads ARM NetCDF file(s) and returns a containers with the results.
+
+    Parameters
+    ----------
+    fname: str or list of str.
+        Either a file, directory, or list of files. If directory name is given
+        all files in the directory will be considered.
+    data_product: str.
+        To see a list of allowed products look at the variable arm_products.
+    time_window: tuple of str.
+        e.g. ('2016-01-25 15:22:40','2016-01-29 15:00:00').
+        Currently the entire day is considered, no need to use exact times.
+    concat
+    ignore_unknown
+    verbose
+    read_only
+
+    Returns
+    -------
+
+    """
 
     # list or single file
     if type(fname) == str:
         fname = [fname]
+
+    if type(data_product) == str:
+        data_product = [data_product]
     products = {}
 
     #loop throuh files
@@ -35,19 +67,40 @@ def read_cdf(fname, concat = True, ignore_unknown = False, verbose = True, read_
                 print(txt)
             continue
 
-        # open file
+        fnt = _os.path.split(f)[-1].split('.')
 
-        # unfortunatly Arm data is not very uniform, therefore the following mess
-        # if 'platform_id' in file_obj.ncattrs():
-        #     product_id = file_obj.platform_id
-        # else:
-        fnt = _os.path.split(f)[-1].split('.')[0]
+        # check if in time_window
+        if time_window:
+            ts = fnt[-3]
+            file_start_data = _pd.to_datetime(ts)
+            start_time = _pd.to_datetime(time_window[0])
+            end_time = _pd.to_datetime(time_window[1])
+            dt_start = file_start_data - start_time
+            dt_end = file_start_data - end_time
+
+            if dt_start.total_seconds() < -86399:
+                if verbose:
+                    print('outside (before) the time window ... skip')
+                continue
+            elif dt_end.total_seconds() > 86399:
+                if verbose:
+                    print('outside (after) the time window ... skip')
+                continue
+
         foundit = False
-        for prod in _arm_products.keys():
-            if prod in fnt:
+        for prod in arm_products.keys():
+            if prod in fnt[0]:
                 product_id = prod
                 foundit = True
                 break
+
+        # test if unwanted product
+        if data_product:
+            if product_id not in data_product:
+                if verbose:
+                    print('Not the desired data product ... skip')
+                continue
+
         if not foundit:
             txt = '\t has no ncattr named platform_id. Guess from file name failed ... skip'
             if verbose:
@@ -64,7 +117,7 @@ def read_cdf(fname, concat = True, ignore_unknown = False, verbose = True, read_
 
 
         # Error handling: if product_id not in products
-        if product_id not in _arm_products.keys():
+        if product_id not in arm_products.keys():
             txt = 'Platform id %s is unknown.'%product_id
             if ignore_unknown:
                 if verbose:
@@ -78,7 +131,7 @@ def read_cdf(fname, concat = True, ignore_unknown = False, verbose = True, read_
 
 
         file_obj = _Dataset(f)
-        out = _arm_products[product_id]['module']._parse_netCDF(file_obj)
+        out = arm_products[product_id]['module']._parse_netCDF(file_obj)
         file_obj.close()
         products[product_id].append(out)
 
@@ -90,7 +143,7 @@ def read_cdf(fname, concat = True, ignore_unknown = False, verbose = True, read_
     else:
         if concat:
             for pf in products.keys():
-                products[pf] = _arm_products[pf]['module']._concat_rules(products[pf])
+                products[pf] = arm_products[pf]['module']._concat_rules(products[pf])
         return products
 
 
