@@ -1,7 +1,7 @@
 import pandas as pd
-from hagpack.projects.arm import _tools
+from atmPy.data_archives.arm import _tools
 import numpy as np
-from atmPy import timeseries
+from atmPy.general import timeseries
 from atmPy.tools import math_functions
 from scipy.optimize import curve_fit
 from atmPy.aerosols import hygroscopic_growth as hg

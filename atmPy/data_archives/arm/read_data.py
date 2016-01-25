@@ -1,6 +1,6 @@
 from netCDF4 import Dataset as _Dataset
 import os as _os
-from hagpack.projects.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
+from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
 
 # arm_products = {'tdmasize':   {'read': _tdmasize._parse_netCDF,    'concat': _tdmasize._concat_rules},
 #                 'tdmaapssize':{'read': _tdmaapssize._parse_netCDF, 'concat': _tdmaapssize._concat_rules},

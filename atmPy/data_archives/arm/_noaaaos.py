@@ -1,6 +1,6 @@
-from hagpack.projects.arm import _tools
+from atmPy.general import timeseries
+from atmPy.data_archives.arm import _tools
 import pandas as pd
-from atmPy import timeseries
 import numpy as np
 
 info = """base_time

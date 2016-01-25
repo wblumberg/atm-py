@@ -1,7 +1,7 @@
 import pandas as pd
-from hagpack.projects.arm import _tools
-from atmPy import sizedistribution
-from atmPy.instruments.tools import diameter_binning
+from atmPy.data_archives.arm import _tools
+from atmPy.aerosols.size_distribution import diameter_binning
+from atmPy.aerosols.size_distribution import sizedistribution
 
 def _parse_netCDF(file_obj):
 

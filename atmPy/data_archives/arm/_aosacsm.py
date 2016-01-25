@@ -1,6 +1,6 @@
-from hagpack.projects.arm import _tools
 import pandas as pd
-from atmPy import timeseries
+from atmPy.general import timeseries
+from atmPy.data_archives.arm import _tools
 
 
 def _parse_netCDF(file_obj):
