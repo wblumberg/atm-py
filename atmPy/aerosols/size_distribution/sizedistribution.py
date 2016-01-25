@@ -10,9 +10,9 @@ from matplotlib.colors import LogNorm
 from scipy import integrate
 from scipy import stats
 
-from atmPy.general import vertical_profile, timeseries
 from atmPy.aerosols import hygroscopic_growth as hg
-from atmPy.for_removal.mie import bhmie
+from atmPy.general import vertical_profile, timeseries
+from atmPy.radiation.mie_scattering import bhmie
 from atmPy.tools import pandas_tools
 from atmPy.tools import plt_tools, math_functions, array_tools
 
@@ -193,7 +193,7 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     angular_scatt_func_effective = pd.DataFrame()
     asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
 
-    # print('\n oben mie.extinction_crossection: %s \n'%(mie.extinction_crossection))
+    # print('\n oben mie_scattering.extinction_crossection: %s \n'%(mie_scattering.extinction_crossection))
 
     for i, lc in enumerate(sdls.data.index.values):
         laydata = sdls.data.iloc[i].values
@@ -207,9 +207,9 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
         # print('\n oben ext_coef %s \n'%extinction_coefficient)
 
 
-        # print('mie.extinction_crossection ', mie.extinction_crossection.shape)
+        # print('mie_scattering.extinction_crossection ', mie_scattering.extinction_crossection.shape)
         # print('extinction_coefficient: ', extinction_coefficient.shape)
-        # scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
+        # scattering_coefficient = _get_coefficients(mie_scattering.scattering_crossection, laydata)
 
         if aod:
             layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
@@ -219,7 +219,7 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
         extCoeffPerLayer[i] = extinction_coefficient
 
 
-        # return laydata, mie.scattering_crossection
+        # return laydata, mie_scattering.scattering_crossection
 
         scattering_cross_eff = laydata * mie.scattering_crossection
 
@@ -236,15 +236,15 @@ def _calculate_optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
         # y_phase_func = y_1p/integ
         y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
         asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
-        # return mie,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
+        # return mie_scattering,phase_fct, laydata, scattering_cross_eff, phase_fct_effective[lc], y_phase_func, asymmetry_parameter_LS[i]
         angular_scatt_func_effective[
             lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
-        # return mie.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
+        # return mie_scattering.extinction_crossection, angular_scatt_func, laydata, layerThickness # correct integrales match
         # return extinction_coefficient, angular_scatt_func_effective
         # return AOD_layer, pfe, angular_scatt_func_effective[lc]
 
 
-        #     print(mie.extinction_crossection)
+        #     print(mie_scattering.extinction_crossection)
 
     if aod:
         out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
@@ -525,7 +525,7 @@ class SizeDist(object):
 
     def fillGaps(self, scale=1.1):
         """
-        Finds gaps in dataset (e.g. when instrument was shut of) and fills them with zeros.
+        Finds gaps in dataset (e.g. when instruments was shut of) and fills them with zeros.
 
         It adds one line of zeros to the beginning and one to the end of the gap. 
         Therefore the gap is visible as zeros instead of the interpolated values
@@ -1245,7 +1245,7 @@ class SizeDist_LS(SizeDist):
         wavelengths:    array-like, optional.
             the angstrom coefficient will be calculated based on the AOD of these wavelength values (in nm)
         n:              float, optional.
-            index of refraction used in the underlying mie calculation.
+            index of refraction used in the underlying mie_scattering calculation.
 
         Returns
         -------
@@ -1909,7 +1909,7 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
                 Ensemble complex index of refraction
 
     Returns
-        panda DataTable with the diameters as the index and the mie results in the different collumns
+        panda DataTable with the diameters as the index and the mie_scattering results in the different collumns
         total_extinction_coefficient: this takes the sum of all particles crossections of the particular diameter in a qubic
                                       meter. This is in principle the AOD of an L
 

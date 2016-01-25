@@ -64,7 +64,7 @@ def _read_csv(fname, norm2time = True, norm2flow = True):
     return dist, hk
 
 def _readFromFakeXLS(fname):
-    """reads and shapes a XLS file produced by the uhsas instrument"""
+    """reads and shapes a XLS file produced by the uhsas instruments"""
     fr = pd.read_csv(fname, sep='\t')
     newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
     fr.columns = newcolname

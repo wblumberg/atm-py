@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from atmPy.general import timeseries
+from atmPy.aerosols.instruments.POPS import calibration
 from atmPy.aerosols.size_distribution import sizedistribution
-from atmPy.for_removal.POPS import calibration
+from atmPy.general import timeseries
 from atmPy.tools import time_tools
 
 

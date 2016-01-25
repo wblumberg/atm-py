@@ -287,7 +287,7 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
                 Ensemble complex index of refraction
 
     Returns
-        panda DataTable with the diameters as the index and the mie results in the different collumns
+        panda DataTable with the diameters as the index and the mie_scattering results in the different collumns
         total_extinction_coefficient: this takes the sum of all particles crossections of the particular diameter in a qubic
                                       meter. This is in principle the AOD of an L
 

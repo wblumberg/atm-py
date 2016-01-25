@@ -23,11 +23,11 @@ from atmPy.mie.mie_coeffs import MieCoeffs
 from atmPy.mie.mie_props import mie_props, mie_S12
 from numpy import sqrt
 
-from atmPy.for_removal.mie.mie_aux import Cache
+from atmPy.radiation.mie_scattering import Cache
 
 
 class MieScatterProps(object):
-    """Stores the mie coefficients and the corresponding parameters.
+    """Stores the mie_scattering coefficients and the corresponding parameters.
     """
     def __init__(self, params):
         par = dict(zip(("eps","mu","x","y","eps2"),params[:5]))
@@ -76,7 +76,7 @@ class Mie(object):
 
     Any of the above attributes can be given as keyword arguments when
     creating a new Mie instance. For example:
-    mie = Mie(x=1.5,m=complex(1.2,0.1))
+    mie_scattering = Mie(x=1.5,m=complex(1.2,0.1))
     """
     def __init__(self, **kwargs):
         self._cache = Cache()

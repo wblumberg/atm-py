@@ -11,7 +11,7 @@ from matplotlib import rc
 from matplotlib.dates import date2num
 from numpy import meshgrid
 
-from atmPy.aerosols.instrument.DMA import dma, smps
+from atmPy.aerosols.instruments.DMA import dma, smps
 from atmPy.for_removal.DMA import smps
 
 

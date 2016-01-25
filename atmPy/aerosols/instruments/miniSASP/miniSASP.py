@@ -16,7 +16,8 @@ from atmPy.tools import array_tools, plt_tools
 from atmPy.tools import math_linear_algebra as mla
 
 # from scipy import integrate
-from atmPy.radiation import bucholtz_rayleigh as bray, solar
+from atmPy.radiation import solar
+from atmPy.radiation.rayleigh import bucholtz_rayleigh as bray
 from atmPy.general import atmosphere_standards as atmstd, timeseries
 from scipy import signal
 from atmPy.tools import time_tools
@@ -588,7 +589,7 @@ class miniSASP(object):
 
         Example
         -------
-        >>> from atmPy.for_removal.piccolo import piccolo
+        >>> from atmPy.aerosols.instruments.piccolo import piccolo
         >>> launch = '2015-04-19 08:20:22'
         >>> landing = '2015-04-19 10:29:22'
         >>> hk = piccolo.read_file(filename) # create housekeeping instance

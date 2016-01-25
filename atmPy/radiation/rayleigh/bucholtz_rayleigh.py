@@ -45,7 +45,7 @@ def scatt_cross(wl):
 
     Returns
     -------
-    cross section in cm^2 (watch out mie calculations are in um^2)"""
+    cross section in cm^2 (watch out mie_scattering calculations are in um^2)"""
     n_s = index_of_refraction(wl)
     N_s = 2.54743e19  # cm^{-3}
     rho = depolarization_factor(wl)
@@ -142,7 +142,7 @@ def rayleigh_angular_scattering_intensity(alt, P, T, wl, theta):
     Retruns
     -------
     ndarray
-        this has the unit cm^2 (what out, mie calculations have um^2
+        this has the unit cm^2 (what out, mie_scattering calculations have um^2
         )
     """
 

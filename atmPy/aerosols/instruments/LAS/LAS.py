@@ -67,7 +67,7 @@ def _get_bins(frame, log=False):
 
 
 def _readFromFakeXLS(fname):
-    """reads and shapes a XLS file produced by the LAS instrument"""
+    """reads and shapes a XLS file produced by the LAS instruments"""
     fr = pd.read_csv(fname, sep='\t')
     newcolname = [fr.columns[e] + ' ' + str(fr.values[0][e]) for e, i in enumerate(fr.columns)]
     fr.columns = newcolname

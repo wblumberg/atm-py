@@ -54,7 +54,7 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
                             lfe_diameter = 0.7 * 1e-3,
                             verbose = False):
 
-    """Returns the manta sample efficiency for the POPS instrument (up most inlet)
+    """Returns the manta sample efficiency for the POPS instruments (up most inlet)
 
     Parameters
     ----------
