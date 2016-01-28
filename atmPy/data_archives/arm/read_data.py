@@ -23,7 +23,7 @@ def read_cdf(fname,
              concat = True,
              ignore_unknown = False,
              verbose = True,
-             read_only = None):
+             ):
     """
     Reads ARM NetCDF file(s) and returns a containers with the results.
 
@@ -40,7 +40,6 @@ def read_cdf(fname,
     concat
     ignore_unknown
     verbose
-    read_only
 
     Returns
     -------
@@ -70,61 +69,73 @@ def read_cdf(fname,
         fnt = _os.path.split(f)[-1].split('.')
 
         # check if in time_window
-        if time_window:
-            ts = fnt[-3]
-            file_start_data = _pd.to_datetime(ts)
-            start_time = _pd.to_datetime(time_window[0])
-            end_time = _pd.to_datetime(time_window[1])
-            dt_start = file_start_data - start_time
-            dt_end = file_start_data - end_time
 
-            if dt_start.total_seconds() < -86399:
-                if verbose:
-                    print('outside (before) the time window ... skip')
-                continue
-            elif dt_end.total_seconds() > 86399:
-                if verbose:
-                    print('outside (after) the time window ... skip')
-                continue
-
-        foundit = False
-        for prod in arm_products.keys():
-            if prod in fnt[0]:
-                product_id = prod
-                foundit = True
-                break
-
-        # test if unwanted product
-        if data_product:
-            if product_id not in data_product:
-                if verbose:
-                    print('Not the desired data product ... skip')
-                continue
-
-        if not foundit:
-            txt = '\t has no ncattr named platform_id. Guess from file name failed ... skip'
-            if verbose:
-                print(txt)
+        if not _is_in_time_window(f,time_window,verbose):
             continue
 
-        elif read_only:
-            if product_id not in read_only:
-                if verbose:
-                    print('not in read_only')
-                continue
+        # if time_window:
+        #     ts = fnt[-3]
+        #     file_start_data = _pd.to_datetime(ts)
+        #     start_time = _pd.to_datetime(time_window[0])
+        #     end_time = _pd.to_datetime(time_window[1])
+        #     dt_start = file_start_data - start_time
+        #     dt_end = file_start_data - end_time
+        #
+        #     if dt_start.total_seconds() < -86399:
+        #         if verbose:
+        #             print('outside (before) the time window ... skip')
+        #         continue
+        #     elif dt_end.total_seconds() > 86399:
+        #         if verbose:
+        #             print('outside (after) the time window ... skip')
+        #         continue
+
+
+        product_id =  _is_in_product_keys(f, ignore_unknown, verbose)
+        if not product_id:
+            continue
+        # foundit = False
+        # for prod in arm_products.keys():
+        #     if prod in fnt[0]:
+        #         product_id = prod
+        #         foundit = True
+        #         break
+
+        # test if unwanted product
+
+        if not _is_desired_product(product_id,data_product,verbose):
+            continue
+
+        # if data_product:
+        #     if product_id not in data_product:
+        #         if verbose:
+        #             print('Not the desired data product ... skip')
+        #         continue
+
+        # if not product_id:
+        #     txt = '\t has no ncattr named platform_id. Guess from file name failed ... skip'
+        #     if verbose:
+        #         print(txt)
+        #     continue
+
+        # elif read_only:
+        #     if product_id not in read_only:
+        #         if verbose:
+        #             print('not in read_only')
+        #         continue
 
 
 
 
         # Error handling: if product_id not in products
-        if product_id not in arm_products.keys():
-            txt = 'Platform id %s is unknown.'%product_id
-            if ignore_unknown:
-                if verbose:
-                    print(txt + '... skipping')
-                continue
-            else:
-                raise KeyError(txt)
+        # if product_id not in arm_products.keys():
+        #     txt = 'Platform id %s is unknown.'%product_id
+        #     if ignore_unknown:
+        #         if verbose:
+        #             print(txt + '... skipping')
+        #         continue
+        #     else:
+        #         raise KeyError(txt)
 
         if product_id not in products.keys():
             products[product_id] = []
@@ -150,3 +161,62 @@ def read_cdf(fname,
 
 
 ################
+
+
+def _is_desired_product(product_id, data_product, verbose):
+    out = True
+    if data_product:
+        if product_id not in data_product:
+            if verbose:
+                print('Not the desired data product ... skip')
+            out = False
+    return out
+
+
+def _is_in_product_keys(f, ignore_unknown,verbose):
+
+    fnt = _os.path.split(f)[-1].split('.')
+    product_id = False
+    for prod in arm_products.keys():
+        if prod in fnt[0]:
+            product_id = prod
+            break
+
+    if not product_id:
+        txt = '\t has no ncattr named platform_id. Guess from file name failed ... skip'
+        if verbose:
+            print(txt)
+
+
+    if product_id not in arm_products.keys():
+        product_id = False
+        txt = 'Platform id %s is unknown.'%product_id
+        if ignore_unknown:
+            if verbose:
+                print(txt + '... skipping')
+
+        else:
+            raise KeyError(txt)
+    return product_id
+
+def _is_in_time_window(f,time_window, verbose):
+    out = True
+    if time_window:
+        fnt = _os.path.split(f)[-1].split('.')
+        ts = fnt[-3]
+        file_start_data = _pd.to_datetime(ts)
+        start_time = _pd.to_datetime(time_window[0])
+        end_time = _pd.to_datetime(time_window[1])
+        dt_start = file_start_data - start_time
+        dt_end = file_start_data - end_time
+
+
+        if dt_start.total_seconds() < -86399:
+            if verbose:
+                print('outside (before) the time window ... skip')
+            out = False
+        elif dt_end.total_seconds() > 86399:
+            if verbose:
+                print('outside (after) the time window ... skip')
+            out = False
+    return out
