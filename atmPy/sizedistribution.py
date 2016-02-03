@@ -1299,7 +1299,7 @@ class SizeDist_LS(SizeDist):
     def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
         if not n:
             n = self.index_of_refraction
-        if not n:
+        if not np.any(n):
             txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
             raise ValueError(txt)
         out = _calculate_optical_properties(self, wavelength, n, aod = True, noOfAngles=noOfAngles)
