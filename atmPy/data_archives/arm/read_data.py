@@ -11,8 +11,10 @@ arm_products = {'tdmasize':   {'module': _tdmasize},
                 'noaaaos':    {'module': _noaaaos}
                 }
 
+
 def check_availability(folder,
                        data_product = None,
+                       site = 'sgp',
                        time_window = ('1990-01-01','2030-01-01'),
                        ignore_unknown = True,
                        verbose = False):
@@ -30,6 +32,10 @@ def check_availability(folder,
             txt = '\t %s is not a netCDF file ... skipping'%f
             if verbose:
                 print(txt)
+            continue
+
+        site_check = _is_site(f,site,verbose)
+        if not site_check:
             continue
 
         date = _is_in_time_window(f,time_window,verbose)
@@ -70,6 +76,7 @@ def check_availability(folder,
 
 
 def read_cdf(fname,
+             site = 'sgp',
              data_product = None,
              time_window = None,
              concat = True,
@@ -118,12 +125,15 @@ def read_cdf(fname,
                 print(txt)
             continue
 
-
         if not _is_in_time_window(f,time_window,verbose):
             continue
 
-        product_id =  _is_in_product_keys(f, ignore_unknown, verbose)
+        product_id = _is_in_product_keys(f, ignore_unknown, verbose)
         if not product_id:
+            continue
+
+        site_check = _is_site(f,site,verbose)
+        if not site_check:
             continue
 
         if not _is_desired_product(product_id,data_product,verbose):
@@ -131,7 +141,6 @@ def read_cdf(fname,
 
         if product_id not in products.keys():
             products[product_id] = []
-
 
         file_obj = _Dataset(f)
         out = arm_products[product_id]['module']._parse_netCDF(file_obj)
@@ -148,7 +157,6 @@ def read_cdf(fname,
         return products
 
 
-
 def _is_desired_product(product_id, data_product, verbose):
     out = True
     if data_product:
@@ -158,6 +166,17 @@ def _is_desired_product(product_id, data_product, verbose):
             out = False
     return out
 
+def _is_site(f,site,verbose):
+    out = True
+    fnt = _os.path.split(f)[-1].split('.')[0]
+    site_is = fnt[:3]
+    if site:
+        if site_is != site:
+            out = False
+            if verbose:
+                txt = 'Has wrong site_id (%s) ... skip!'%(site_is)
+                print(txt)
+    return out
 
 def _is_in_product_keys(f, ignore_unknown,verbose):
 
