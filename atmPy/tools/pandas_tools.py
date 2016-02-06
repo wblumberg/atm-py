@@ -71,7 +71,6 @@ def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
     axes_idx_list_is = valid_axes.copy()
     x_index = axes_list[xaxis]
     y_index = axes_list[yaxis]
-    z_index = axes_list[zaxis]
 
     if axes_idx_list_tobe[0] != axes_idx_list_is[0]:
         axes_idx_list_is[0], axes_idx_list_is[axes_idx_list_tobe[0]] = axes_idx_list_is[axes_idx_list_tobe[0]], axes_idx_list_is[0]
@@ -97,4 +96,5 @@ def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
     a.set_xlabel(panel.items.name)
     a.set_ylabel(panel.major_axis.name)
     cb.set_label(panel.minor_axis[sub_set])
+    pc.set_clim(z[~ np.isnan(z)].min(), z[~ np.isnan(z)].max())
     return f,a,pc,cb
