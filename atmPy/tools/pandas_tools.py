@@ -30,7 +30,7 @@ def ensure_column_exists(df, col_name, col_alt = False):
             raise AttributeError(txt)
     return
 
-def plot_dataframe_meshgrid(df, xaxis = 0):
+def plot_dataframe_meshgrid(df, xaxis = 0, ax = None):
     axes_list = [df.index, df.columns]
     x_index = axes_list[xaxis]
 
@@ -44,7 +44,12 @@ def plot_dataframe_meshgrid(df, xaxis = 0):
     x = np.repeat(np.array([x_index]), y_index.shape[0], axis = 0)
     y = np.repeat(np.array([y_index]), x_index.shape[0], axis = 0).transpose()
 
-    f,a = plt.subplots()
+    if ax:
+        a = ax
+        f = a.get_figure()
+    else:
+        f,a = plt.subplots()
+
     pc = a.pcolormesh(x, y , z)
 
 
@@ -61,7 +66,7 @@ def plot_dataframe_meshgrid(df, xaxis = 0):
         pc.set_clim((values.min(),values.max()))
     return f,a,pc,cb
 
-def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
+def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwargs = {}):
 
     valid_axes = np.array([0,1,2])
     zaxis = valid_axes[np.logical_and(valid_axes != xaxis, valid_axes != yaxis)][0]
@@ -86,7 +91,12 @@ def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
     x = np.repeat(np.array([x_index]), y_index.shape[0], axis = 0)
     y = np.repeat(np.array([y_index]), x_index.shape[0], axis = 0).transpose()
 
-    f,a = plt.subplots()
+    if ax:
+        a = ax
+        f = a.get_figure()
+    else:
+        f,a = plt.subplots()
+
     pc = a.pcolormesh(x, y , z, **kwargs)
 
 
