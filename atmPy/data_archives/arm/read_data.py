@@ -3,6 +3,7 @@ import os as _os
 from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
 import pandas as _pd
 import pylab as _plt
+import warnings
 
 arm_products = {'tdmasize':   {'module': _tdmasize},
                 'tdmaapssize':{'module': _tdmaapssize},
@@ -110,6 +111,11 @@ def read_cdf(fname,
     # list or single file
     if type(fname) == str:
         fname = [fname]
+
+    if len(fname) > 1 and leave_cdf_open:
+        txt = "leave_cdf_open can only be true if the number of files is one ... leave_cdf_open = False"
+        warnings.warn(txt)
+        leave_cdf_open = False
 
     if type(data_product) == str:
         data_product = [data_product]
