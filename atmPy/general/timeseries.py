@@ -421,6 +421,7 @@ class TimeSeries_3D(TimeSeries):
         super(TimeSeries_3D,self).__init__(*args)
 
     def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwargs = {}):
+
         f,a,pc,cb =  pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
                                                       yaxis = yaxis,
                                                       sub_set = sub_set,
