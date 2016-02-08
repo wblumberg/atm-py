@@ -3,7 +3,7 @@ import pandas as pd
 
 from atmPy.aerosols.instruments.POPS import calibration
 from atmPy.aerosols.size_distribution import sizedistribution
-from atmPy.general_t import timeseries
+from atmPy.general import timeseries
 from atmPy.tools import time_tools
 
 

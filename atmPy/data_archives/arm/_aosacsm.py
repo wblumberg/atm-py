@@ -1,5 +1,5 @@
 import pandas as pd
-from atmPy.general_t import timeseries
+from atmPy.general import timeseries
 from atmPy.data_archives.arm._netCDF import ArmDataset
 
 class ArmDatasetSub(ArmDataset):

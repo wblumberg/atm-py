@@ -6,8 +6,8 @@ from scipy import integrate
 
 from atmPy.aerosols.size_distribution import \
     sizedist_moment_conversion as _sizedist_moment_conversion
-from atmPy.general_t import timeseries
-from atmPy.general_t import vertical_profile
+from atmPy.general import timeseries
+from atmPy.general import vertical_profile
 from atmPy.radiation.mie_scattering import bhmie
 
 

@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 
 from atmPy.aerosols.physics import hygroscopic_growth as hg
 from atmPy.data_archives.arm import _tools
-from atmPy.general_t import timeseries
+from atmPy.general import timeseries
 from atmPy.tools import math_functions
 from atmPy.data_archives.arm._netCDF import ArmDataset
 

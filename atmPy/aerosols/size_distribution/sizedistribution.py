@@ -13,7 +13,7 @@ import datetime
 import scipy.optimize as optimization
 # from scipy import integrate
 from scipy import stats
-from atmPy.general_t import vertical_profile
+from atmPy.general import vertical_profile
 from atmPy.aerosols.physics import hygroscopic_growth as hg, optical_properties
 from atmPy.tools import pandas_tools
 from atmPy.aerosols.physics import optical_properties
