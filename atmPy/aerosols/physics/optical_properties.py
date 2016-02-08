@@ -6,7 +6,7 @@ from scipy import integrate
 
 from atmPy.aerosols.size_distribution import \
     sizedist_moment_conversion as _sizedist_moment_conversion
-from atmPy.general import timeseries
+from atmPy.general import time_series
 from atmPy.general import vertical_profile
 from atmPy.radiation.mie_scattering import bhmie
 
@@ -98,7 +98,7 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
     if dist_class == 'SizeDist_TS':
-        out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
+        out['extCoeff_perrow_perbin'] = time_series.TimeSeries_2D(extCoeff_perrow_perbin)
 
     # extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
     # if index.dtype == '<M8[ns]':
@@ -164,7 +164,7 @@ class OpticalProperties(object):
             df = pd.DataFrame()
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
-                self.__extinction_coeff_sum_along_d = timeseries.TimeSeries(df)
+                self.__extinction_coeff_sum_along_d = time_series.TimeSeries(df)
             else:
                 raise('not possible for this distribution type')
         return self.__extinction_coeff_sum_along_d

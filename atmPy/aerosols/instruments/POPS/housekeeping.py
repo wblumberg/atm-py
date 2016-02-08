@@ -8,7 +8,7 @@ import pandas as pd
 # import os
 # import pylab as plt
 # from atmPy.tools import conversion_tools as ct
-from atmPy.general import atmosphere_standards as atm_std, timeseries
+from atmPy.general import atmosphere_standards as atm_std, time_series
 
 
 def _read_housekeeping(fname):
@@ -86,7 +86,7 @@ the required ending (*HK.csv)"""
     return hk
 
 
-class POPSHouseKeeping(timeseries.TimeSeries):
+class POPSHouseKeeping(time_series.TimeSeries):
     def get_altitude(self, temperature=False):
         """Calculates the altitude from the measured barometric pressure
         Arguments

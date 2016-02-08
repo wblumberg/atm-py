@@ -1,5 +1,5 @@
 import pandas as pd
-from atmPy.general import timeseries
+from atmPy.general import time_series
 from atmPy.data_archives.arm._netCDF import ArmDataset
 
 class ArmDatasetSub(ArmDataset):
@@ -33,8 +33,8 @@ class ArmDatasetSub(ArmDataset):
         # out['mass_concentrations'] = timeseries.TimeSeries(mass_concentrations)
         # out['Organic mass spectral matrix'] = timeseries.TimeSeries_2D(org_mx)
 
-        self.mass_concentrations = timeseries.TimeSeries(mass_concentrations)
-        self.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(org_mx)
+        self.mass_concentrations = time_series.TimeSeries(mass_concentrations)
+        self.organic_mass_spectral_matrix = time_series.TimeSeries_2D(org_mx)
         return
 
     def plot_all(self):
@@ -44,9 +44,9 @@ class ArmDatasetSub(ArmDataset):
 def _concat_rules(arm_data_objs):
     # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.mass_concentrations = timeseries.TimeSeries(
+    out.mass_concentrations = time_series.TimeSeries(
         pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
-    out.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
+    out.organic_mass_spectral_matrix = time_series.TimeSeries_2D(pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
 
     # out = _tools.ArmDict(plottable = ['mass_concentrations', 'Organic mass spectral matrix'])
     # out['mass_concentrations'] = timeseries.TimeSeries(pd.concat([i['mass_concentrations'].data for i in files]))

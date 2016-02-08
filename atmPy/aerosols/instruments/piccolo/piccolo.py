@@ -6,7 +6,7 @@
 import numpy as np
 import pandas as pd
 
-from atmPy.general import timeseries
+from atmPy.general import time_series
 from atmPy.tools import time_tools
 
 
@@ -59,7 +59,7 @@ def _read_file(fname):
 
     data.sort_index(inplace=True)
 
-    return timeseries.TimeSeries(data, {'original header': header})
+    return time_series.TimeSeries(data, {'original header': header})
 
 
 def read_csv(fname):
