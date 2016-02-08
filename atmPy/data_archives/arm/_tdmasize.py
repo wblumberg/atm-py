@@ -1,30 +1,34 @@
 import pandas as pd
-from atmPy.data_archives.arm import _tools
 from atmPy.aerosols.size_distribution import diameter_binning
 from atmPy.aerosols.size_distribution import sizedistribution
+from atmPy.data_archives.arm._netCDF import ArmDataset
 
-def _parse_netCDF(file_obj):
+
+class ArmDatasetSub(ArmDataset):
+    def __init__(self,*args, **kwargs):
+        super(ArmDatasetSub,self).__init__(*args, **kwargs)
+
+    def _parse_netCDF(self):
+        super(ArmDatasetSub,self)._parse_netCDF()
 
 
-    index = _tools._get_time(file_obj)
+# def _parse_netCDF(file_obj):
 
-    sd = file_obj.variables['number_concentration']
-    df = pd.DataFrame(sd[:])
-    df.index = index
 
-    d = file_obj.variables['diameter']
-    bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
+        # sd = file_obj.variables['number_concentration_DMA_APS']
+        df = pd.DataFrame(self.read_variable('number_concentration'),
+                          index = self.time_stamps)
 
-    dist = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
-    dist = dist.convert2dVdlogDp()
+        d = self.read_variable('diameter')
+        bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
 
-    out = _tools.ArmDict(plottable = ['size_distribution'])
-    out['size_distribution'] = dist
+        self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
 
-    return out
+    def plot_all(self):
+        self.size_distribution.plot()
 
 def _concat_rules(files):
-    dist = files[0]['size_distribution']
-    dist.data = pd.concat([i['size_distribution'].data for i in files])
-    files[0]['size_distribution'] = dist
-    return files[0]
+    out = ArmDatasetSub(False)
+    data = pd.concat([i.size_distribution.data for i in files])
+    out.size_distribution = sizedistribution.SizeDist_TS(data,files[0].size_distribution.bins,'dNdlogDp')
+    return out
