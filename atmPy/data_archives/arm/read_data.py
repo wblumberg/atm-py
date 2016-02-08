@@ -1,4 +1,4 @@
-from netCDF4 import Dataset as _Dataset
+from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
 from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
 import pandas as _pd
@@ -79,8 +79,10 @@ def read_cdf(fname,
              site = 'sgp',
              data_product = None,
              time_window = None,
+             quality_control = 0,
              concat = True,
              ignore_unknown = False,
+             leave_cdf_open = False,
              verbose = True,
              ):
     """
@@ -142,13 +144,16 @@ def read_cdf(fname,
         if product_id not in products.keys():
             products[product_id] = []
 
-        file_obj = _Dataset(f)
-        out = arm_products[product_id]['module']._parse_netCDF(file_obj)
-        file_obj.close()
-        products[product_id].append(out)
+
+        arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f, quality_control = quality_control)
+
+        if not leave_cdf_open:
+            arm_file_object.close()
+
+        products[product_id].append(arm_file_object)
 
     if len(fname) == 1:
-        return out
+        return arm_file_object
 
     else:
         if concat:
