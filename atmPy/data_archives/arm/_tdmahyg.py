@@ -1,67 +1,10 @@
 import numpy as np
 import pandas as pd
-from scipy.optimize import curve_fit
 
 from atmPy.aerosols.physics import hygroscopic_growth as hg
-from atmPy.data_archives.arm import _tools
 from atmPy.general import timeseries
-from atmPy.tools import math_functions
 from atmPy.data_archives.arm._netCDF import ArmDataset
 
-
-
-class Tdmahyg(_tools.ArmDict):
-    def __init__(self,*args,**kwargs):
-        super(Tdmahyg,self).__init__(*args,**kwargs)
-
-    def calc_mean_growth_factor(self):
-        """Calculates the mean growthfactor of the particular size bin."""
-        def mean_linewise(gf_dist):
-            growthfactors = self['hyg_distributions'].data.minor_axis.values
-            meanl = ((gf_dist[~ gf_dist.mask] * np.log10(growthfactors[~ gf_dist.mask])).sum()/gf_dist[~gf_dist.mask].sum())
-            stdl = np.sqrt((gf_dist[~ gf_dist.mask] * (np.log10(growthfactors[~ gf_dist.mask]) - meanl)**2).sum()/gf_dist[~gf_dist.mask].sum())
-            return np.array([10**meanl,stdl])
-        data = self['hyg_distributions'].data
-        allmeans = timeseries.TimeSeries_3D(pd.Panel(items=data.items, major_axis=data.major_axis, minor_axis= ['mean', 'std_log']))
-        for i,time in enumerate(data.values):
-            for e,size in enumerate(time):
-                allmeans.data.iloc[i,e] = mean_linewise(size)
-        self['allmeans'] = allmeans
-        return allmeans
-
-    def calc_kappa_values(self):
-        if not 'allmeans' in self.keys():
-            allmeans = self.calc_mean_growth_factor()
-        else:
-            allmeans = self['allmeans']
-
-        RH = self['RH_interDMA']
-        kappa_values = hg.kappa_simple(allmeans.data.values[:,:,0],RH, inverse = True)
-
-        kappa_values = pd.DataFrame(kappa_values,columns=allmeans.data.major_axis, index = allmeans.data.items)
-        out = timeseries.TimeSeries_2D(kappa_values)
-        self['kappa_values'] = out
-        self.plottable.append('kappa_values')
-        return out
-
-    def _fit_growth_factor(self, data):
-        """Not recommended, probably not working"""
-        def fit_linewise(gf_dist):
-            fkt = math_functions.gauss
-            amp = gf_dist.max()
-            growthfactors = self['hyg_distributions'].data.minor_axis.values
-            pos = growthfactors[gf_dist.argmax()]
-            sigma = 0.4
-            cof,varm = curve_fit(fkt,growthfactors[~gf_dist.mask], gf_dist[~gf_dist.mask], p0=[amp,pos,sigma])
-            return np.array(cof)
-
-        shape = list(data.shape)
-        shape[-1] = 3
-        fitres = np.zeros(shape)
-        for i,time in enumerate(data):
-            for e,size in enumerate(time):
-                fitres[i,e] = fit_linewise(size)
-        return fitres
 
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
@@ -108,6 +51,16 @@ class ArmDatasetSub(ArmDataset):
                     allmeans.data.iloc[i,e] = mean_linewise(size)
             self.__mean_growth_factor = allmeans
         return self.__mean_growth_factor
+
+    @property
+    def kappa_values(self):
+        if '__kappa_values' not in dir(self):
+            # RH =
+            kappa_values = hg.kappa_simple(self.mean_growth_factor.data.values[:,:,0],self.RH_interDMA.data.values, inverse = True)
+            kappa_values = pd.DataFrame(kappa_values,columns=self.mean_growth_factor.data.major_axis, index = self.mean_growth_factor.data.items)
+            self.__kappa_values = timeseries.TimeSeries_2D(kappa_values)
+            # self.plottable.append('kappa_values')
+        return self.__kappa_values
 
 def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
