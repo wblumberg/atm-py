@@ -405,9 +405,8 @@ class TimeSeries_2D(TimeSeries):
     def __init__(self, *args):
         super(TimeSeries_2D,self).__init__(*args)
 
-    def plot(self, xaxis = 0):
-        print('asdfsdfsdfsdfsdfasdfasdf')
-        return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis)
+    def plot(self, xaxis = 0, ax = None):
+        return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax)
 
 
 class TimeSeries_3D(TimeSeries):
@@ -421,7 +420,10 @@ class TimeSeries_3D(TimeSeries):
     def __init__(self, *args):
         super(TimeSeries_3D,self).__init__(*args)
 
-    def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, kwargs = {}):
+    def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwargs = {}):
         f,a,pc,cb =  pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
-                                                yaxis = yaxis, sub_set = sub_set, kwargs = kwargs)
+                                                      yaxis = yaxis,
+                                                      sub_set = sub_set,
+                                                      ax = ax,
+                                                      kwargs = kwargs)
         return f,a,pc,cb
