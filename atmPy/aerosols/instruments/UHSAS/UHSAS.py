@@ -14,7 +14,7 @@ import pandas as pd
 import pylab as plt
 from scipy.interpolate import UnivariateSpline
 
-from atmPy.general import time_series
+from atmPy.general import timeseries
 from atmPy.aerosols.size_distribution import sizedistribution
 
 
@@ -56,7 +56,7 @@ def _read_csv(fname, norm2time = True, norm2flow = True):
     uhsas = _readFromFakeXLS(fname)
 #     return uhsas
     sd,hk = _separate_sizedist_and_housekeep(uhsas, norm2time = norm2time, norm2flow = norm2flow)
-    hk = time_series.TimeSeries(hk)
+    hk = timeseries.TimeSeries(hk)
 #     return size_distribution,hk
     bins = _get_bins(sd)
 #     return bins

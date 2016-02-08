@@ -1,4 +1,4 @@
-from atmPy.general import time_series
+from atmPy.general import timeseries
 from atmPy.data_archives.arm import _tools
 import pandas as pd
 from atmPy.data_archives.arm._netCDF import ArmDataset
@@ -63,7 +63,7 @@ class ArmDatasetSub(ArmDataset):
                 # data = np.ma.masked_where(data == fill_value, data)
                 df[var] = pd.Series(data, index = self.time_stamps)
             df.columns.name = column_name
-            out = time_series.TimeSeries(df)
+            out = timeseries.TimeSeries(df)
             return out
 
         # out = _tools.ArmDict(plottable= ['abs_coeff', 'scatt_coeff', 'back_scatt'] )
@@ -88,10 +88,10 @@ class ArmDatasetSub(ArmDataset):
 
 def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
-    out.abs_coeff = time_series.TimeSeries(pd.concat([i.abs_coeff.data for i in arm_data_objs]))
-    out.back_scatt = time_series.TimeSeries(pd.concat([i.back_scatt.data for i in arm_data_objs]))
-    out.scatt_coeff = time_series.TimeSeries(pd.concat([i.scatt_coeff.data for i in arm_data_objs]))
-    out.RH = time_series.TimeSeries(pd.concat([i.RH.data for i in arm_data_objs]))
+    out.abs_coeff = timeseries.TimeSeries(pd.concat([i.abs_coeff.data for i in arm_data_objs]))
+    out.back_scatt = timeseries.TimeSeries(pd.concat([i.back_scatt.data for i in arm_data_objs]))
+    out.scatt_coeff = timeseries.TimeSeries(pd.concat([i.scatt_coeff.data for i in arm_data_objs]))
+    out.RH = timeseries.TimeSeries(pd.concat([i.RH.data for i in arm_data_objs]))
     out.time_stamps = out.abs_coeff.data.index
     # out = _tools.ArmDict(plottable= ['abs_coeff', 'scatt_coeff', 'back_scatt'] )
     # out['abs_coeff'] = timeseries.TimeSeries(pd.concat([i['abs_coeff'].data for i in files]))

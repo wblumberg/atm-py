@@ -6,7 +6,7 @@
 import numpy as np
 import pandas as pd
 
-from atmPy.general import time_series
+from atmPy.general import timeseries
 from atmPy.tools import time_tools
 
 

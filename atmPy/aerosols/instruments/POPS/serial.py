@@ -3,7 +3,7 @@ import pandas as pd
 
 from atmPy.aerosols.instruments.POPS import calibration
 from atmPy.aerosols.size_distribution import sizedistribution
-from atmPy.general import time_series
+from atmPy.general import timeseries
 from atmPy.tools import time_tools
 
 
@@ -44,7 +44,7 @@ def read_radiosonde_csv(fname, cal):
 
     hk = df.drop(bins, axis=1)
 
-    hk = time_series.TimeSeries(hk)
+    hk = timeseries.TimeSeries(hk)
     hk.data.sort_index(inplace=True)
     hk.data.Altitude.interpolate(inplace=True)
 

@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 
 from atmPy.aerosols.physics import hygroscopic_growth as hg
 from atmPy.data_archives.arm import _tools
-from atmPy.general import time_series
+from atmPy.general import timeseries
 from atmPy.tools import math_functions
 from atmPy.data_archives.arm._netCDF import ArmDataset
 
@@ -22,7 +22,7 @@ class Tdmahyg(_tools.ArmDict):
             stdl = np.sqrt((gf_dist[~ gf_dist.mask] * (np.log10(growthfactors[~ gf_dist.mask]) - meanl)**2).sum()/gf_dist[~gf_dist.mask].sum())
             return np.array([10**meanl,stdl])
         data = self['hyg_distributions'].data
-        allmeans = time_series.TimeSeries_3D(pd.Panel(items=data.items, major_axis=data.major_axis, minor_axis= ['mean', 'std_log']))
+        allmeans = timeseries.TimeSeries_3D(pd.Panel(items=data.items, major_axis=data.major_axis, minor_axis= ['mean', 'std_log']))
         for i,time in enumerate(data.values):
             for e,size in enumerate(time):
                 allmeans.data.iloc[i,e] = mean_linewise(size)
@@ -39,7 +39,7 @@ class Tdmahyg(_tools.ArmDict):
         kappa_values = hg.kappa_simple(allmeans.data.values[:,:,0],RH, inverse = True)
 
         kappa_values = pd.DataFrame(kappa_values,columns=allmeans.data.major_axis, index = allmeans.data.items)
-        out = time_series.TimeSeries_2D(kappa_values)
+        out = timeseries.TimeSeries_2D(kappa_values)
         self['kappa_values'] = out
         self.plottable.append('kappa_values')
         return out
@@ -76,14 +76,14 @@ class ArmDatasetSub(ArmDataset):
         size_bins = self.read_variable('size_bins') * 1000
         df = pd.DataFrame(self.read_variable('RH_interDMA'), index = self.time_stamps, columns=size_bins)
         df.columns.name = 'size_bin_center_nm'
-        self.RH_interDMA = time_series.TimeSeries(df)
+        self.RH_interDMA = timeseries.TimeSeries(df)
 
         data = self.read_variable('hyg_distributions')
         growthfactors = self.read_variable('growthfactors')
         data = pd.Panel(data, items= self.time_stamps, major_axis = size_bins, minor_axis = growthfactors)
         data.major_axis.name = 'size_bin_center_nm'
         data.minor_axis.name = 'growthfactors'
-        self.hyg_distributions = time_series.TimeSeries_3D(data)
+        self.hyg_distributions = timeseries.TimeSeries_3D(data)
 
     def plot_all(self):
         self.hyg_distributions.plot(yaxis=2, sub_set=5)
@@ -102,7 +102,7 @@ class ArmDatasetSub(ArmDataset):
                 stdl = np.sqrt((gf_dist[~ np.isnan(gf_dist)] * (np.log10(growthfactors[~ np.isnan(gf_dist)]) - meanl)**2).sum()/gf_dist[~np.isnan(gf_dist)].sum())
                 return np.array([10**meanl,stdl])
             data = self.hyg_distributions.data
-            allmeans = time_series.TimeSeries_3D(pd.Panel(items=data.items, major_axis=data.major_axis, minor_axis= ['mean', 'std_log']))
+            allmeans = timeseries.TimeSeries_3D(pd.Panel(items=data.items, major_axis=data.major_axis, minor_axis= ['mean', 'std_log']))
             for i,time in enumerate(data.values):
                 for e,size in enumerate(time):
                     allmeans.data.iloc[i,e] = mean_linewise(size)
@@ -111,7 +111,7 @@ class ArmDatasetSub(ArmDataset):
 
 def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
-    out.RH_interDMA = time_series.TimeSeries(pd.concat([i.RH_interDMA.data for i in arm_data_objs]))
-    out.hyg_distributions = time_series.TimeSeries_3D(pd.concat([i.hyg_distributions.data for i in arm_data_objs]))
+    out.RH_interDMA = timeseries.TimeSeries(pd.concat([i.RH_interDMA.data for i in arm_data_objs]))
+    out.hyg_distributions = timeseries.TimeSeries_3D(pd.concat([i.hyg_distributions.data for i in arm_data_objs]))
     out.time_stamps = out.RH_interDMA.data.index
     return out

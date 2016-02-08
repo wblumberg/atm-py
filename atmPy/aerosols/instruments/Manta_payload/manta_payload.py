@@ -1,6 +1,6 @@
 import pandas as pd
 # from atmPy.tools import thermodynamics
-from atmPy.general import time_series
+from atmPy.general import timeseries
 import numpy as np
 from atmPy.aerosols.physics import sampling_efficiency as sampeff
 from atmPy.tools import pandas_tools
@@ -40,7 +40,7 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
         df = df[df.Temperature > temperature_limits[0]]
         df = df[temperature_limits[1] > df.Temperature]
 
-    hk = time_series.TimeSeries(df)
+    hk = timeseries.TimeSeries(df)
     return hk
 
 # class MantaPayload(timeseries.TimeSeries):

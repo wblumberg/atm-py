@@ -18,7 +18,7 @@ from atmPy.tools import math_linear_algebra as mla
 # from scipy import integrate
 from atmPy.radiation import solar
 from atmPy.radiation.rayleigh import bucholtz_rayleigh as bray
-from atmPy.general import atmosphere_standards as atmstd, time_series
+from atmPy.general import atmosphere_standards as atmstd, timeseries
 from scipy import signal
 from atmPy.tools import time_tools
 from copy import deepcopy
@@ -554,7 +554,7 @@ class miniSASP(object):
                 df[center] = PAlt.resample('50ms')
             df.index = (df.index.values - np.datetime64('1970-01-01T00:00:00.000000000Z')) / np.timedelta64(1, 's')
             df.index = df.index.values / revolution_period * 2 * np.pi
-            out = time_series.TimeSeries(df.transpose())
+            out = timeseries.TimeSeries(df.transpose())
             out_dict[i] = out
         return out_dict
 
@@ -902,7 +902,7 @@ def load_sunintensities_TS(fname):
     return Sun_Intensities_TS(data)
 
 
-class Sun_Intensities_TS(time_series.TimeSeries):
+class Sun_Intensities_TS(timeseries.TimeSeries):
     def plot(self, offset=[0, 0, 0, 0], airmassfct=True, move_max=True, legend=True, all_on_one_axis = False,
              additional_axes=False,
              errors = False,
@@ -1032,7 +1032,7 @@ class Sun_Intensities_TS(time_series.TimeSeries):
         picco: any timeseries instance containing Lat and Lon
         """
 
-        picco_t = time_series.TimeSeries(picco.data.loc[:, ['Lat', 'Lon', 'Altitude']])  # only Altitude, Lat and Lon
+        picco_t = timeseries.TimeSeries(picco.data.loc[:, ['Lat', 'Lon', 'Altitude']])  # only Altitude, Lat and Lon
         sun_int_su = self.merge(picco_t)
         out = sun_int_su.get_sun_position()
         #     sun_int_su = sun_int_su.zoom_time(spiral_up_start, spiral_up_end)
@@ -1052,7 +1052,7 @@ def load_skybrighness(fname):
         fn = fname + '_' + str(k) + '.csv'
         df = pd.read_csv(fn, index_col=0)
         df.columns = df.columns.astype(float)
-        outt[float(k)] = time_series.TimeSeries(df)
+        outt[float(k)] = timeseries.TimeSeries(df)
     return outt
 
 
