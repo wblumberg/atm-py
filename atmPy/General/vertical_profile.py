@@ -30,7 +30,7 @@ class VerticalProfile(object):
     def convert2timeseries(self, ts):
         """merges a vertical profile with a timeseries that contains height data
         and returns the a time series where the data of the vertical profile is interpolated
-        along the time of the timeseries.
+        along the time of the timeseries. ...
 
         Arguments
         ---------
