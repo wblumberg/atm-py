@@ -406,7 +406,7 @@ class TimeSeries_2D(TimeSeries):
         super(TimeSeries_2D,self).__init__(*args)
 
     def plot(self, xaxis = 0):
-        print('asdfasdfsdfsdfsdfsdfasdfasdf')
+        print('asdfsdfsdfsdfsdfasdfasdf')
         return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis)
 
 
