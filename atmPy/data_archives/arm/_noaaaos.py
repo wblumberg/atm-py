@@ -1,4 +1,4 @@
-from atmPy.general import timeseries
+from atmPy.general_t import timeseries
 from atmPy.data_archives.arm import _tools
 import pandas as pd
 from atmPy.data_archives.arm._netCDF import ArmDataset

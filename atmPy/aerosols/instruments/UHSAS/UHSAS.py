@@ -14,7 +14,7 @@ import pandas as pd
 import pylab as plt
 from scipy.interpolate import UnivariateSpline
 
-from atmPy.general import timeseries
+from atmPy.general_t import timeseries
 from atmPy.aerosols.size_distribution import sizedistribution
 
 
