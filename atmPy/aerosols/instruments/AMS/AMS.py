@@ -1,7 +1,8 @@
-from atmPy.general import timeseries
-from atmPy.aerosols.materials import properties
-import numpy as np
-import pandas as pd
+from atmPy.general import timeseries as _timeseries
+from atmPy.aerosols.materials import properties as _properties
+from atmPy.aerosols.materials import mixing_rules as _mixing_rules
+import numpy as _np
+import pandas as _pd
 
 def ion2electrolyte_mass_concentration(ion_concentrations, ions, electrolytes):
     cct = ion_concentrations.drop(['total_organics'])/ions.molecular_weight
@@ -43,11 +44,11 @@ def ion2electrolyte_mass_concentration(ion_concentrations, ions, electrolytes):
 
     return electrolytes
 
-class AMS_Timeseries(timeseries.TimeSeries):
+class AMS_Timeseries_lev01(_timeseries.TimeSeries):
 
     def calculate_electrolyte_mass_concentrations(self):
         # ion_mass_concentration = self.data
-        materials = properties.get_commen()
+        materials = _properties.get_commen()
 
         materials.index = materials.species_name
         material_ions = materials.loc[['ammonium','sulfate', 'nitrate', 'chloride', 'sodium', 'calcium' ]]
@@ -68,12 +69,38 @@ class AMS_Timeseries(timeseries.TimeSeries):
                                       ]]
         material_elct = material_elct.dropna(axis=1)
 
-        np.zeros((self.data.shape[0],material_ions.shape[0]))
-        df = pd.DataFrame(columns=material_elct.index, index = self.data.index)
+        _np.zeros((self.data.shape[0],material_ions.shape[0]))
+        df = _pd.DataFrame(columns=material_elct.index, index = self.data.index)
         for i in self.data.index:
         #     print(i)
             cct = self.data.loc[i]
             electro = ion2electrolyte_mass_concentration(cct, material_ions, material_elct)
             df.loc[i] = electro.mass_concentration
         df['total_organics'] = self.data.total_organics
-        return timeseries.TimeSeries(df)
+        return AMS_Timeseries_lev02(df)
+
+class AMS_Timeseries_lev02(_timeseries.TimeSeries):
+
+    def calculate_kappa(self):
+        return _mixing_rules.zdanovskii_stokes_robinson(self.data, which = 'kappa_chem')
+
+    def calculate_refractive_index(self):
+        return _mixing_rules.zdanovskii_stokes_robinson(self.data, which = 'refractive_Index')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

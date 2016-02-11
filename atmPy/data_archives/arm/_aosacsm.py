@@ -34,7 +34,7 @@ class ArmDatasetSub(ArmDataset):
         # out['mass_concentrations'] = timeseries.TimeSeries(mass_concentrations)
         # out['Organic mass spectral matrix'] = timeseries.TimeSeries_2D(org_mx)
 
-        self.mass_concentrations = AMS.AMS_Timeseries(mass_concentrations)
+        self.mass_concentrations = AMS.AMS_Timeseries_lev01(mass_concentrations)
         self.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(org_mx)
         return
 
@@ -44,6 +44,18 @@ class ArmDatasetSub(ArmDataset):
             self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
         return self.__mass_concentration_corr
 
+    @property
+    def kappa(self):
+        if '__kappa' not in dir(self):
+            self.__kappa = self.mass_concentration_corr.calculate_kappa()
+        return self.__kappa
+
+    @property
+    def refractive_index(self):
+        if '__refractive_index' not in dir(self):
+            self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
+        return self.__refractive_index
+
     def plot_all(self):
         self.mass_concentrations.plot()
         self.organic_mass_spectral_matrix.plot()
@@ -51,7 +63,7 @@ class ArmDatasetSub(ArmDataset):
 def _concat_rules(arm_data_objs):
     # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.mass_concentrations = AMS.AMS_Timeseries(
+    out.mass_concentrations = AMS.AMS_Timeseries_lev01(
         pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
     out.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
 
