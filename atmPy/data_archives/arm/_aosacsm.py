@@ -6,6 +6,9 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+        self.__kappa = None
+        self.__mass_concentration_corr = None
+        self.__refractive_index = None
 
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()
@@ -40,19 +43,19 @@ class ArmDatasetSub(ArmDataset):
 
     @property
     def mass_concentration_corr(self):
-        if '__mass_concentration_corr' not in dir(self):
+        if self.__mass_concentration_corr is None:
             self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
         return self.__mass_concentration_corr
 
     @property
     def kappa(self):
-        if '__kappa' not in dir(self):
+        if self.__kappa is None:
             self.__kappa = self.mass_concentration_corr.calculate_kappa()
         return self.__kappa
 
     @property
     def refractive_index(self):
-        if '__refractive_index' not in dir(self):
+        if self.__refractive_index is None:
             self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
         return self.__refractive_index
 
