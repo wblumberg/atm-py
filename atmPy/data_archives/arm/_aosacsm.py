@@ -1,5 +1,6 @@
 import pandas as pd
 from atmPy.general import timeseries
+from atmPy.aerosols.instruments.AMS import AMS
 from atmPy.data_archives.arm._netCDF import ArmDataset
 
 class ArmDatasetSub(ArmDataset):
@@ -33,9 +34,15 @@ class ArmDatasetSub(ArmDataset):
         # out['mass_concentrations'] = timeseries.TimeSeries(mass_concentrations)
         # out['Organic mass spectral matrix'] = timeseries.TimeSeries_2D(org_mx)
 
-        self.mass_concentrations = timeseries.TimeSeries(mass_concentrations)
+        self.mass_concentrations = AMS.AMS_Timeseries(mass_concentrations)
         self.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(org_mx)
         return
+
+    @property
+    def mass_concentration_corr(self):
+        if '__mass_concentration_corr' not in dir(self):
+            self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
+        return self.__mass_concentration_corr
 
     def plot_all(self):
         self.mass_concentrations.plot()
@@ -44,7 +51,7 @@ class ArmDatasetSub(ArmDataset):
 def _concat_rules(arm_data_objs):
     # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.mass_concentrations = timeseries.TimeSeries(
+    out.mass_concentrations = AMS.AMS_Timeseries(
         pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
     out.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
 
