@@ -4,6 +4,7 @@ from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _n
 import pandas as _pd
 import pylab as _plt
 import warnings
+import pdb as _pdb
 
 arm_products = {'tdmasize':   {'module': _tdmasize},
                 'tdmaapssize':{'module': _tdmaapssize},
@@ -110,7 +111,11 @@ def read_cdf(fname,
 
     # list or single file
     if type(fname) == str:
-        fname = [fname]
+        if fname[-1] == '/':
+            f = _os.listdir(fname)
+            fname = [fname + i for i in f]
+        else:
+            fname = [fname]
 
     if len(fname) > 1 and leave_cdf_open:
         txt = "leave_cdf_open can only be true if the number of files is one ... leave_cdf_open = False"
@@ -127,6 +132,7 @@ def read_cdf(fname,
             print('\n', f)
 
         # error handling: test for netCDF file format
+        # _pdb.set_trace()
         if _os.path.splitext(f)[-1] != '.cdf':
             txt = '\t %s is not a netCDF file ... skipping'%f
             if verbose:
@@ -205,8 +211,8 @@ def _is_in_product_keys(f, ignore_unknown,verbose):
 
 
     if product_id not in arm_products.keys():
-        product_id = False
         txt = 'Platform id %s is unknown.'%product_id
+        product_id = False
         if ignore_unknown:
             if verbose:
                 print(txt + '... skipping')
