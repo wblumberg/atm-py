@@ -240,6 +240,24 @@ class SizeDist(object):
     @index_of_refraction.setter
     def index_of_refraction(self,n):
         # if not self.__index_of_refraction:
+        if type(n).__name__ in ('int','float'):
+            pass
+        elif type(n).__name__  in ('TimeSeries'):
+            n = n.data
+
+        if type(n).__name__ in ('DataFrame', 'ndarray'):
+            if n.shape[0] != self.data.shape[0]:
+                txt = """\
+Length of new array has to be the same as that of the size distribution. Use
+sizedistribution.align to align the new array to the appropriate length"""
+                raise ValueError(txt)
+
+            if not _np.array_equal(self.data.index, n.index):
+                txt = """\
+The index of the new DataFrame has to the same as that of the size distribution. Use
+sizedistribution.align to align the index of the new array."""
+                raise ValueError(txt)
+
         self.__index_of_refraction = n
         # elif self.__index_of_refraction:
         #     txt = """Security stop. This is to prevent you from unintentionally changing this value.
