@@ -59,7 +59,7 @@ def _read_file(fname):
 
     data.sort_index(inplace=True)
 
-    return time_series.TimeSeries(data, {'original header': header})
+    return timeseries.TimeSeries(data, {'original header': header})
 
 
 def read_csv(fname):
