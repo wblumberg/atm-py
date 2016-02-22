@@ -24,6 +24,8 @@ class ArmDatasetSub(ArmDataset):
 
         self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
 
+        # conc = self.read_variable()
+
     def plot_all(self):
         self.size_distribution.plot()
 
