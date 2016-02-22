@@ -389,9 +389,9 @@ class SizeDist(object):
 
     # todo: this function appears multiple times, can easily be inherited
     def calculate_optical_properties(self, wavelength, n = None, AOD = False, noOfAngles=100):
-        if not n:
+        if not _np.any(n):
             n = self.index_of_refraction
-        if not n:
+        if not _np.any(n):
             txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
             raise ValueError(txt)
         out = optical_properties.size_dist2optical_properties(self, wavelength, n, aod = AOD, noOfAngles=noOfAngles)
