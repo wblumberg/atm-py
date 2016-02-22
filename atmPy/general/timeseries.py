@@ -58,6 +58,9 @@ class TimeSeries(object):
     def data(self, data):
         self.__data = data
 
+    def algin_to(self, ts_other):
+        return align_to(self, ts_other)
+
     def merge(self, ts):
         return merge(self,ts)
 
@@ -200,7 +203,7 @@ class TimeSeries_3D(TimeSeries):
 
 
 #### Tools
-def merge(ts_orig, ts):
+def merge(ts, ts_other):
     """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
     one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
 
@@ -216,12 +219,33 @@ def merge(ts_orig, ts):
     TimeSeries object or one of its subclasses
 
     """
-    ts_this = ts_orig.copy()
-    ts_data_list = [ts_this.data, ts.data]
+    ts_this = ts.copy()
+    ts_data_list = [ts_this.data, ts_other.data]
     catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
+
+def align_to(ts, ts_other):
+    """
+    Align the TimeSeries ts to another time_series by interpolating (linearly).
+
+    Parameters
+    ----------
+    ts: original time series
+    ts_other: timeseries to align to
+
+    Returns
+    -------
+    timeseries eqivalent to the original but with an index aligned to the other
+    """
+    ts = ts.copy()
+    ts_other = ts_other.copy()
+    ts_other.data = ts_other.data.loc[:,[]]
+    ts_t =  merge(ts_other, ts)
+    ts.data = ts_t.data
+    return ts
+
 
 # Todo: revive following as needed
 # def get_sun_position(self):
