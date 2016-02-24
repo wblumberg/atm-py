@@ -8,11 +8,11 @@ def kappa_simple(k,RH, n = None, inverse = False):
     Patters and Kreidenweis (2007).
 
     Petters, M. D., & Kreidenweis, S. M. (2007). A single parameter representation of hygroscopic
-    growth and cloud condensation nucleus activity, 1961–1971. doi:10.5194/acp-7-1961-2007
+    growth and cloud condensation nucleus activity, 1961-1971. doi:10.5194/acp-7-1961-2007
 
     Rissler, J., Vestin, A., Swietlicki, E., Fisch, G., Zhou, J., Artaxo, P., & Andreae, M. O. (2005).
     Size distribution and hygroscopic properties of aerosol particles from dry-season biomass burning
-    in Amazonia. Atmospheric Chemistry and Physics Discussions, 5(5), 8149–8207. doi:10.5194/acpd-5-8149-2005
+    in Amazonia. Atmospheric Chemistry and Physics Discussions, 5(5), 8149-8207. doi:10.5194/acpd-5-8149-2005
 
     latex expression: $\sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}$
 
