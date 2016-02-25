@@ -1,18 +1,17 @@
 __author__ = 'htelg'
 
-from copy import deepcopy
+from copy import deepcopy as _deepcopy
 
-import numpy as np
 import pandas as pd
 import pylab as plt
-from geopy.distance import vincenty
-from mpl_toolkits.basemap import Basemap
-from mpl_toolkits.mplot3d import Axes3D
-from atmPy.tools import pandas_tools
 
-from atmPy.radiation import solar
+from atmPy.tools import pandas_tools
 from atmPy.tools import time_tools
 
+# from geopy.distance import vincenty
+# from mpl_toolkits.basemap import Basemap
+# from mpl_toolkits.mplot3d import Axes3D
+# from atmPy.radiation import solar
 
 def load_csv(fname):
     """Loads the dat of a saved timesereis instance and creates a new TimeSeries instance
@@ -49,6 +48,8 @@ class TimeSeries(object):
     def __init__(self, data, info=None):
         self.__data = data
         self.info = info
+        self._y_label = None
+        self._x_label = 'Time'
 
     @property
     def data(self):
@@ -58,6 +59,28 @@ class TimeSeries(object):
     def data(self, data):
         self.__data = data
 
+    def average_overTime(self, window='1S'):
+        """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
+
+        Arguments
+        ---------
+        window: str ['1S']. Optional
+            window over which to average. For aliases see
+            http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+
+        Returns
+        -------
+        SizeDistribution_TS instance
+            copy of current instance with resampled data frame
+        """
+
+        ts = self.copy()
+        window = window
+        ts.data = ts.data.resample(window, closed='right', label='right')
+
+        return ts
+
+
     def algin_to(self, ts_other):
         return align_to(self, ts_other)
 
@@ -65,9 +88,9 @@ class TimeSeries(object):
         return merge(self,ts)
 
     def copy(self):
-        return deepcopy(self)
+        return _deepcopy(self)
 
-    def plot(self, **kwargs):
+    def plot(self, ax = None, legend = True, **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -77,8 +100,22 @@ class TimeSeries(object):
         -------
         list of matplotlib axes object """
 
-        axes = self.data.plot(**kwargs)
-        return axes
+        # a = self.data.plot(**kwargs)
+        if not ax:
+            f,ax = plt.subplots()
+        else:
+            f = ax.get_figure()
+
+        for k in self.data.keys():
+            ax.plot(self.data.index, self.data[k].values, label = k, **kwargs)
+
+        ax.set_xlabel(self._x_label)
+        ax.set_ylabel(self._y_label)
+        if len(self.data.keys()) > 1:
+            ax.legend()
+        f.autofmt_xdate()
+
+        return ax
 
     def zoom_time(self, start=None, end=None, copy=True):
         """ Selects a strech of time from a housekeeping instance.
