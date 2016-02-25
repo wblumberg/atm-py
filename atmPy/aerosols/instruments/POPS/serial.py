@@ -47,7 +47,8 @@ def read_radiosonde_csv(fname, cal):
     hk = timeseries.TimeSeries(hk)
     hk.data.sort_index(inplace=True)
     hk.data.Altitude.interpolate(inplace=True)
-
+    hk.data['temperature_K'] = hk.data['iMet_air_temperature_(corrected)_[deg_C]'] + 273.15
+    hk.data['pressure_Pa'] = hk.data['iMet_pressure_[mb]'] * 100
 #     fname_cal = '/Users/htelg/data/POPS_calibrations/150622_china_UAV.csv'
     cal = calibration.read_csv(cal)
     ib = cal.get_interface_bins(20)
