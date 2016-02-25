@@ -5,19 +5,22 @@ import pylab as plt
 from matplotlib.colors import LogNorm
 
 from atmPy.tools import plt_tools, math_functions, array_tools
-# from atmPy import timeseries
+from atmPy.tools import pandas_tools as _panda_tools
+from atmPy.general import timeseries as _timeseries
+from atmPy.general import vertical_profile as _vertical_profile
 import pandas as pd
 import warnings as _warnings
 import datetime
-# from atmPy.mie import bhmie
 import scipy.optimize as optimization
-# from scipy import integrate
 from scipy import stats
 from atmPy.general import vertical_profile
 from atmPy.aerosols.physics import hygroscopic_growth as hg, optical_properties
 from atmPy.tools import pandas_tools
 from atmPy.aerosols.physics import optical_properties
 from atmPy.aerosols.size_distribution import sizedist_moment_conversion
+from atmPy.gases import physics as _gas_physics
+
+import pdb
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
@@ -194,15 +197,28 @@ class SizeDist(object):
         self.bins = bins
         self.__index_of_refraction = None
         self.__growth_factor = None
+        self.__particle_number_concentration = None
+        self.__particle_mass_concentration = None
+        self.__housekeeping = None
+        self.physical_property_density = None
         # if type(bincenters) == np.ndarray:
         #     self.bincenters = bincenters
         # else:
         #     self.bincenters = (bins[1:] + bins[:-1]) / 2.
         # self.binwidth = (bins[1:] - bins[:-1])
         self.distributionType = distType
+        self._update()
+
         if fixGaps:
             self.fillGaps()
 
+    @property
+    def housekeeping(self):
+        return self.__housekeeping
+
+    @housekeeping.setter
+    def housekeeping(self, value):
+        self.__housekeeping = value.algin_to(self)
 
     @property
     def bins(self):
@@ -268,6 +284,81 @@ sizedistribution.align to align the index of the new array."""
     @property
     def growth_factor(self):
         return self.__growth_factor
+
+    @property
+    def particle_number_concentration(self):
+        if not _np.any(self.__particle_number_concentration) or not self._uptodate_particle_number_concentration:
+            self.__particle_number_concentration = self._get_particle_concentration()
+        return self.__particle_number_concentration
+
+    @property
+    def particle_mass_concentration(self):
+        if not _np.any(self.__particle_mass_concentration) or not self._uptodate_particle_mass_concentration:
+            self.__particle_mass_concentration = self._get_mass_concentration()
+            self._uptodate_particle_mass_concentration = True
+        return self.__particle_mass_concentration
+
+    @property
+    def particle_mass_mixing_ratio(self):
+        raise AttributeError('sorry does not exist for a single size distribution')
+
+    def _get_mass_mixing_ratio(self):
+        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$g/m^3$', raise_error=False):
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
+            gas = _gas_physics.Ideal_Gas_Classic()
+            gas.temp = self.housekeeping.data['temperature_K']
+            gas.pressure = self.housekeeping.data['pressure_Pa']
+            self.housekeeping.data['air_density_$g/m^3$'] = gas.density_mass
+
+        mass_conc = self.particle_mass_concentration.data.copy() #ug/m^3
+        mass_conc = mass_conc.iloc[:,0]
+        mass_conc *= 1e-6 #g/m^3
+        mass_mix = mass_conc / (self.housekeeping.data['air_density_$g/m^3$'] - mass_conc)
+        return mass_mix
+
+    @property
+    def particle_number_mixing_ratio(self):
+        raise AttributeError('sorry does not exist for a single size distribution')
+
+    def _get_number_mixing_ratio(self):
+        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$number/m^3$', raise_error=False):
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
+            gas = _gas_physics.Ideal_Gas_Classic()
+            gas.temp = self.housekeeping.data['temperature_K']
+            gas.pressure = self.housekeeping.data['pressure_Pa']
+            self.housekeeping.data['air_density_$number/m^3$'] = gas.density_number
+
+
+        numb_conc = self.particle_number_concentration.data.copy() # number/cc
+        numb_conc = numb_conc.iloc[:,0]
+        numb_conc *= 1e6 #number/m^3
+        numb_mix = numb_conc/ (self.housekeeping.data['air_density_$number/m^3$'] - numb_conc)
+
+        return numb_mix
+
+    def _get_mass_concentration(self):
+        """'Mass concentration ($\mu g/m^{3}$)'"""
+        dist = self.convert2dVdDp()
+        volume_conc = dist.data * dist.binwidth
+
+        vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
+
+        if not self.physical_property_density:
+            raise ValueError('Please set the physical_property_density variable in g/cm^3')
+
+        try:
+            density = self.physical_property_density.copy() #1.8 # g/cm^3
+        except:
+            density = self.physical_property_density #1.8 # g/cm^3
+
+        density *= 1e-21 # g/nm^3
+
+        mass_conc = vlc_all * density # g/cm^3
+        mass_conc *= 1e6 # g/m^3
+        mass_conc *= 1e6 # mug/m^3
+        return mass_conc
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
@@ -492,7 +583,7 @@ sizedistribution.align to align the index of the new array."""
         return self.data_fit_normal
 
 
-    def get_particle_concentration(self):
+    def _get_particle_concentration(self):
         """ Returns the sum of particles per line in data
 
         Returns
@@ -506,7 +597,8 @@ sizedistribution.align to align the index of the new array."""
         if sd.data.shape[0] == 1:
             return particles[0]
         else:
-            df = pd.DataFrame(particles, index=sd.data.index, columns=['Count_rate'])
+            df = pd.DataFrame(particles, index=sd.data.index, columns=['Particle number concentration #/$cm^3$'])
+            df = df.drop_duplicates()
             return df
 
     def plot(self,
@@ -660,11 +752,15 @@ sizedistribution.align to align the index of the new array."""
             endIdx = len(self.bincenters)
         sd.data = self.data.iloc[:, startIdx:endIdx]
         sd.bins = self.bins[startIdx:endIdx + 1]
-
+        self._update()
         return sd
 
     def _convert2otherDistribution(self, distType, verbose=False):
         return sizedist_moment_conversion.convert(self, distType, verbose = verbose)
+
+    def _update(self):
+        self._uptodate_particle_number_concentration = False
+        self._uptodate_particle_mass_concentration = False
 
 
 class SizeDist_TS(SizeDist):
@@ -687,8 +783,19 @@ class SizeDist_TS(SizeDist):
        """
     def __init__(self, *args, **kwargs):
         super(SizeDist_TS,self).__init__(*args,**kwargs)
+        self.__particle_number_concentration = None
+        self.__particle_mass_concentration = None
+        self.__particle_mass_mixing_ratio = None
+        self.__particle_number_mixing_ratio = None
+        self._update()
         if not self.data.index.name:
             self.data.index.name = 'Time'
+
+    def _update(self):
+        self._uptodate_particle_number_concentration = False
+        self._uptodate_particle_mass_concentration = False
+        self._uptodate_particle_mass_mixing_ratio = False
+        self._uptodate_particle_number_mixing_ratio = False
 
     def fit_normal(self, log=True, p0=[10, 180, 0.2]):
         """ Fits a single normal distribution to each line in the data frame.
@@ -826,42 +933,42 @@ class SizeDist_TS(SizeDist):
         f.autofmt_xdate()
         return f, a, a2
 
-    def plot_particle_concentration(self, ax=None, label=None):
-        """Plots the particle rate as a function of time.
-
-        Parameters
-        ----------
-        ax: matplotlib.axes instance, optional
-            perform plot on these axes.
-
-        Returns
-        -------
-        matplotlib.axes instance
-
-        """
-
-        if type(ax).__name__ in _axes_types:
-            color = plt_tools.color_cycle[len(ax.get_lines())]
-            f = ax.get_figure()
-        else:
-            f, ax = plt.subplots()
-            color = plt_tools.color_cycle[0]
-
-        # layers = self.convert2numberconcentration()
-
-        particles = self.get_particle_concentration().dropna()
-
-        ax.plot(particles.index.values, particles.Count_rate.values, color=color, linewidth=2)
-
-        if label:
-            ax.get_lines()[-1].set_label(label)
-            ax.legend()
-
-        ax.set_xlabel('Time (UTC)')
-        ax.set_ylabel('Particle number concentration (cm$^{-3})$')
-        if particles.index.dtype.type.__name__ == 'datetime64':
-            f.autofmt_xdate()
-        return ax
+    # def plot_particle_concentration(self, ax=None, label=None):
+    #     """Plots the particle rate as a function of time.
+    #
+    #     Parameters
+    #     ----------
+    #     ax: matplotlib.axes instance, optional
+    #         perform plot on these axes.
+    #
+    #     Returns
+    #     -------
+    #     matplotlib.axes instance
+    #
+    #     """
+    #
+    #     if type(ax).__name__ in _axes_types:
+    #         color = plt_tools.color_cycle[len(ax.get_lines())]
+    #         f = ax.get_figure()
+    #     else:
+    #         f, ax = plt.subplots()
+    #         color = plt_tools.color_cycle[0]
+    #
+    #     # layers = self.convert2numberconcentration()
+    #
+    #     particles = self.get_particle_concentration().dropna()
+    #
+    #     ax.plot(particles.index.values, particles.Count_rate.values, color=color, linewidth=2)
+    #
+    #     if label:
+    #         ax.get_lines()[-1].set_label(label)
+    #         ax.legend()
+    #
+    #     ax.set_xlabel('Time (UTC)')
+    #     ax.set_ylabel('Particle number concentration (cm$^{-3})$')
+    #     if particles.index.dtype.type.__name__ == 'datetime64':
+    #         f.autofmt_xdate()
+    #     return ax
 
     def zoom_time(self, start=None, end=None):
         """
@@ -869,6 +976,9 @@ class SizeDist_TS(SizeDist):
         """
         dist = self.copy()
         dist.data = dist.data.truncate(before=start, after=end)
+        dist.housekeeping = self.housekeeping.zoom_time(start=start, end=end)
+
+        dist._update()
         return dist
 
 
@@ -892,6 +1002,11 @@ class SizeDist_TS(SizeDist):
         dist.data = dist.data.resample(window, closed='right', label='right')
         if dist.distributionType == 'calibration':
             dist.data.values[_np.where(_np.isnan(self.data.values))] = 0
+
+        dist.housekeeping = self.housekeeping.average_overTime(window = window)
+
+
+        dist._update()
         return dist
 
     def average_overAllTime(self):
@@ -906,7 +1021,7 @@ class SizeDist_TS(SizeDist):
 
         data = pd.DataFrame(_np.array([singleHist]), columns=self.data.columns)
         avgDist = SizeDist(data, self.bins, self.distributionType)
-
+        self._update()
         return avgDist
 
     def convert2layerseries(self, hk, layer_thickness=10, force=False):
@@ -964,11 +1079,63 @@ know what you are doing'''
             grouped = data.groupby(level = 0)
             data = grouped.last()
 
-        lays.housekeeping = data
+        # lays.housekeeping = data
         data = data.reindex(lays.layercenters,method = 'nearest')
         lays.housekeeping = vertical_profile.VerticalProfile(data)
         return lays
 
+    @property
+    def particle_number_concentration(self):
+        if not _np.any(self.__particle_number_concentration) or not self._uptodate_particle_number_concentration:
+            self.__particle_number_concentration = _timeseries.TimeSeries(self._get_particle_concentration())
+            self.__particle_number_concentration._y_label = 'Particle number concentration #/$cm^3$'
+            self.__particle_number_concentration._x_label = 'Time'
+            self._uptodate_particle_number_concentration = True
+        return self.__particle_number_concentration
+
+    @property
+    def particle_mass_concentration(self):
+        if not _np.any(self.__particle_mass_concentration) or not self._uptodate_particle_mass_concentration:
+            mass_conc = self._get_mass_concentration()
+            mass_conc = pd.DataFrame(mass_conc, columns = ['Mass concentration ($\mu g/m^{3}$)'])
+            self.__particle_mass_concentration = _timeseries.TimeSeries(mass_conc)
+            self.__particle_mass_concentration._y_label = 'Mass concentration ($\mu g/m^{3}$)'
+            self.__particle_mass_concentration._x_label =  'Time'
+
+            self._uptodate_particle_mass_concentration = True
+        return self.__particle_mass_concentration
+
+    @property
+    def particle_mass_mixing_ratio(self):
+        if not _np.any(self.__particle_mass_mixing_ratio) or not self._uptodate_particle_mass_mixing_ratio:
+            mass_mix = self._get_mass_mixing_ratio()
+            # pdb.set_trace()
+            ylabel = 'Particle mass mixing ratio'
+            mass_mix = pd.DataFrame(mass_mix)
+            # pdb.set_trace()
+            self.__particle_mass_mixing_ratio = _timeseries.TimeSeries(mass_mix)
+            # pdb.set_trace()
+            self.__particle_mass_mixing_ratio._y_label = ylabel
+            self.__particle_mass_mixing_ratio._x_label = 'Time'
+            self._uptodate_particle_mass_mixing_ratio = True
+        # pdb.set_trace()
+        return self.__particle_mass_mixing_ratio
+
+    @property
+    def particle_number_mixing_ratio(self):
+        if not _np.any(self.__particle_number_mixing_ratio) or not self._uptodate_particle_number_mixing_ratio:
+            number_mix = self._get_number_mixing_ratio()
+            # pdb.set_trace()
+            ylabel = 'Particle number mixing ratio'
+            number_mix = pd.DataFrame(number_mix)
+            # pdb.set_trace()
+            self.__particle_number_mixing_ratio = _timeseries.TimeSeries(number_mix)
+            # pdb.set_trace()
+            self.__particle_number_mixing_ratio._y_label = ylabel
+            self.__particle_number_mixing_ratio._x_label = 'Time'
+            self._uptodate_particle_number_mixing_ratio = True
+        # pdb.set_trace()
+        return self.__particle_number_mixing_ratio
 
 class SizeDist_LS(SizeDist):
     """
@@ -1004,6 +1171,19 @@ class SizeDist_LS(SizeDist):
         else:
             self.layerbounderies = layerbounderies
 
+        self.__particle_number_concentration = None
+        self.__particle_mass_concentration = None
+        self.__particle_mass_mixing_ratio = None
+        self.__particle_number_mixing_ratio = None
+        self._update()
+
+    def _update(self):
+        self._uptodate_particle_number_concentration = False
+        self._uptodate_particle_mass_concentration = False
+        self._uptodate_particle_mass_mixing_ratio = False
+        self._uptodate_particle_number_mixing_ratio = False
+
+
     @property
     def layercenters(self):
         return self.__layercenters
@@ -1019,6 +1199,62 @@ class SizeDist_LS(SizeDist):
         # self.__layercenters = (newlb[1:] + newlb[:-1]) / 2.
         self.__layercenters = (self.layerbounderies[:,0] + self.layerbounderies[:,1]) / 2.
         self.data.index = self.layercenters
+
+
+    @property
+    def particle_number_concentration(self):
+        if not _np.any(self.__particle_number_concentration) or not self._uptodate_particle_number_concentration:
+            self.__particle_number_concentration = _vertical_profile.VerticalProfile(self._get_particle_concentration())
+            self.__particle_number_concentration._x_label = 'Particle number concentration (#/$cm^3#)'
+            self._uptodate_particle_number_concentration = True
+        return self.__particle_number_concentration
+
+    @property
+    def particle_mass_concentration(self):
+        if not _np.any(self.__particle_mass_concentration) or not self._uptodate_particle_mass_concentration:
+            mass_conc = self._get_mass_concentration()
+            mass_conc = pd.DataFrame(mass_conc, columns = ['Mass concentration ($\mu g/m^{3}$)'])
+            self.__particle_mass_concentration = _vertical_profile.VerticalProfile(mass_conc)
+            self.__particle_mass_concentration._x_label = 'Mass concentration ($\mu g/m^{3}$)'
+            self.__particle_mass_concentration._y_label =  'Altitde'
+
+            self._uptodate_particle_mass_concentration = True
+        return self.__particle_mass_concentration
+
+    @property
+    def particle_mass_mixing_ratio(self):
+        if not _np.any(self.__particle_mass_mixing_ratio) or not self._uptodate_particle_mass_mixing_ratio:
+            mass_mix = self._get_mass_mixing_ratio()
+            # pdb.set_trace()
+            ylabel = 'Particle mass mixing ratio'
+            mass_mix = pd.DataFrame(mass_mix, columns = [ylabel])
+            # pdb.set_trace()
+            self.__particle_mass_mixing_ratio = _vertical_profile.VerticalProfile(mass_mix)
+
+            self.__particle_mass_mixing_ratio.data.index.name = 'Altitude'
+            # pdb.set_trace()
+            self.__particle_mass_mixing_ratio._x_label = ylabel
+            self.__particle_mass_mixing_ratio._y_label = 'Altitude'
+            self._uptodate_particle_mass_mixing_ratio = True
+        # pdb.set_trace()
+        return self.__particle_mass_mixing_ratio
+
+    @property
+    def particle_number_mixing_ratio(self):
+        if not _np.any(self.__particle_number_mixing_ratio) or not self._uptodate_particle_number_mixing_ratio:
+            number_mix = self._get_number_mixing_ratio()
+            # pdb.set_trace()
+            ylabel = 'Particle number mixing ratio'
+            number_mix = pd.DataFrame(number_mix, columns = [ylabel])
+            # pdb.set_trace()
+            self.__particle_number_mixing_ratio = _vertical_profile.VerticalProfile(number_mix)
+            # pdb.set_trace()
+            self.__particle_number_mixing_ratio.data.index.name = 'Altitude'
+            self.__particle_number_mixing_ratio._x_label = ylabel
+            self.__particle_number_mixing_ratio._y_label = 'Altitude'
+            self._uptodate_particle_number_mixing_ratio = True
+        # pdb.set_trace()
+        return self.__particle_number_mixing_ratio
 
     def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
@@ -1423,7 +1659,8 @@ class SizeDist_LS(SizeDist):
 
 
     def average_overAltitude(self, window='1S'):
-        print('need fixn')
+        print('need fixn. Work around: generate dist_LS using a different resolution')
+        self._update()
         return False
 
     #        window = window
@@ -1438,6 +1675,7 @@ class SizeDist_LS(SizeDist):
     def average_overAllAltitudes(self):
         dataII = self.data.mean(axis=0)
         out = pd.DataFrame(dataII).T
+        self._update()
         return SizeDist(out, self.bins, self.distributionType)
 
 
@@ -1494,6 +1732,7 @@ def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, center
         cols.append(str(i) + '-' + str(binEdges[e + 1]))
 
     data = pd.DataFrame(_np.array([NumberConcent / diameterBinwidth]), columns=cols)
+
     return SizeDist(data, binEdges, 'dNdDp')
 
 
@@ -1517,6 +1756,7 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
                                           centerOfAerosolMode=centerOfAerosolMode + (ampOfOsz * _np.sin(oszi[e])))
         sdArray[e] = sdtmp.data
     sdts = pd.DataFrame(sdArray, index=rng, columns=sdtmp.data.columns)
+
     return SizeDist_TS(sdts, sdtmp.bins, sdtmp.distributionType)
 
 
