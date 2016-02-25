@@ -2,7 +2,7 @@ import numpy as np
 import pylab as plt
 
 
-def ensure_column_exists(df, col_name, col_alt = False):
+def ensure_column_exists(df, col_name, col_alt = False, raise_error = True):
     """Checks if a particular name is among the column names of a dataframe. Alternative names can be given, which when
     found will be changed to the desired name. The DataFrame will be changed in place. If no matching name is found an
     AttributeError is raised.
@@ -14,6 +14,7 @@ def ensure_column_exists(df, col_name, col_alt = False):
         list of aternative names to look for
 
     """
+    out = True
     if col_name not in df.columns:
         renamed = False
         if col_alt:
@@ -27,8 +28,10 @@ def ensure_column_exists(df, col_name, col_alt = False):
             txt = 'Column %s not found.'%col_name
             if col_alt:
                 txt += 'Neither one of the alternatives: %s'(col_alt)
-            raise AttributeError(txt)
-    return
+            out = False
+            if raise_error:
+                raise AttributeError(txt)
+    return out
 
 def plot_dataframe_meshgrid(df, xaxis = 0, ax = None):
     axes_list = [df.index, df.columns]
