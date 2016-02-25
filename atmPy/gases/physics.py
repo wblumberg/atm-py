@@ -2,9 +2,18 @@ from scipy import constants as _const
 import numpy as _np
 
 class Ideal_Gas_Classic(object):
+    """units:
+        pressure:           Pa
+        temp:               K
+        density_mass:       g/m^3
+        density_molar:      mol/m^3
+        density_molecule:   number/m^3
+    """
+
     def __init__(self):
         self.updated()
-        self.R = _const.physical_constants['molar gas constant'][0]
+        self.R = _const.physical_constants['molar gas constant']
+        self.N_a = _const.physical_constants['Avogadro constant']
         self.molecular_mass_air = 28.966
  #g/mol
 
@@ -16,6 +25,7 @@ class Ideal_Gas_Classic(object):
 
         self.__density_molar = None
         self.__density_mass = None
+        self.__density_number = None
 
     @property
     def density_mass(self):
@@ -26,7 +36,7 @@ class Ideal_Gas_Classic(object):
     @property
     def density_molar(self):
         if not _np.any(self.__density_molar):
-            self.__density_molar = self.__pressure / (self.R * self.__temp)
+            self.__density_molar = self.__pressure / (self.R[0] * self.__temp)
         return self.__density_molar
 
     @density_molar.setter
@@ -34,9 +44,19 @@ class Ideal_Gas_Classic(object):
         self.__density_molar = value
 
     @property
+    def density_number(self):
+        if not _np.any(self.__density_number):
+            self.__density_number = self.density_molar * self.N_a[0]
+        return self.__density_number
+
+    @density_number.setter
+    def density_number(self, value):
+        self.__density_number = value
+
+    @property
     def pressure(self):
         if not _np.any(self.__pressure):
-            self.__pressure = self.__n_mole * self.R * self.__temp / self.__volume
+            self.__pressure = self.__n_mole * self.R[0] * self.__temp / self.__volume
         return self.__pressure
     @pressure.setter
     def pressure(self,value):
@@ -45,7 +65,7 @@ class Ideal_Gas_Classic(object):
     @property
     def n_mole(self):
         if not _np.any(self.__n_mole):
-            self.__n_mole = self.__pressure / (self.R * self.__temp / self.__volume)
+            self.__n_mole = self.__pressure / (self.R[0] * self.__temp / self.__volume)
         return self.__n_mole
 
     @n_mole.setter
