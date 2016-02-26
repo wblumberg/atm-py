@@ -46,7 +46,9 @@ class TimeSeries(object):
     """
 
     def __init__(self, data, info=None):
-        self.__data = data
+        # if not type(data).__name__ == 'DataFrame':
+        #     raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
+        self.data = data
         self.info = info
         self._y_label = None
         self._x_label = 'Time'
@@ -57,6 +59,8 @@ class TimeSeries(object):
 
     @data.setter
     def data(self, data):
+        if not type(data).__name__ == 'DataFrame':
+            raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%type(data).__name__)
         self.__data = data
 
     def average_overTime(self, window='1S'):
@@ -81,7 +85,7 @@ class TimeSeries(object):
         return ts
 
 
-    def algin_to(self, ts_other):
+    def align_to(self, ts_other):
         return align_to(self, ts_other)
 
     def merge(self, ts):
@@ -228,6 +232,17 @@ class TimeSeries_3D(TimeSeries):
     """
     def __init__(self, *args):
         super(TimeSeries_3D,self).__init__(*args)
+
+
+    @property
+    def data(self):
+        return self.__data
+
+    @data.setter
+    def data(self, data):
+        if not type(data).__name__ == 'Panel':
+            raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%type(data).__name__)
+        self.__data = data
 
     def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwargs = {}):
 

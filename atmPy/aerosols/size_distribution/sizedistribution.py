@@ -218,7 +218,7 @@ class SizeDist(object):
 
     @housekeeping.setter
     def housekeeping(self, value):
-        self.__housekeeping = value.algin_to(self)
+        self.__housekeeping = value.align_to(self)
 
     @property
     def bins(self):
@@ -372,43 +372,111 @@ sizedistribution.align to align the index of the new array."""
         if not self.index_of_refraction:
             txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
             raise ValueError(txt)
+
+
         # out_I = {}
-        dist_g = self.copy()
-        dist_g.convert2numberconcentration()
+        dist_g = self.convert2numberconcentration()
+
 
         gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
-        # out_I['growth_factor'] = gf
+
         if how == 'shift_bins':
             if not isinstance(gf, (float,int)):
                 txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
                 It is %s'''%(type(RH).__name__)
                 raise TypeError(txt)
 
-            dist_g.bins = dist_g.bins * gf
+        dist_g = dist_g.apply_growth(gf, how = how)
+
+        # out_I['growth_factor'] = gf
+        if how == 'shift_bins':
             dist_g.__index_of_refraction = n_mix
         elif how == 'shift_data':
-            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0],dist_g.bins,gf.max())
+        #     test = dist_g._hygro_growht_shift_data(dist_g.data.values[0],dist_g.bins,gf.max())
+        #     bin_num = test['data'].shape[0]
+        #     data_new = _np.zeros((dist_g.data.shape[0],bin_num))
+        #     for e,i in enumerate(dist_g.data.values):
+        #         out = dist_g._hygro_growht_shift_data(i,dist_g.bins,gf[e])
+        #         dt = out['data']
+        #         diff = bin_num - dt.shape[0]
+        #         dt = _np.append(dt, _np.zeros(diff))
+        #         data_new[e] = dt
+        #     df = pd.DataFrame(data_new)
+        #     df.index = dist_g.data.index
+        #     # return df
+        #     dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
+            df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
+            df.index = dist_g.data.index
+            dist_g.index_of_refraction = df
+        # else:
+        #     txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
+        #     raise ValueError(txt)
+
+        dist_g.__growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
+        # out_I['size_distribution'] = dist_g
+        return dist_g
+
+    def apply_growth(self, growth_factor, how ='auto'):
+        if how == 'auto':
+            if isinstance(growth_factor, (float, int)):
+                how = 'shift_bins'
+            else:
+                how = 'shift_data'
+
+        dist_g = self.convert2numberconcentration()
+
+        if how == 'shift_bins':
+            if not isinstance(growth_factor, (float, int)):
+                txt = '''If how is equal to 'shift_bins' the growth factor has to be of type int or float.
+                It is %s'''%(type(growth_factor).__name__)
+                raise TypeError(txt)
+            dist_g.bins = dist_g.bins * growth_factor
+
+        elif how == 'shift_data':
+            if isinstance(growth_factor, (float, int)):
+                pass
+            elif type(growth_factor).__name__ == 'ndarray':
+                growth_factor = _timeseries.TimeSeries(growth_factor)
+
+            elif type(growth_factor).__name__ == 'Series':
+                growth_factor = _timeseries.TimeSeries(pd.DataFrame(growth_factor))
+
+            elif type(growth_factor).__name__ == 'DataFrame':
+                growth_factor = _timeseries.TimeSeries(growth_factor)
+
+            if type(growth_factor).__name__ == 'TimeSeries':
+                growth_factor = growth_factor.align_to(dist_g)
+            else:
+                txt = 'Make sure type of growthfactor is int,float,TimeSeries, Series or ndarray. It currently is: %s.'%(type(growth_factor).__name__)
+                raise TypeError(txt)
+
+            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, float(growth_factor.data.max()))
             bin_num = test['data'].shape[0]
+            # pdb.set_trace()
             data_new = _np.zeros((dist_g.data.shape[0],bin_num))
+            #todo: it would be nicer to have _hygro_growht_shift_data take the TimeSeries directly
+            growth_factor = growth_factor.data.values.transpose()[0]
             for e,i in enumerate(dist_g.data.values):
-                out = dist_g._hygro_growht_shift_data(i,dist_g.bins,gf[e])
+                out = dist_g._hygro_growht_shift_data(i, dist_g.bins, growth_factor[e])
                 dt = out['data']
                 diff = bin_num - dt.shape[0]
+
+                # print('e', e)
+                # print('growth_factor', growth_factor[e])
+                # print('-----------')
+                # print('bin_num', bin_num)
+                # print('dt.shape[0]', dt.shape[0])
+                # print('diff', diff)
                 dt = _np.append(dt, _np.zeros(diff))
                 data_new[e] = dt
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
-            # return df
             dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-            df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
-            df.index = dist_g.data.index
-            dist_g.index_of_refraction = df
+
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
             raise ValueError(txt)
 
-        dist_g.__growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
-        # out_I['size_distribution'] = dist_g
         return dist_g
 
 
@@ -416,35 +484,44 @@ sizedistribution.align to align the index of the new array."""
         """data: 1D array
         bins: 1D array
         gf: float"""
-        bins = bins.copy()
+        if gf == 1.:
+            out = {}
+            out['bins'] = bins
+            out['data'] = data
+            out['num_extr_bins'] = 0
+            return out
+
+
+        bins_new = bins.copy()
         if _np.any(gf < 1):
             txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
             raise ValueError(txt)
-
-        shifted = bins*gf
-        ml = array_tools.find_closest(bins, shifted, how='closest_low')
-        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+        # pdb.set_trace()
+        shifted = bins_new * gf
+        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
 
         if _np.any((mh - ml) > 1):
             raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
 
-        no_extra_bins = bins[ml].shape[0] - _np.unique(bins[ml]).shape[0] + 1
-
+        # no_extra_bins = bins_new[ml].shape[0] - _np.unique(bins_new[ml]).shape[0] + 1
+        no_extra_bins = bins_new[ml].shape[0] - bins_new[ml][bins_new[ml] != bins_new[ml][-1]].shape[0]
+        # pdb.set_trace()
         ######### Ad bins to shift data into
 
-        last_two = _np.log10(bins[- (no_extra_bins + 1):])
+        last_two = _np.log10(bins_new[- (no_extra_bins + 1):])
         step_width = last_two[-1] - last_two[-2]
         new_bins = _np.zeros(no_extra_bins)
         for i in range(no_extra_bins):
-            new_bins[i] = _np.log10(bins[-1]) + ((i + 1) * step_width)
+            new_bins[i] = _np.log10(bins_new[-1]) + ((i + 1) * step_width)
         newbins = 10**new_bins
-        bins = _np.append(bins,newbins)
-        shifted = (bins * gf)[:-no_extra_bins]
+        bins_new = _np.append(bins_new, newbins)
+        shifted = (bins_new * gf)[:-no_extra_bins]
 
         ######## and again ########################
 
-        ml = array_tools.find_closest(bins, shifted, how='closest_low')
-        mh = array_tools.find_closest(bins, shifted, how='closest_high')
+        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
 
         if _np.any((mh - ml) > 1):
             raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
@@ -454,16 +531,21 @@ sizedistribution.align to align the index of the new array."""
 
         shifted_w = shifted[1:] - shifted[:-1]
 
-        fract_first = (bins[mh] - shifted)[:-1]/shifted_w
-        fract_last = (shifted - bins[ml])[1:]/shifted_w
+        fract_first = (bins_new[mh] - shifted)[:-1] / shifted_w
+        fract_last = (shifted - bins_new[ml])[1:] / shifted_w
 
         data_new = _np.zeros(data.shape[0]+ no_extra_bins)
         data_new[no_extra_bins - 1:-1] += fract_first * data
         data_new[no_extra_bins:] += fract_last * data
 
+        # print('data.shape',data.shape)
+        # print('data_new.shape',data_new.shape)
+
+        # if data_new.shape[0] == 131:
+        # pdb.set_trace()
     #     data = _np.append(data, _np.zeros(no_extra_bins))
         out = {}
-        out['bins'] = bins
+        out['bins'] = bins_new
         out['data'] = data_new
         out['num_extr_bins'] = no_extra_bins
         return out
@@ -810,6 +892,44 @@ class SizeDist_TS(SizeDist):
         self.data_fit_normal.index = self.data.index
         return self.data_fit_normal
 
+
+    def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
+        """ see docstring of atmPy.sizedistribution.SizeDist for more information
+        Parameters
+        ----------
+        kappa: float
+        RH: bool, float, or array.
+            If None, RH from self.housekeeping will be taken"""
+
+        if not _np.any(RH):
+            pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
+            RH = self.housekeeping.data.Relative_humidity.values
+        # return kappa,RH,how
+        sd = super(SizeDist_TS,self).apply_hygro_growth(kappa,RH,how = how)
+        # sd = out['size_distribution']
+        # gf = out['growth_factor']
+        sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
+        sd_TS.index_of_refraction = sd.index_of_refraction
+        sd_TS._SizeDist__growth_factor = sd.growth_factor
+        # out['size_distribution'] = sd_LS
+        return sd_TS
+
+    def apply_growth(self, growth_factor, how='shift_data'):
+        """ see docstring of atmPy.sizedistribution.SizeDist for more information
+        Parameters
+        ----------
+        kappa: float
+        RH: bool, float, or array.
+            If None, RH from self.housekeeping will be taken"""
+
+        sd = super(SizeDist_TS,self).apply_growth(growth_factor,how = how)
+        # sd = out['size_distribution']
+        # gf = out['growth_factor']
+        sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
+        sd_TS.index_of_refraction = sd.index_of_refraction
+        sd_TS._SizeDist__growth_factor = sd.growth_factor
+        # out['size_distribution'] = sd_LS
+        return sd_TS
 
     def _getXYZ(self):
         """
@@ -1269,6 +1389,23 @@ class SizeDist_LS(SizeDist):
             RH = self.housekeeping.data.Relative_humidity.values
         # return kappa,RH,how
         sd = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
+        # sd = out['size_distribution']
+        # gf = out['growth_factor']
+        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
+        sd_LS.index_of_refraction = sd.index_of_refraction
+        sd_LS._SizeDist__growth_factor = sd.growth_factor
+        # out['size_distribution'] = sd_LS
+        return sd_LS
+
+    def apply_growth(self, growth_factor, how='shift_data'):
+        """ see docstring of atmPy.sizedistribution.SizeDist for more information
+        Parameters
+        ----------
+        kappa: float
+        RH: bool, float, or array.
+            If None, RH from self.housekeeping will be taken"""
+
+        sd = super(SizeDist_LS,self).apply_growth(growth_factor,how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
