@@ -1,5 +1,5 @@
 import numpy as np
-import pylab as plt
+import matplotlib.pylab as plt
 
 
 def ensure_column_exists(df, col_name, col_alt = False, raise_error = True):
@@ -27,7 +27,7 @@ def ensure_column_exists(df, col_name, col_alt = False, raise_error = True):
         if not renamed:
             txt = 'Column %s not found.'%col_name
             if col_alt:
-                txt += 'Neither one of the alternatives: %s'(col_alt)
+                txt += 'Neither one of the alternatives: %s'%(col_alt)
             out = False
             if raise_error:
                 raise AttributeError(txt)
