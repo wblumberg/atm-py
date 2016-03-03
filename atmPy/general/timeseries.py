@@ -1,6 +1,7 @@
 __author__ = 'htelg'
 
 from copy import deepcopy as _deepcopy
+from atmPy.general import vertical_profile as _vertical_profile
 
 import pandas as pd
 import pylab as plt
@@ -63,6 +64,24 @@ class TimeSeries(object):
             raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%type(data).__name__)
         self.__data = data
 
+    def convert2verticalprofile(self, alt_label = None, alt_timeseries = None):
+        ts_tmp = self.copy()
+    #     hk_tmp.data['Time'] = hk_tmp.data.index
+    #     if alt_label:
+    #         label = alt_label
+    #     else:
+    #         label = 'Altitude'
+        if alt_timeseries:
+            alt_timeseries = alt_timeseries.align_to(ts_tmp)
+            pandas_tools.ensure_column_exists(alt_timeseries.data, 'Altitude', col_alt=alt_label)
+            ts_tmp.data.index = alt_timeseries.data['Altitude']
+        else:
+            pandas_tools.ensure_column_exists(ts_tmp.data, 'Altitude', col_alt=alt_label)
+            ts_tmp.data.index = ts_tmp.data['Altitude']
+        out = _vertical_profile.VerticalProfile(ts_tmp.data)
+        out._x_label = self._y_label
+        return out
+
     def average_overTime(self, window='1S'):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
@@ -94,7 +113,7 @@ class TimeSeries(object):
     def copy(self):
         return _deepcopy(self)
 
-    def plot(self, ax = None, legend = True, **kwargs):
+    def plot(self, ax = None, legend = True, label = None, **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -111,7 +130,11 @@ class TimeSeries(object):
             f = ax.get_figure()
 
         for k in self.data.keys():
-            ax.plot(self.data.index, self.data[k].values, label = k, **kwargs)
+            if not label:
+                label_t = k
+            else:
+                label_t = label
+            ax.plot(self.data.index, self.data[k].values, label = label_t, **kwargs)
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
