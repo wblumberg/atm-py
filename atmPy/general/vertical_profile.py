@@ -8,27 +8,30 @@ from atmPy.tools import plt_tools
 
 class VerticalProfile(object):
     def __init__(self, data):
+        data.sort_index(inplace=True)
+        data = data[~data.index.duplicated()]
         self.data = data
         self._x_label = None
         self._y_label = 'Altitude'
 
-    def algin_to(self, ts_other):
+    def align_to(self, ts_other):
         return align_to(self, ts_other)
 
     def merge(self, ts):
         return merge(self,ts)
 
-    def plot(self, ax=False, color=False):
+    def plot(self, ax=False, color=None):
         if not ax:
             f, a = plt.subplots()
         else:
             a = ax
-            # f = a.get_figure()
-        if type(color) == bool:
-            if not color:
-                color = plt_tools.color_cycle[0]
-        a.plot(self.data.values, self.data.index, color=color, linewidth=2)
-        # print(plt_tools.color_cycle[0])
+
+        for e,k in enumerate(self.data.keys()):
+            color = plt_tools.color_cycle[e]
+            a.plot(self.data[k].values, self.data.index, color=color, linewidth=2, label = k)
+
+        if len(self.data.keys()) > 1:
+            a.legend(loc = 'best')
         a.set_ylabel(self._y_label)
         a.set_xlabel(self._x_label)
         a.set_ylim((self.data.index.min(), self.data.index.max()))
