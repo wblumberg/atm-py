@@ -42,7 +42,7 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     dist_class = type(sdls).__name__
 
     if dist_class not in ['SizeDist_TS']:
-        raise TypeError('this distribution class can not be converted into optical property yet!')
+        raise TypeError('this distribution class (%s) can not be converted into optical property yet!'%dist_class)
 
     if isinstance(n, pd.DataFrame):
         n_multi = True
@@ -54,6 +54,7 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
                                                        noOfAngles=noOfAngles)
 
     if aod:
+        #todo: use function that does a the interpolation instead of the sum?!? I guess this can lead to errors when layers are very thick, since centers are used instea dof edges?
         AOD_layer = np.zeros((len(sdls.layercenters)))
 
     extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
@@ -383,3 +384,29 @@ def _get_coefficients(crossection, cn):
     # print('\n')
 
     return coefficient
+
+def vertical_profile2accumulative_AOD(timeseries):
+    data = timeseries.data.copy()
+    data.dropna(inplace = True)
+    accu_aod = np.zeros(data.shape)
+    for col,k in enumerate(data.keys()):
+        series = data[k]
+        # series.dropna(inplace = True)
+        y = series.values*1e-6
+        x = series.index.values
+
+        x = x[::-1]
+        y = y[::-1]
+
+
+        st = 0
+        # for e,i in enumerate(x):
+        for e in range(x.shape[0]):
+            end = e+1
+            accu_aod[e][col] = -integrate.simps(y[st:end],x[st:end])
+
+    accu_aod = pd.DataFrame(accu_aod, index = x, columns=data.keys())
+    accu_aod = vertical_profile.VerticalProfile(accu_aod)
+
+    accu_aod._x_label = 'AOD$_{abs}$'
+    return accu_aod
