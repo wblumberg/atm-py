@@ -1,6 +1,7 @@
 from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
+from atmPy.general import timeseries as _timeseries
 
 class ArmDataset(object):
     def __init__(self, fname, quality_control = 0):
@@ -24,7 +25,22 @@ class ArmDataset(object):
     def time_stamps(self,timesamps):
         self.__time_stamps = timesamps
 
-    def read_variable(self, variable):
+    def _read_variable(self, variable):
+        """Reads the particular variable and replaces all masked data with NaN.
+        Note, if quality flag is given only values larger than the quality_control variable are replaced with NaN.
+
+        Parameters
+        ----------
+        variable: str
+            Variable name as devined in netCDF file
+
+        Returns
+        -------
+        ndarray
+
+        Examples
+        --------
+        self.temp = self.read_variable(ti"""
         var = self.netCDF.variables[variable]
         data = var[:]
 
@@ -54,6 +70,40 @@ class ArmDataset(object):
             data.data[data.mask] = np.nan
             data = data.data
         return data
+
+    def _read_variable2timeseries(self, variable, column_name = False):
+        """
+        Reads the specified variables and puts them into a timeseries.
+
+        Parameters
+        ----------
+        variable: string or list of strings
+            variable names
+        column_name: bool or string
+            this is a chance to give unites. This will also be the y-label if data
+            is plotted
+
+        Returns
+        -------
+        pandas.DataFrame
+
+        """
+
+
+        if type(variable).__name__ == 'str':
+            variable = [variable]
+
+        df = pd.DataFrame(index = self.time_stamps)
+        for var in variable:
+            data = self._read_variable(var)
+            df[var] = pd.Series(data, index = self.time_stamps)
+        if column_name:
+            df.columns.name = column_name
+        out = _timeseries.TimeSeries(df)
+        if column_name:
+            out._y_label = column_name
+        return out
+
 
     def get_variable_info(self):
         for v in self.netCDF.variables.keys():
