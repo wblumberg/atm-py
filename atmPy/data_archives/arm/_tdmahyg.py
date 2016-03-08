@@ -16,13 +16,13 @@ class ArmDatasetSub(ArmDataset):
         super(ArmDatasetSub,self)._parse_netCDF()
 
 
-        size_bins = self.read_variable('size_bins') * 1000
-        df = pd.DataFrame(self.read_variable('RH_interDMA'), index = self.time_stamps, columns=size_bins)
+        size_bins = self._read_variable('size_bins') * 1000
+        df = pd.DataFrame(self._read_variable('RH_interDMA'), index = self.time_stamps, columns=size_bins)
         df.columns.name = 'size_bin_center_nm'
         self.RH_interDMA = timeseries.TimeSeries(df)
 
-        data = self.read_variable('hyg_distributions')
-        growthfactors = self.read_variable('growthfactors')
+        data = self._read_variable('hyg_distributions')
+        growthfactors = self._read_variable('growthfactors')
         data = pd.Panel(data, items= self.time_stamps, major_axis = size_bins, minor_axis = growthfactors)
         data.major_axis.name = 'size_bin_center_nm'
         data.minor_axis.name = 'growthfactors'

@@ -16,7 +16,7 @@ class ArmDatasetSub(ArmDataset):
         mass_conc_keys = ['total_organics','ammonium','sulfate','nitrate','chloride']
 
         for k in mass_conc_keys:
-            mass_concentrations[k] = pd.Series(self.read_variable(k), index = self.time_stamps)
+            mass_concentrations[k] = pd.Series(self._read_variable(k), index = self.time_stamps)
 
         mass_concentrations.columns.name = 'Mass conc. ug/m^3'
         mass_concentrations.index.name = 'Time'
@@ -28,9 +28,9 @@ class ArmDatasetSub(ArmDataset):
         #     print(var.shape)
         #     print('--------')
 
-        org_mx = self.read_variable('org_mx')
+        org_mx = self._read_variable('org_mx')
         org_mx = pd.DataFrame(org_mx, index = self.time_stamps)
-        org_mx.columns = self.read_variable('amus')
+        org_mx.columns = self._read_variable('amus')
         org_mx.columns.name = 'amus (m/z)'
 
         # out = _tools.ArmDict(plottable = ['mass_concentrations', 'Organic mass spectral matrix'])

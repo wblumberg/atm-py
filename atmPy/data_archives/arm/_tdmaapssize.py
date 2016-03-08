@@ -16,10 +16,10 @@ class ArmDatasetSub(ArmDataset):
 
 
         # sd = file_obj.variables['number_concentration_DMA_APS']
-        df = pd.DataFrame(self.read_variable('number_concentration_DMA_APS'),
+        df = pd.DataFrame(self._read_variable('number_concentration_DMA_APS'),
                           index = self.time_stamps)
 
-        d = self.read_variable('diameter')
+        d = self._read_variable('diameter')
         bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
 
         self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
