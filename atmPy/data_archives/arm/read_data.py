@@ -1,6 +1,6 @@
 from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
-from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos
+from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1
 import pandas as _pd
 import pylab as _plt
 import warnings
@@ -10,7 +10,8 @@ arm_products = {'tdmasize':   {'module': _tdmasize},
                 'tdmaapssize':{'module': _tdmaapssize},
                 'tdmahyg':    {'module': _tdmahyg},
                 'aosacsm':    {'module': _aosacsm},
-                'noaaaos':    {'module': _noaaaos}
+                'noaaaos':    {'module': _noaaaos},
+                '1twr10xC1':  {'module': _1twr10xC1}
                 }
 
 
