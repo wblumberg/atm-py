@@ -4,7 +4,7 @@ from copy import deepcopy as _deepcopy
 from atmPy.general import vertical_profile as _vertical_profile
 
 import pandas as pd
-import pylab as plt
+import matplotlib.pylab as plt
 
 from atmPy.tools import pandas_tools
 from atmPy.tools import time_tools
@@ -61,7 +61,7 @@ class TimeSeries(object):
     @data.setter
     def data(self, data):
         if not type(data).__name__ == 'DataFrame':
-            raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%type(data).__name__)
+            raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
         self.__data = data
 
     def convert2verticalprofile(self, alt_label = None, alt_timeseries = None):
@@ -112,6 +112,8 @@ class TimeSeries(object):
 
     def copy(self):
         return _deepcopy(self)
+
+
 
     def plot(self, ax = None, legend = True, label = None, **kwargs):
         """Plot each parameter separately versus time
@@ -319,6 +321,16 @@ def align_to(ts, ts_other):
     ts_other.data = ts_other.data.loc[:,[]]
     ts_t =  merge(ts_other, ts)
     ts.data = ts_t.data
+    return ts
+
+
+
+def concat(ts_list):
+    for ts in ts_list:
+        if type(ts).__name__ != 'TimeSeries':
+            raise TypeError('Currently works only with TimeSeries not with %s'%(type(ts).__name__))
+    ts = ts_list[0].copy()
+    ts.data = pd.concat([i.data for i in ts_list])
     return ts
 
 

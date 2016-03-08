@@ -1,0 +1,36 @@
+from atmPy.general import timeseries as _timeseries
+from atmPy.data_archives.arm import _netCDF
+
+
+class ArmDatasetSub(_netCDF.ArmDataset):
+    def __init__(self,*args, **kwargs):
+        super(ArmDatasetSub,self).__init__(*args, **kwargs)
+
+        ####
+        # for properties
+        self.__mean_growth_factor  = None
+
+    def _parse_netCDF(self):
+        super(ArmDatasetSub,self)._parse_netCDF()
+        self.relative_humidity = self._read_variable2timeseries(['rh_25m', 'rh_60m'], column_name='Relative Humidity (%)')
+        self.temperature = self._read_variable2timeseries(['temp_25m', 'temp_60m'], column_name='Temperature ($^{\circ}$C)')
+        self.vapor_pressure = self._read_variable2timeseries(['vap_pres_25m', 'vap_pres_60m'], column_name='Vapor pressure (kPa)')
+
+    def plot_all(self):
+        self.relative_humidity.plot()
+        self.temperature.plot()
+        self.vapor_pressure.plot()
+
+
+def _concat_rules(arm_data_objs):
+    # create class
+    out = ArmDatasetSub(False)
+
+    # populate class with concatinated data
+    out.relative_humidity = _timeseries.concat([i.relative_humidity for i in arm_data_objs])
+    out.temperature = _timeseries.concat([i.temperature for i in arm_data_objs])
+    out.vapor_pressure = _timeseries.concat([i.vapor_pressure for i in arm_data_objs])
+
+    # use time stamps from one of the variables
+    out.time_stamps = out.relative_humidity.data.index
+    return out
