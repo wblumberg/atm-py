@@ -3,12 +3,12 @@ __author__ = 'htelg'
 from copy import deepcopy as _deepcopy
 from atmPy.general import vertical_profile as _vertical_profile
 
-import pandas as pd
-import matplotlib.pylab as plt
+import pandas as _pd
+import matplotlib.pylab as _plt
 
-from atmPy.tools import pandas_tools
-from atmPy.tools import time_tools
-
+from atmPy.tools import pandas_tools as _pandas_tools
+from atmPy.tools import time_tools as _time_tools
+from atmPy.tools import array_tools as _array_tools
 # from geopy.distance import vincenty
 # from mpl_toolkits.basemap import Basemap
 # from mpl_toolkits.mplot3d import Axes3D
@@ -21,8 +21,8 @@ def load_csv(fname):
     ---------
     fname: str.
         Path to the file to load"""
-    data = pd.read_csv(fname, index_col=0)
-    data.index = pd.to_datetime(data.index)
+    data = _pd.read_csv(fname, index_col=0)
+    data.index = _pd.to_datetime(data.index)
     return TimeSeries(data)
 
 
@@ -73,10 +73,10 @@ class TimeSeries(object):
     #         label = 'Altitude'
         if alt_timeseries:
             alt_timeseries = alt_timeseries.align_to(ts_tmp)
-            pandas_tools.ensure_column_exists(alt_timeseries.data, 'Altitude', col_alt=alt_label)
+            _pandas_tools.ensure_column_exists(alt_timeseries.data, 'Altitude', col_alt=alt_label)
             ts_tmp.data.index = alt_timeseries.data['Altitude']
         else:
-            pandas_tools.ensure_column_exists(ts_tmp.data, 'Altitude', col_alt=alt_label)
+            _pandas_tools.ensure_column_exists(ts_tmp.data, 'Altitude', col_alt=alt_label)
             ts_tmp.data.index = ts_tmp.data['Altitude']
         out = _vertical_profile.VerticalProfile(ts_tmp.data)
         out._x_label = self._y_label
@@ -107,6 +107,10 @@ class TimeSeries(object):
     def align_to(self, ts_other):
         return align_to(self, ts_other)
 
+    def correlate_to(self,correlant, data_column = False, correlant_column = False, remove_zeros=True):
+        """%s"""%(correlate.__doc__)
+        return correlate(self,correlant, data_column = data_column, correlant_column = correlant_column, remove_zeros=remove_zeros)
+
     def merge(self, ts):
         return merge(self,ts)
 
@@ -127,7 +131,7 @@ class TimeSeries(object):
 
         # a = self.data.plot(**kwargs)
         if not ax:
-            f,ax = plt.subplots()
+            f,ax = _plt.subplots()
         else:
             f = ax.get_figure()
 
@@ -176,9 +180,9 @@ class TimeSeries(object):
             housek = self
 
         if start:
-            start = time_tools.string2timestamp(start)
+            start = _time_tools.string2timestamp(start)
         if end:
-            end = time_tools.string2timestamp(end)
+            end = _time_tools.string2timestamp(end)
 
         try:
             housek.data = housek.data.truncate(before=start, after=end)
@@ -244,7 +248,7 @@ class TimeSeries_2D(TimeSeries):
         super(TimeSeries_2D,self).__init__(*args)
 
     def plot(self, xaxis = 0, ax = None):
-        return pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax)
+        return _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax)
 
 
 class TimeSeries_3D(TimeSeries):
@@ -271,11 +275,11 @@ class TimeSeries_3D(TimeSeries):
 
     def plot(self, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwargs = {}):
 
-        f,a,pc,cb =  pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
-                                                      yaxis = yaxis,
-                                                      sub_set = sub_set,
-                                                      ax = ax,
-                                                      kwargs = kwargs)
+        f,a,pc,cb =  _pandas_tools.plot_panel_meshgrid(self.data, xaxis = xaxis,
+                                                       yaxis = yaxis,
+                                                       sub_set = sub_set,
+                                                       ax = ax,
+                                                       kwargs = kwargs)
         return f,a,pc,cb
 
 
@@ -298,7 +302,7 @@ def merge(ts, ts_other):
     """
     ts_this = ts.copy()
     ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
@@ -330,10 +334,32 @@ def concat(ts_list):
         if type(ts).__name__ != 'TimeSeries':
             raise TypeError('Currently works only with TimeSeries not with %s'%(type(ts).__name__))
     ts = ts_list[0].copy()
-    ts.data = pd.concat([i.data for i in ts_list])
+    ts.data = _pd.concat([i.data for i in ts_list])
     return ts
 
 
+def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True):
+    """Correlates data in correlant to that in data. In the process the data in correlant
+    will be aligned to that in data. Make sure that data has the lower period (less data per period of time)."""
+    if data_column:
+        data_values = data.data[data_column].values
+    elif data.data.shape[1] > 1:
+        raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
+    else:
+        data_values = data.data.iloc[:,0].values
+
+    correlant_aligned = correlant.align_to(data)
+    if correlant_column:
+        correlant_values = correlant_aligned.data[correlant_column].values
+    elif data.data.shape[1] > 1:
+        raise ValueError('''Correlant contains more than 1 column. Specify which to correlate. Options:
+%s'''%(list(correlant_aligned.data.keys())))
+    else:
+        correlant_values = correlant_aligned.data.iloc[:,0].values
+
+    out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
+    out._x_label_orig = 'DataTime'
+    return out
 # Todo: revive following as needed
 # def get_sun_position(self):
 #     """read docstring of solar.get_sun_position_TS"""
