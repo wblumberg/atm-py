@@ -58,7 +58,7 @@ def find_closest(array, value, how = 'closest'):
 
 
 class Correlation(object):
-    def __init__(self, data, correlant, remove_zeros = True):
+    def __init__(self, data, correlant, remove_zeros = True, index = False):
         """This object is for testing correlation in two two data sets.
 
         Parameters
@@ -77,12 +77,23 @@ class Correlation(object):
         self.__linear_regression_function = None
         if remove_zeros:
             correlant = correlant[data != 0]
+            if type(index) != bool:
+                index = index[data != 0]
             data = data[data != 0]
+
             data = data[correlant != 0]
+            if type(index) != bool:
+                index = index[correlant != 0]
             correlant = correlant[correlant != 0]
 
         self._data = data
         self._correlant = correlant
+        self._index = index
+        self._x_label_correlation = 'Data'
+        self._y_label_correlation = 'Correlant'
+        self._x_label_orig = 'Item'
+        self._y_label_orig_data = 'Data'
+        self._y_label_orig_correlant = 'Correlant'
 
     @property
     def pearson_r(self):
@@ -102,12 +113,21 @@ class Correlation(object):
             self.__linear_regression_function = lambda x: x * self.linear_regression.slope + self.linear_regression.intercept
         return self.__linear_regression_function
 
-    def plot_pearson(self, gridsize = 100, cm = _plt.cm.Blues, p_value = True):
+    def plot_pearson(self, gridsize = 100, cm = _plt.cm.Blues, p_value = True, ax = None):
+        if not ax:
+            f,a = _plt.subplots()
+        else:
+            # f = ax.get_figure()
+            a = ax
+
         # cm = plt_tools.()
         # cm = plt.cm.gist_earth_r
         # cm = plt.cm.hot_r
 #         cm = plt.cm.Blues
-        f,a = _plt.subplots()
+
+        a.set_xlabel(self._x_label_correlation)
+        a.set_ylabel(self._y_label_correlation)
+
         a.hexbin(self._data, self._correlant, gridsize=gridsize, cmap=cm)
 
 #         linreg_func = lambda x: x * linreg.slope + linreg.intercept
@@ -127,14 +147,43 @@ class Correlation(object):
         a.text(0.1,0.9, txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
         return a
 
-    def plot_original_data(self):
-        f,a = _plt.subplots()
-        a.set_xlabel('arbitrary')
+    def plot_original_data(self, ax = None):
+        if not ax:
+            f,a = _plt.subplots()
+        else:
+            # f = ax.get_figure()
+            a = ax
 
-        a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0])
-        a.set_ylabel('data')
+        a.set_xlabel(self._x_label_orig)
+
+        if type(self._index) != bool:
+            a.plot(self._index, self._data, linewidth = 2, color = _plt_tools.color_cycle[0])
+        else:
+            a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0])
+
+        a.set_ylabel(self._y_label_orig_data)
+
+        a.tick_params(axis = 'y', left = True, color = _plt_tools.color_cycle[0], zorder = 99)
+        a.spines['left'].set_color(_plt_tools.color_cycle[0])
+        a.spines['left'].set_zorder(99)
 
         a2 = a.twinx()
-        a2.plot(self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
-        a2.set_ylabel('correlant')
+        if type(self._index) != bool:
+            a2.plot(self._index,self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
+        else:
+            a2.plot(self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
+
+        a2.set_ylabel(self._y_label_orig_correlant)
+
+        a2.tick_params(axis = 'y', right = True, color = _plt_tools.color_cycle[1])
+        a2.spines['right'].set_color(_plt_tools.color_cycle[1])
+        bla = a2.spines['left'].set_visible(False)
+
         return a, a2
+
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = _plt.cm.Blues, p_value = True, width_ratio = [1.5, 2]):
+        f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
+        f.set_figwidth(f.get_figwidth()*1.7)
+        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, p_value=p_value, ax = a_corr)
+        a2,a3 = self.plot_original_data(ax = a_orig)
+        return a1, a2, a3
