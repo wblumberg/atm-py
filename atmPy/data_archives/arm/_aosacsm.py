@@ -38,6 +38,7 @@ class ArmDatasetSub(ArmDataset):
         # out['Organic mass spectral matrix'] = timeseries.TimeSeries_2D(org_mx)
 
         self.mass_concentrations = AMS.AMS_Timeseries_lev01(mass_concentrations)
+        self.mass_concentrations.data['total'] = self.mass_concentrations.data.sum(axis = 1)
         self.organic_mass_spectral_matrix = timeseries.TimeSeries_2D(org_mx)
         return
 
@@ -45,6 +46,7 @@ class ArmDatasetSub(ArmDataset):
     def mass_concentration_corr(self):
         if self.__mass_concentration_corr is None:
             self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
+            self.__mass_concentration_corr.data['total'] = self.__mass_concentration_corr.data.sum(axis = 1)
         return self.__mass_concentration_corr
 
     @property
