@@ -25,7 +25,87 @@ def load_csv(fname):
     data.index = _pd.to_datetime(data.index)
     return TimeSeries(data)
 
+#### Tools
 
+def align_to(ts, ts_other):
+    """
+    Align the TimeSeries ts to another time_series by interpolating (linearly).
+
+    Parameters
+    ----------
+    ts: original time series
+    ts_other: timeseries to align to
+
+    Returns
+    -------
+    timeseries eqivalent to the original but with an index aligned to the other
+    """
+    ts = ts.copy()
+    ts_other = ts_other.copy()
+    ts_other.data = ts_other.data.loc[:,[]]
+    ts_t =  merge(ts_other, ts)
+    ts.data = ts_t.data
+    return ts
+
+
+def merge(ts, ts_other):
+    """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
+    one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
+
+    Argument
+    --------
+    ts_orig: the other time series will be merged to this, therefore this timeseries
+    will define the time stamps.
+    ts: timeseries or one of its subclasses.
+        List of TimeSeries objects.
+
+    Returns
+    -------
+    TimeSeries object or one of its subclasses
+
+    """
+    ts_this = ts.copy()
+    ts_data_list = [ts_this.data, ts_other.data]
+    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
+    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+    ts_this.data = merged
+    return ts_this
+
+
+
+
+
+def concat(ts_list):
+    for ts in ts_list:
+        if type(ts).__name__ != 'TimeSeries':
+            raise TypeError('Currently works only with TimeSeries not with %s'%(type(ts).__name__))
+    ts = ts_list[0].copy()
+    ts.data = _pd.concat([i.data for i in ts_list])
+    return ts
+
+
+def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True):
+    """Correlates data in correlant to that in data. In the process the data in correlant
+    will be aligned to that in data. Make sure that data has the lower period (less data per period of time)."""
+    if data_column:
+        data_values = data.data[data_column].values
+    elif data.data.shape[1] > 1:
+        raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
+    else:
+        data_values = data.data.iloc[:,0].values
+
+    correlant_aligned = correlant.align_to(data)
+    if correlant_column:
+        correlant_values = correlant_aligned.data[correlant_column].values
+    elif correlant.data.shape[1] > 1:
+        raise ValueError('''Correlant contains more than 1 column. Specify which to correlate. Options:
+%s'''%(list(correlant_aligned.data.keys())))
+    else:
+        correlant_values = correlant_aligned.data.iloc[:,0].values
+
+    out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
+    out._x_label_orig = 'DataTime'
+    return out
 
 
 class TimeSeries(object):
@@ -103,19 +183,22 @@ class TimeSeries(object):
 
         return ts
 
+    align_to = align_to
+    # def align_to(self, ts_other):
+    #     return align_to(self, ts_other)
 
-    def align_to(self, ts_other):
-        return align_to(self, ts_other)
+    correlate_to = correlate
+    # def correlate_to(self,correlant, data_column = False, correlant_column = False, remove_zeros=True):
+    #     """%s"""%(correlate.__doc__)
+    #     return correlate(self,correlant, data_column = data_column, correlant_column = correlant_column, remove_zeros=remove_zeros)
 
-    def correlate_to(self,correlant, data_column = False, correlant_column = False, remove_zeros=True):
-        """%s"""%(correlate.__doc__)
-        return correlate(self,correlant, data_column = data_column, correlant_column = correlant_column, remove_zeros=remove_zeros)
+    merge = merge
+    # def merge(self, ts):
+    #     return merge(self,ts)
 
-    def merge(self, ts):
-        return merge(self,ts)
-
-    def copy(self):
-        return _deepcopy(self)
+    copy = _deepcopy
+    # def copy(self):
+    #     return _deepcopy(self)
 
 
 
@@ -283,83 +366,7 @@ class TimeSeries_3D(TimeSeries):
         return f,a,pc,cb
 
 
-#### Tools
-def merge(ts, ts_other):
-    """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
-    one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
 
-    Argument
-    --------
-    ts_orig: the other time series will be merged to this, therefore this timeseries
-    will define the time stamps.
-    ts: timeseries or one of its subclasses.
-        List of TimeSeries objects.
-
-    Returns
-    -------
-    TimeSeries object or one of its subclasses
-
-    """
-    ts_this = ts.copy()
-    ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
-    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
-    ts_this.data = merged
-    return ts_this
-
-def align_to(ts, ts_other):
-    """
-    Align the TimeSeries ts to another time_series by interpolating (linearly).
-
-    Parameters
-    ----------
-    ts: original time series
-    ts_other: timeseries to align to
-
-    Returns
-    -------
-    timeseries eqivalent to the original but with an index aligned to the other
-    """
-    ts = ts.copy()
-    ts_other = ts_other.copy()
-    ts_other.data = ts_other.data.loc[:,[]]
-    ts_t =  merge(ts_other, ts)
-    ts.data = ts_t.data
-    return ts
-
-
-
-def concat(ts_list):
-    for ts in ts_list:
-        if type(ts).__name__ != 'TimeSeries':
-            raise TypeError('Currently works only with TimeSeries not with %s'%(type(ts).__name__))
-    ts = ts_list[0].copy()
-    ts.data = _pd.concat([i.data for i in ts_list])
-    return ts
-
-
-def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True):
-    """Correlates data in correlant to that in data. In the process the data in correlant
-    will be aligned to that in data. Make sure that data has the lower period (less data per period of time)."""
-    if data_column:
-        data_values = data.data[data_column].values
-    elif data.data.shape[1] > 1:
-        raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
-    else:
-        data_values = data.data.iloc[:,0].values
-
-    correlant_aligned = correlant.align_to(data)
-    if correlant_column:
-        correlant_values = correlant_aligned.data[correlant_column].values
-    elif data.data.shape[1] > 1:
-        raise ValueError('''Correlant contains more than 1 column. Specify which to correlate. Options:
-%s'''%(list(correlant_aligned.data.keys())))
-    else:
-        correlant_values = correlant_aligned.data.iloc[:,0].values
-
-    out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
-    out._x_label_orig = 'DataTime'
-    return out
 # Todo: revive following as needed
 # def get_sun_position(self):
 #     """read docstring of solar.get_sun_position_TS"""
