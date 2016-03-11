@@ -143,8 +143,8 @@ class AMS_Timeseries_lev01(_timeseries.TimeSeries):
                                       ]]
         material_elct = material_elct.dropna(axis=1)
 
-        _np.zeros((self.data.shape[0],material_ions.shape[0]))
-        df = _pd.DataFrame(columns=material_elct.index, index = self.data.index)
+        dt = _np.zeros((self.data.shape[0],material_elct.shape[0]))
+        df = _pd.DataFrame(dt,columns=material_elct.index, index = self.data.index)
         for i in self.data.index:
         #     print(i)
             cct = self.data.loc[i]
