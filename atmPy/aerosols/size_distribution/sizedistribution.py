@@ -199,6 +199,8 @@ class SizeDist(object):
         self.__growth_factor = None
         self.__particle_number_concentration = None
         self.__particle_mass_concentration = None
+        self.__particle_surface_concentration = None
+        self.__particle_volume_concentration = None
         self.__housekeeping = None
         self.physical_property_density = None
         # if type(bincenters) == np.ndarray:
@@ -302,63 +304,23 @@ sizedistribution.align to align the index of the new array."""
     def particle_mass_mixing_ratio(self):
         raise AttributeError('sorry does not exist for a single size distribution')
 
-    def _get_mass_mixing_ratio(self):
-        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$g/m^3$', raise_error=False):
-            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
-            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
-            gas = _gas_physics.Ideal_Gas_Classic()
-            gas.temp = self.housekeeping.data['temperature_K']
-            gas.pressure = self.housekeeping.data['pressure_Pa']
-            self.housekeeping.data['air_density_$g/m^3$'] = gas.density_mass
-
-        mass_conc = self.particle_mass_concentration.data.copy() #ug/m^3
-        mass_conc = mass_conc.iloc[:,0]
-        mass_conc *= 1e-6 #g/m^3
-        mass_mix = mass_conc / (self.housekeeping.data['air_density_$g/m^3$'] - mass_conc)
-        return mass_mix
-
     @property
     def particle_number_mixing_ratio(self):
         raise AttributeError('sorry does not exist for a single size distribution')
 
-    def _get_number_mixing_ratio(self):
-        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$number/m^3$', raise_error=False):
-            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
-            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
-            gas = _gas_physics.Ideal_Gas_Classic()
-            gas.temp = self.housekeeping.data['temperature_K']
-            gas.pressure = self.housekeeping.data['pressure_Pa']
-            self.housekeeping.data['air_density_$number/m^3$'] = gas.density_number
+    @property
+    def particle_volume_concentration(self):
+        if not _np.any(self.__particle_volume_concentration) or not self._uptodate_particle_volume_concentration:
+            self.__particle_volume_concentration = self._get_volume_concentration()
+            self._uptodate_particle_volume_concentration = True
+        return self.__particle_volume_concentration
 
-
-        numb_conc = self.particle_number_concentration.data.copy() # number/cc
-        numb_conc = numb_conc.iloc[:,0]
-        numb_conc *= 1e6 #number/m^3
-        numb_mix = numb_conc/ (self.housekeeping.data['air_density_$number/m^3$'] - numb_conc)
-
-        return numb_mix
-
-    def _get_mass_concentration(self):
-        """'Mass concentration ($\mu g/m^{3}$)'"""
-        dist = self.convert2dVdDp()
-        volume_conc = dist.data * dist.binwidth
-
-        vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
-
-        if not self.physical_property_density:
-            raise ValueError('Please set the physical_property_density variable in g/cm^3')
-
-        try:
-            density = self.physical_property_density.copy() #1.8 # g/cm^3
-        except:
-            density = self.physical_property_density #1.8 # g/cm^3
-
-        density *= 1e-21 # g/nm^3
-
-        mass_conc = vlc_all * density # g/cm^3
-        mass_conc *= 1e6 # g/m^3
-        mass_conc *= 1e6 # mug/m^3
-        return mass_conc
+    @property
+    def particle_surface_concentration(self):
+        if not _np.any(self.__particle_surface_concentration) or not self._uptodate_particle_surface_concentration:
+            self.__particle_surface_concentration = self._get_surface_concentration()
+            self._uptodate_particle_surface_concentration = True
+        return self.__particle_surface_concentration
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
         """
@@ -480,77 +442,6 @@ sizedistribution.align to align the index of the new array."""
         return dist_g
 
 
-    def _hygro_growht_shift_data(self, data, bins, gf):
-        """data: 1D array
-        bins: 1D array
-        gf: float"""
-        if gf == 1.:
-            out = {}
-            out['bins'] = bins
-            out['data'] = data
-            out['num_extr_bins'] = 0
-            return out
-
-
-        bins_new = bins.copy()
-        if _np.any(gf < 1):
-            txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
-            raise ValueError(txt)
-        # pdb.set_trace()
-        shifted = bins_new * gf
-        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
-        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
-
-        if _np.any((mh - ml) > 1):
-            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
-
-        # no_extra_bins = bins_new[ml].shape[0] - _np.unique(bins_new[ml]).shape[0] + 1
-        no_extra_bins = bins_new[ml].shape[0] - bins_new[ml][bins_new[ml] != bins_new[ml][-1]].shape[0]
-        # pdb.set_trace()
-        ######### Ad bins to shift data into
-
-        last_two = _np.log10(bins_new[- (no_extra_bins + 1):])
-        step_width = last_two[-1] - last_two[-2]
-        new_bins = _np.zeros(no_extra_bins)
-        for i in range(no_extra_bins):
-            new_bins[i] = _np.log10(bins_new[-1]) + ((i + 1) * step_width)
-        newbins = 10**new_bins
-        bins_new = _np.append(bins_new, newbins)
-        shifted = (bins_new * gf)[:-no_extra_bins]
-
-        ######## and again ########################
-
-        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
-        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
-
-        if _np.any((mh - ml) > 1):
-            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
-
-
-        ##### percentage of particles moved to next bin ...')
-
-        shifted_w = shifted[1:] - shifted[:-1]
-
-        fract_first = (bins_new[mh] - shifted)[:-1] / shifted_w
-        fract_last = (shifted - bins_new[ml])[1:] / shifted_w
-
-        data_new = _np.zeros(data.shape[0]+ no_extra_bins)
-        data_new[no_extra_bins - 1:-1] += fract_first * data
-        data_new[no_extra_bins:] += fract_last * data
-
-        # print('data.shape',data.shape)
-        # print('data_new.shape',data_new.shape)
-
-        # if data_new.shape[0] == 131:
-        # pdb.set_trace()
-    #     data = _np.append(data, _np.zeros(no_extra_bins))
-        out = {}
-        out['bins'] = bins_new
-        out['data'] = data_new
-        out['num_extr_bins'] = no_extra_bins
-        return out
-
-
     # def grow_particles(self, shift=1):
     #     """This function shifts the data by "shift" columns to the right
     #     Argurments
@@ -665,23 +556,6 @@ sizedistribution.align to align the index of the new array."""
         return self.data_fit_normal
 
 
-    def _get_particle_concentration(self):
-        """ Returns the sum of particles per line in data
-
-        Returns
-        -------
-        int: if data has only one line
-        pandas.DataFrame: else """
-        sd = self.convert2numberconcentration()
-        particles = _np.zeros(sd.data.shape[0])
-        for e, line in enumerate(sd.data.values):
-            particles[e] = line.sum()
-        if sd.data.shape[0] == 1:
-            return particles[0]
-        else:
-            df = pd.DataFrame(particles, index=sd.data.index, columns=['Particle number concentration #/$cm^3$'])
-            df = df.drop_duplicates()
-            return df
 
     def plot(self,
              showMinorTickLabels=True,
@@ -840,9 +714,201 @@ sizedistribution.align to align the index of the new array."""
     def _convert2otherDistribution(self, distType, verbose=False):
         return sizedist_moment_conversion.convert(self, distType, verbose = verbose)
 
+    def _get_mass_concentration(self):
+        """'Mass concentration ($\mu g/m^{3}$)'"""
+        dist = self.convert2dVdDp()
+        volume_conc = dist.data * dist.binwidth
+
+        vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
+
+        if not self.physical_property_density:
+            raise ValueError('Please set the physical_property_density variable in g/cm^3')
+
+        try:
+            density = self.physical_property_density.copy() #1.8 # g/cm^3
+        except:
+            density = self.physical_property_density #1.8 # g/cm^3
+
+        density *= 1e-21 # g/nm^3
+
+        mass_conc = vlc_all * density # g/cm^3
+        mass_conc *= 1e6 # g/m^3
+        mass_conc *= 1e6 # mug/m^3
+        return mass_conc
+
+    def _get_mass_mixing_ratio(self):
+        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$g/m^3$', raise_error=False):
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
+            gas = _gas_physics.Ideal_Gas_Classic()
+            gas.temp = self.housekeeping.data['temperature_K']
+            gas.pressure = self.housekeeping.data['pressure_Pa']
+            self.housekeeping.data['air_density_$g/m^3$'] = gas.density_mass
+
+        mass_conc = self.particle_mass_concentration.data.copy() #ug/m^3
+        mass_conc = mass_conc.iloc[:,0]
+        mass_conc *= 1e-6 #g/m^3
+        mass_mix = mass_conc / (self.housekeeping.data['air_density_$g/m^3$'] - mass_conc)
+        return mass_mix
+
+
+
+    def _get_number_mixing_ratio(self):
+        if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$number/m^3$', raise_error=False):
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'temperature_K')
+            _panda_tools.ensure_column_exists(self.housekeeping.data, 'pressure_Pa')
+            gas = _gas_physics.Ideal_Gas_Classic()
+            gas.temp = self.housekeeping.data['temperature_K']
+            gas.pressure = self.housekeeping.data['pressure_Pa']
+            self.housekeeping.data['air_density_$number/m^3$'] = gas.density_number
+
+
+        numb_conc = self.particle_number_concentration.data.copy() # number/cc
+        numb_conc = numb_conc.iloc[:,0]
+        numb_conc *= 1e6 #number/m^3
+        numb_mix = numb_conc/ (self.housekeeping.data['air_density_$number/m^3$'] - numb_conc)
+
+        return numb_mix
+
+    def _get_particle_concentration(self):
+        """ Returns the sum of particles per line in data
+
+        Returns
+        -------
+        int: if data has only one line
+        pandas.DataFrame: else """
+        sd = self.convert2numberconcentration()
+        particles = _np.zeros(sd.data.shape[0])
+        for e, line in enumerate(sd.data.values):
+            particles[e] = line.sum()
+        if sd.data.shape[0] == 1:
+            return particles[0]
+        else:
+            df = pd.DataFrame(particles, index=sd.data.index, columns=['Particle number concentration #/$cm^3$'])
+            df = df.drop_duplicates()
+            return df
+
+    def _get_surface_concentration(self):
+        """ volume of particles per volume air"""
+
+        sd = self.convert2dSdDp()
+
+        surface_conc = sd.data * sd.binwidth
+
+        sfc_all = surface_conc.sum(axis = 1) # nm^2/cm^3
+        sfc_all = sfc_all * 1e-6 # um^2/cm^3
+        label = 'Surface concentration $\mu m^2 / cm^{-3}$'
+        sfc_df = pd.DataFrame(sfc_all * 1e-9, columns = [label])
+        if type(self).__name__ == 'SizeDist':
+            return sfc_df
+        elif type(self).__name__ == 'SizeDist_TS':
+            out =  _timeseries.TimeSeries(sfc_df)
+        elif type(self).__name__ == 'SizeDist_LS':
+            out =  _vertical_profile.VerticalProfile(sfc_df)
+        else:
+            raise ValueError("Can't be! %s is not an option here"%(type(self).__name__))
+        out._x_label = label
+        return out
+
+    def _get_volume_concentration(self):
+        """ volume of particles per volume air"""
+
+        sd = self.convert2dVdDp()
+
+        volume_conc = sd.data * sd.binwidth
+
+        vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
+        vlc_all = vlc_all * 1e-9 # um^3/cm^3
+        vlc_df = pd.DataFrame(vlc_all * 1e-9, columns = ['volume concentration $\mu m^3 / cm^{-3}$'])
+        if type(self).__name__ == 'SizeDist':
+            return  vlc_df
+        elif type(self).__name__ == 'SizeDist_TS':
+            out =  _timeseries.TimeSeries(vlc_df)
+        elif type(self).__name__ == 'SizeDist_LS':
+            out = _vertical_profile.VerticalProfile(vlc_df)
+        else:
+            raise ValueError("Can't be! %s is not an option here"%(type(self).__name__))
+        out._y_label = 'volume concentration $\mu m^3 / cm^{-3}$'
+        return out
+
+
+    def _hygro_growht_shift_data(self, data, bins, gf):
+        """data: 1D array
+        bins: 1D array
+        gf: float"""
+        if gf == 1.:
+            out = {}
+            out['bins'] = bins
+            out['data'] = data
+            out['num_extr_bins'] = 0
+            return out
+
+
+        bins_new = bins.copy()
+        if _np.any(gf < 1):
+            txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
+            raise ValueError(txt)
+        # pdb.set_trace()
+        shifted = bins_new * gf
+        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
+
+        if _np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+        # no_extra_bins = bins_new[ml].shape[0] - _np.unique(bins_new[ml]).shape[0] + 1
+        no_extra_bins = bins_new[ml].shape[0] - bins_new[ml][bins_new[ml] != bins_new[ml][-1]].shape[0]
+        # pdb.set_trace()
+        ######### Ad bins to shift data into
+
+        last_two = _np.log10(bins_new[- (no_extra_bins + 1):])
+        step_width = last_two[-1] - last_two[-2]
+        new_bins = _np.zeros(no_extra_bins)
+        for i in range(no_extra_bins):
+            new_bins[i] = _np.log10(bins_new[-1]) + ((i + 1) * step_width)
+        newbins = 10**new_bins
+        bins_new = _np.append(bins_new, newbins)
+        shifted = (bins_new * gf)[:-no_extra_bins]
+
+        ######## and again ########################
+
+        ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
+        mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
+
+        if _np.any((mh - ml) > 1):
+            raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
+
+
+        ##### percentage of particles moved to next bin ...')
+
+        shifted_w = shifted[1:] - shifted[:-1]
+
+        fract_first = (bins_new[mh] - shifted)[:-1] / shifted_w
+        fract_last = (shifted - bins_new[ml])[1:] / shifted_w
+
+        data_new = _np.zeros(data.shape[0]+ no_extra_bins)
+        data_new[no_extra_bins - 1:-1] += fract_first * data
+        data_new[no_extra_bins:] += fract_last * data
+
+        # print('data.shape',data.shape)
+        # print('data_new.shape',data_new.shape)
+
+        # if data_new.shape[0] == 131:
+        # pdb.set_trace()
+    #     data = _np.append(data, _np.zeros(no_extra_bins))
+        out = {}
+        out['bins'] = bins_new
+        out['data'] = data_new
+        out['num_extr_bins'] = no_extra_bins
+        return out
+
+
+
     def _update(self):
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
+        self._uptodate_particle_surface_concentration = False
+        self._uptodate_particle_volume_concentration = False
 
 
 class SizeDist_TS(SizeDist):
