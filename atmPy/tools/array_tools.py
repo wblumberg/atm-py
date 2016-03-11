@@ -113,11 +113,11 @@ class Correlation(object):
             self.__linear_regression_function = lambda x: x * self.linear_regression.slope + self.linear_regression.intercept
         return self.__linear_regression_function
 
-    def plot_pearson(self, gridsize = 100, cm = _plt.cm.Blues, p_value = True, ax = None):
+    def plot_pearson(self, gridsize = 100, cm = 'auto', p_value = True, colorbar = False, ax = None, **kwargs):
         if not ax:
             f,a = _plt.subplots()
         else:
-            # f = ax.get_figure()
+            f = ax.get_figure()
             a = ax
 
         # cm = plt_tools.()
@@ -128,15 +128,21 @@ class Correlation(object):
         a.set_xlabel(self._x_label_correlation)
         a.set_ylabel(self._y_label_correlation)
 
-        a.hexbin(self._data, self._correlant, gridsize=gridsize, cmap=cm)
+        if cm == 'auto':
+            cm = _plt.cm.copper_r
 
+        cm.set_under('w')
+
+        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize, cmap=cm, vmin = 0.001, **kwargs)
+        if colorbar:
+            f.colorbar(hb, ax = a)
 #         linreg_func = lambda x: x * linreg.slope + linreg.intercept
         # data.min()
 
         x_reg_func = _np.array([self._data.min(), self._data.max()])
         y_reg_func = self.linear_regression_function(x_reg_func)
 
-        color = _plt_tools.color_cycle[1]
+        color = _plt_tools.color_cycle[2]
         a.plot(x_reg_func, y_reg_func, lw = 2, color = color)
 
 
@@ -151,7 +157,7 @@ class Correlation(object):
         if not ax:
             f,a = _plt.subplots()
         else:
-            # f = ax.get_figure()
+            f = ax.get_figure()
             a = ax
 
         a.set_xlabel(self._x_label_orig)
@@ -177,8 +183,11 @@ class Correlation(object):
 
         a2.tick_params(axis = 'y', right = True, color = _plt_tools.color_cycle[1])
         a2.spines['right'].set_color(_plt_tools.color_cycle[1])
-        bla = a2.spines['left'].set_visible(False)
+        a2.spines['left'].set_visible(False)
 
+
+        if type(self._index).__name__ == 'DatetimeIndex':
+            f.autofmt_xdate()
         return a, a2
 
     def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = _plt.cm.Blues, p_value = True, width_ratio = [1.5, 2]):
