@@ -6,6 +6,7 @@ import pandas as _pd
 # import pdb
 import warnings as _warnings
 from atmPy.tools import decorators as _decorators
+import pdb as _pdb
 
 
 def ion2electrolyte_mass_concentration(ion_concentrations, ions, electrolytes):
@@ -123,6 +124,7 @@ class AMS_Timeseries_lev01(_timeseries.TimeSeries):
     """This class has ion masses as its data. It therefore represence a more raw
     format than the AMS_Timeseries_lev02"""
     def calculate_electrolyte_mass_concentrations(self):
+        """no docstring"""
         # ion_mass_concentration = self.data
         materials = _properties.get_commen()
 
@@ -169,7 +171,13 @@ class AMS_Timeseries_lev02(_timeseries.TimeSeries):
     @_decorators.change_doc(_mixing_rules.zdanovskii_stokes_robinson)
     def calculate_refractive_index(self):
         """dit is the ior"""
+        # _pdb.set_trace()
         return _mixing_rules.zdanovskii_stokes_robinson(self.data, which = 'refractive_Index')
+
+    @_decorators.change_doc(_mixing_rules.zdanovskii_stokes_robinson)
+    def calculate_density(self):
+        """dit is the ior"""
+        return _mixing_rules.zdanovskii_stokes_robinson(self.data, which = 'density')
 
 
 
