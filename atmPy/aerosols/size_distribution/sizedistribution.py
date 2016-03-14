@@ -20,7 +20,7 @@ from atmPy.aerosols.physics import optical_properties
 from atmPy.aerosols.size_distribution import sizedist_moment_conversion
 from atmPy.gases import physics as _gas_physics
 
-import pdb
+import pdb as _pdb
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
@@ -202,7 +202,7 @@ class SizeDist(object):
         self.__particle_surface_concentration = None
         self.__particle_volume_concentration = None
         self.__housekeeping = None
-        self.physical_property_density = None
+        self.__physical_property_density = None
         # if type(bincenters) == np.ndarray:
         #     self.bincenters = bincenters
         # else:
@@ -213,6 +213,19 @@ class SizeDist(object):
 
         if fixGaps:
             self.fillGaps()
+
+    @property
+    def physical_property_density(self):
+        return self.__physical_property_density
+
+    @physical_property_density.setter
+    def physical_property_density(self, value):
+        if type(value).__name__ in ['TimeSeries','VerticalProfile']:
+            if not _np.array_equal(self.data.index.values, value.data.index.values):
+                value = value.align_to(self)
+        elif type(value).__name__ not in ['int', 'float']:
+            raise ValueError('%s is not an excepted type'%(type(value).__name__))
+        self.__physical_property_density = value
 
     @property
     def housekeeping(self):
@@ -470,6 +483,8 @@ sizedistribution.align to align the index of the new array."""
     #     return out
 
     # todo: this function appears multiple times, can easily be inherited
+
+
     def calculate_optical_properties(self, wavelength, n = None, AOD = False, noOfAngles=100):
         if not _np.any(n):
             n = self.index_of_refraction
@@ -724,13 +739,16 @@ sizedistribution.align to align the index of the new array."""
         if not self.physical_property_density:
             raise ValueError('Please set the physical_property_density variable in g/cm^3')
 
-        try:
-            density = self.physical_property_density.copy() #1.8 # g/cm^3
-        except:
+
+
+        if type(self.physical_property_density).__name__ in ['TimeSeries', 'VerticalProfile']:
+            # density = self.physical_property_density.data.values
+            density = self.physical_property_density.copy()
+            density = density.data['density']
+        else:
             density = self.physical_property_density #1.8 # g/cm^3
 
         density *= 1e-21 # g/nm^3
-
         mass_conc = vlc_all * density # g/cm^3
         mass_conc *= 1e6 # g/m^3
         mass_conc *= 1e6 # mug/m^3
