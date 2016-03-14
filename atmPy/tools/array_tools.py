@@ -153,7 +153,7 @@ class Correlation(object):
         a.text(0.1,0.9, txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
         return a
 
-    def plot_original_data(self, ax = None):
+    def plot_original_data(self, ax = None, **kwargs):
         if not ax:
             f,a = _plt.subplots()
         else:
@@ -163,9 +163,9 @@ class Correlation(object):
         a.set_xlabel(self._x_label_orig)
 
         if type(self._index) != bool:
-            a.plot(self._index, self._data, linewidth = 2, color = _plt_tools.color_cycle[0])
+            a.plot(self._index, self._data, linewidth = 2, color = _plt_tools.color_cycle[0], **kwargs)
         else:
-            a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0])
+            a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0], **kwargs)
 
         a.set_ylabel(self._y_label_orig_data)
 
@@ -190,9 +190,9 @@ class Correlation(object):
             f.autofmt_xdate()
         return a, a2
 
-    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = _plt.cm.Blues, p_value = True, width_ratio = [1.5, 2]):
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = _plt.cm.Blues, p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
         f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
         f.set_figwidth(f.get_figwidth()*1.7)
-        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, p_value=p_value, ax = a_corr)
-        a2,a3 = self.plot_original_data(ax = a_orig)
+        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, p_value=p_value, ax = a_corr, **corr_kwargs)
+        a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3

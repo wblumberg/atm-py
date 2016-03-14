@@ -37,6 +37,7 @@ class ArmDatasetSub(_ArmDataset):
         self.__kappa = None
         self.__mass_concentration_corr = None
         self.__refractive_index = None
+        self.__density = None
 
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()
@@ -78,6 +79,7 @@ class ArmDatasetSub(_ArmDataset):
         return self.__mass_concentration_corr
 
     @property
+    @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_kappa, add_warning=False)
     def kappa(self):
         if self.__kappa is None:
             self.__kappa = self.mass_concentration_corr.calculate_kappa()
@@ -90,12 +92,12 @@ class ArmDatasetSub(_ArmDataset):
             self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
         return self.__refractive_index
 
-    # @property
-    # def refractive_index(self):
-    #     if self.__refractive_index is None:
-    #         self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
-    #     return self.__refractive_index
-
+    @property
+    @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_density, add_warning=False)
+    def density(self):
+        if self.__density is None:
+            self.__density = self.mass_concentration_corr.calculate_density()
+        return self.__density
 
     def plot_all(self):
         self.mass_concentrations.plot()
