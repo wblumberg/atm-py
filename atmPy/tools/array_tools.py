@@ -175,7 +175,7 @@ class Correlation(object):
 
         a2 = a.twinx()
         if type(self._index) != bool:
-            a2.plot(self._index,self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
+            a2.plot(self._index,self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1], **kwargs)
         else:
             a2.plot(self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
 
@@ -190,7 +190,7 @@ class Correlation(object):
             f.autofmt_xdate()
         return a, a2
 
-    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = _plt.cm.Blues, p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
         f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
         f.set_figwidth(f.get_figwidth()*1.7)
         a1 = self.plot_pearson(gridsize=gridsize, cm = cm, p_value=p_value, ax = a_corr, **corr_kwargs)
