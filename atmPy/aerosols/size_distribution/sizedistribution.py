@@ -483,8 +483,6 @@ sizedistribution.align to align the index of the new array."""
     #     return out
 
     # todo: this function appears multiple times, can easily be inherited
-
-
     def calculate_optical_properties(self, wavelength, n = None, AOD = False, noOfAngles=100):
         if not _np.any(n):
             n = self.index_of_refraction
