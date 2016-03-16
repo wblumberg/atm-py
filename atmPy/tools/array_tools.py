@@ -113,17 +113,37 @@ class Correlation(object):
             self.__linear_regression_function = lambda x: x * self.linear_regression.slope + self.linear_regression.intercept
         return self.__linear_regression_function
 
-    def plot_pearson(self, gridsize = 100, cm = 'auto', p_value = True, colorbar = False, ax = None, **kwargs):
+    # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
+    def plot_pearson(self, gridsize = 100, cm = 'auto', xlim = None, ylim = None, p_value = True, colorbar = False, ax = None, **kwargs):
+        """
+
+        Parameters
+        ----------
+        gridsize:
+        cm: matplotlib.color map
+        xlim: int or float
+            upper limit of x. Similar to set_xlim(right = ...) in addition it
+            adjusts the gridsize so hexagons are not getting streched
+        ylim: int or float
+            as xlim just for y-axis
+        p_value: bool
+            if the p-value is given in the text box
+        colorbar: bool
+        ax: bool or matplotlib.Axes instance
+            If desired to plot on another axes.
+        kwargs
+
+        Returns
+        -------
+
+        """
         if not ax:
             f,a = _plt.subplots()
         else:
             f = ax.get_figure()
             a = ax
 
-        # cm = plt_tools.()
-        # cm = plt.cm.gist_earth_r
-        # cm = plt.cm.hot_r
-#         cm = plt.cm.Blues
+        ratio = 14/20 #at this ratio hexagons look symmetric at the particular setting
 
         a.set_xlabel(self._x_label_correlation)
         a.set_ylabel(self._y_label_correlation)
@@ -133,7 +153,30 @@ class Correlation(object):
 
         cm.set_under('w')
 
-        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize, cmap=cm, vmin = 0.001, **kwargs)
+        if xlim:
+            if type(xlim).__name__ in ['int', 'float']:
+                xratio = self._data.max() / xlim
+                gridsize_x = int(gridsize * xratio)
+        else:
+            gridsize_x = gridsize
+
+        if ylim:
+            yratio = self._correlant.max() / ylim
+            gridsize_y = int(ratio * gridsize * yratio)
+        else:
+            gridsize_y = int(gridsize * ratio)
+
+        gridsize_new = (gridsize_x, gridsize_y)
+
+        # import pdb
+        # pdb.set_trace()
+        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, cmap=cm, vmin = 0.001, **kwargs)
+
+        if xlim:
+            a.set_xlim(right=xlim)
+        if ylim:
+            a.set_ylim(top=ylim)
+
         if colorbar:
             f.colorbar(hb, ax = a)
 #         linreg_func = lambda x: x * linreg.slope + linreg.intercept
@@ -190,9 +233,9 @@ class Correlation(object):
             f.autofmt_xdate()
         return a, a2
 
-    def plot_pearsonANDoriginal_data(self, gridsize = 20, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, xlim = None, ylim = None, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
         f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
         f.set_figwidth(f.get_figwidth()*1.7)
-        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, p_value=p_value, ax = a_corr, **corr_kwargs)
+        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, p_value=p_value, ax = a_corr, **corr_kwargs)
         a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3
