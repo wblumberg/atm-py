@@ -41,7 +41,7 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     index = sdls.data.index
     dist_class = type(sdls).__name__
 
-    if dist_class not in ['SizeDist_TS']:
+    if dist_class not in ['SizeDist','SizeDist_TS']:
         raise TypeError('this distribution class (%s) can not be converted into optical property yet!'%dist_class)
 
     if isinstance(n, pd.DataFrame):
@@ -100,7 +100,8 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
 
     if dist_class == 'SizeDist_TS':
         out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
-
+    elif dist_class == 'SizeDist':
+        out['extCoeff_perrow_perbin'] = timeseries.TimeSeries(extCoeff_perrow_perbin)
     # extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
     # if index.dtype == '<M8[ns]':
     #     out['extCoeff_perrow'] = timeseries.TimeSeries(extCoeff_perrow)
@@ -160,14 +161,16 @@ class OpticalProperties(object):
 
     @property
     def extinction_coeff_sum_along_d(self):
-        if not self.__extinction_coeff_sum_along_d:
+        if not np.any(self.__extinction_coeff_sum_along_d):
             data = self.extinction_coeff.data.sum(axis = 1)
             df = pd.DataFrame()
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
                 self.__extinction_coeff_sum_along_d = timeseries.TimeSeries(df)
+            elif self._parent_type == 'SizeDist':
+                self.__extinction_coeff_sum_along_d = df
             else:
-                raise('not possible for this distribution type')
+                raise TypeError('not possible for this distribution type')
         return self.__extinction_coeff_sum_along_d
 
     @extinction_coeff_sum_along_d.setter
