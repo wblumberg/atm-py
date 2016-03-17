@@ -7,6 +7,8 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+
+    def _data_quality_control(self):
         if self.data_quality_flag_max == None:
             if self.data_quality == 'good':
                 self.data_quality_flag_max = 0
@@ -17,16 +19,10 @@ class ArmDatasetSub(ArmDataset):
             else:
                 txt = '%s is not an excepted values for data_quality ("good", "patchy", "bad")'%(self.data_quality)
                 raise ValueError(txt)
-        self._parse_netCDF()
 
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()
 
-
-# def _parse_netCDF(file_obj):
-
-
-        # sd = file_obj.variables['number_concentration_DMA_APS']
         df = pd.DataFrame(self._read_variable('number_concentration_DMA_APS'),
                           index = self.time_stamps)
 

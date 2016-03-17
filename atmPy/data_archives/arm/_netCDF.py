@@ -10,6 +10,7 @@ class ArmDataset(object):
             self.netCDF = Dataset(fname)
             self.data_quality_flag_max = data_quality_flag_max
             self.data_quality = data_quality
+            self._parse_netCDF()
 
     @property
     def time_stamps(self):
@@ -25,6 +26,10 @@ class ArmDataset(object):
     @time_stamps.setter
     def time_stamps(self,timesamps):
         self.__time_stamps = timesamps
+
+    def _data_quality_control(self):
+        return
+
 
     def _read_variable(self, variable, reverse_qc_flag = False):
         """Reads the particular variable and replaces all masked data with NaN.
@@ -127,4 +132,5 @@ class ArmDataset(object):
         self.netCDF.close()
 
     def _parse_netCDF(self):
+        self._data_quality_control()
         return

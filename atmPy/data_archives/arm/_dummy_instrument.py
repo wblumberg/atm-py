@@ -5,8 +5,15 @@ from atmPy.data_archives.arm import _netCDF
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+
+        ####
+        # for properties
+        self.__mean_growth_factor  = None
+
+    def _data_quality_control(self):
         #######
         ## Define what is good, patchy or bad data
+        ## delete if not quality flags exist
         ## settings are ignored if no quality flags are profided (e.g. noaaaos)
 
         if self.data_quality_flag_max == None:
@@ -19,10 +26,6 @@ class ArmDatasetSub(_netCDF.ArmDataset):
             else:
                 txt = '%s is not an excepted values for data_quality ("good", "patchy", "bad")'%(self.data_quality)
                 raise ValueError(txt)
-        self._parse_netCDF()
-        ####
-        # for properties
-        self.__mean_growth_factor  = None
 
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()

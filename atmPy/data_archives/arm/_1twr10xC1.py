@@ -6,6 +6,17 @@ class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
         ## Define what is good, patchy or bad data
+
+        # self._parse_netCDF()
+
+    def _parse_netCDF(self):
+        super(ArmDatasetSub,self)._parse_netCDF()
+        # self._data_quality_control()
+        self.relative_humidity = self._read_variable2timeseries(['rh_25m', 'rh_60m'], column_name='Relative Humidity (%)')
+        self.temperature = self._read_variable2timeseries(['temp_25m', 'temp_60m'], column_name='Temperature ($^{\circ}$C)')
+        self.vapor_pressure = self._read_variable2timeseries(['vap_pres_25m', 'vap_pres_60m'], column_name='Vapor pressure (kPa)')
+
+    def _data_quality_control(self):
         if self.data_quality_flag_max == None:
             if self.data_quality == 'good':
                 self.data_quality_flag_max = 0
@@ -16,13 +27,6 @@ class ArmDatasetSub(_netCDF.ArmDataset):
             else:
                 txt = '%s is not an excepted values for data_quality ("good", "patchy", "bad")'%(self.data_quality)
                 raise ValueError(txt)
-        self._parse_netCDF()
-
-    def _parse_netCDF(self):
-        super(ArmDatasetSub,self)._parse_netCDF()
-        self.relative_humidity = self._read_variable2timeseries(['rh_25m', 'rh_60m'], column_name='Relative Humidity (%)')
-        self.temperature = self._read_variable2timeseries(['temp_25m', 'temp_60m'], column_name='Temperature ($^{\circ}$C)')
-        self.vapor_pressure = self._read_variable2timeseries(['vap_pres_25m', 'vap_pres_60m'], column_name='Vapor pressure (kPa)')
 
     def plot_all(self):
         self.relative_humidity.plot()

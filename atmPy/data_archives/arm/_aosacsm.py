@@ -35,6 +35,12 @@ class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
+        self.__kappa = None
+        self.__mass_concentration_corr = None
+        self.__refractive_index = None
+        self.__density = None
+
+    def _data_quality_control(self):
         ## Define what is good, patchy or bad data
         if self.data_quality_flag_max == None:
             if self.data_quality == 'good':
@@ -46,14 +52,6 @@ class ArmDatasetSub(_ArmDataset):
             else:
                 txt = '%s is not an excepted values for data_quality ("good", "patchy", "bad")'%(self.data_quality)
                 raise ValueError(txt)
-        self._parse_netCDF()
-
-
-
-        self.__kappa = None
-        self.__mass_concentration_corr = None
-        self.__refractive_index = None
-        self.__density = None
 
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()
