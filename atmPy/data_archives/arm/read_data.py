@@ -82,7 +82,8 @@ def read_cdf(fname,
              site = 'sgp',
              data_product = None,
              time_window = None,
-             quality_control = 0,
+             data_quality = 'good',
+             data_quality_flag_max = None,
              concat = True,
              ignore_unknown = False,
              leave_cdf_open = False,
@@ -158,7 +159,7 @@ def read_cdf(fname,
             products[product_id] = []
 
 
-        arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f, quality_control = quality_control)
+        arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f, data_quality = data_quality, data_quality_flag_max = data_quality_flag_max)
 
         if not leave_cdf_open:
             arm_file_object.close()

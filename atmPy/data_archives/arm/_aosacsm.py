@@ -34,6 +34,22 @@ def _concat_rules(arm_data_objs):
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+
+        ## Define what is good, patchy or bad data
+        if self.data_quality_flag_max == None:
+            if self.data_quality == 'good':
+                self.data_quality_flag_max = 0
+            elif self.data_quality == 'patchy':
+                self.data_quality_flag_max = 1
+            elif self.data_quality == 'bad':
+                self.data_quality_flag_max = 100000
+            else:
+                txt = '%s is not an excepted values for data_quality ("good", "patchy", "bad")'%(self.data_quality)
+                raise ValueError(txt)
+        self._parse_netCDF()
+
+
+
         self.__kappa = None
         self.__mass_concentration_corr = None
         self.__refractive_index = None
@@ -45,7 +61,7 @@ class ArmDatasetSub(_ArmDataset):
         mass_conc_keys = ['total_organics','ammonium','sulfate','nitrate','chloride']
 
         for k in mass_conc_keys:
-            mass_concentrations[k] = _pd.Series(self._read_variable(k), index = self.time_stamps)
+            mass_concentrations[k] = _pd.Series(self._read_variable(k, reverse_qc_flag = 4), index = self.time_stamps)
 
         mass_concentrations.columns.name = 'Mass conc. ug/m^3'
         mass_concentrations.index.name = 'Time'

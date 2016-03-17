@@ -8,6 +8,7 @@ import pdb as _pdb
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+        self._parse_netCDF()
 
     def _parse_netCDF(self):
 

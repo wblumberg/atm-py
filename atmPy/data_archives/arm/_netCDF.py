@@ -2,13 +2,14 @@ from netCDF4 import Dataset
 import numpy as np
 import pandas as pd
 from atmPy.general import timeseries as _timeseries
+from atmPy.tools import array_tools as _arry_tools
 
 class ArmDataset(object):
-    def __init__(self, fname, quality_control = 0):
+    def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None):
         if fname:
             self.netCDF = Dataset(fname)
-            self.quality_control = quality_control
-            self._parse_netCDF()
+            self.data_quality_flag_max = data_quality_flag_max
+            self.data_quality = data_quality
 
     @property
     def time_stamps(self):
@@ -25,14 +26,19 @@ class ArmDataset(object):
     def time_stamps(self,timesamps):
         self.__time_stamps = timesamps
 
-    def _read_variable(self, variable):
+    def _read_variable(self, variable, reverse_qc_flag = False):
         """Reads the particular variable and replaces all masked data with NaN.
-        Note, if quality flag is given only values larger than the quality_control variable are replaced with NaN.
+        Note, if quality flag is given only values larger than the quality_control
+        variable are replaced with NaN.
 
         Parameters
         ----------
         variable: str
             Variable name as devined in netCDF file
+        reverse_qc_flag: bool or int
+            Set to the number of bits, when reversion is desired
+            If the indeterminate (patchy) bits are on the wrong end of the qc bit
+            string it might make sense to reverte the bit string.
 
         Returns
         -------
@@ -50,8 +56,12 @@ class ArmDataset(object):
             # print('has qc')
             var_qc = self.netCDF.variables["qc_" + variable]
             data_qc = var_qc[:]
-            data_qc[data_qc <= self.quality_control] = 0
-            data_qc[data_qc > self.quality_control] = 1
+            if reverse_qc_flag:
+                if type(reverse_qc_flag) != int:
+                    raise TypeError('reverse_qc_flag should either be False or of type integer giving the number of bits')
+                data_qc = _arry_tools.reverse_binary(data_qc, reverse_qc_flag)
+            data_qc[data_qc <= self.data_quality_flag_max] = 0
+            data_qc[data_qc > self.data_quality_flag_max] = 1
 
             if data.shape != data_qc.shape:
                 dt = np.zeros(data.shape)
