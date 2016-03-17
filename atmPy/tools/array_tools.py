@@ -57,6 +57,35 @@ def find_closest(array, value, how = 'closest'):
     return out
 
 
+def reverse_binary(variable, no_bits):
+    """This converts all numbers into binary of length no_bits. Then it reverses the
+    binaries and finally converts it into integer again.
+    This is usefull for quality flags that are often represented in integers of
+    which each position of the corresponding binary tells you something about a
+    different qualty criteria. Sometimes bad values are at the beginning sometimes
+    at the end and reversing is desired.
+
+    Parameters
+    ==========
+    variable: ndarray or pandas object
+
+    Returns
+    =======
+    what ever you put in
+
+    Examples
+    ========
+    >>> a = np.array([1,0,0,2,0,8])
+    >>> array_tools.reverse_binary(a,4)
+    array([8, 0, 0, 4, 0, 1])
+    """
+    variable = variable.copy()
+    rep = '{0:0%sb}'%no_bits
+    func = _np.vectorize(lambda i: int(rep.format(i)[::-1],2))
+    variable[:] = func(variable)
+    return variable
+
+
 class Correlation(object):
     def __init__(self, data, correlant, remove_zeros = True, index = False):
         """This object is for testing correlation in two two data sets.
