@@ -219,8 +219,12 @@ class Correlation(object):
 
 
         txt = '$r = %0.2f$'%(self.pearson_r[0])
-        if p_value:
-            txt += '\n$p = %0.2f$'%(self.pearson_r[1])
+        # if p_value:
+        txt += '\n$p = %0.2f$'%(self.pearson_r[1])
+        txt += '\n$m = %0.2f$'%(self.linear_regression.slope)
+        txt += '\n$c = %0.2f$'%(self.linear_regression.intercept)
+        txt += '\n$std = %0.2f$'%(self.linear_regression.stderr)
+
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
         a.text(0.1,0.9, txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
         return a
