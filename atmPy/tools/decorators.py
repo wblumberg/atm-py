@@ -17,7 +17,8 @@ def change_doc(other_func, add_warning = True, keep_new_doc = True):
 #             func.__doc__ = other_func.__doc__
             return wrapped_func
         if keep_new_doc and func.__doc__:
-            note = 'Note from wrapper:\n'
+            note = """Note from wrapper:
+"""
             wrapper_doc = func.__doc__
             note_II = 'Original doc string:\n'
             doc = note + wrapper_doc + '\n\n' + note_II
