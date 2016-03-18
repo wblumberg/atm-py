@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 import numpy as _np
-import pylab as plt
+import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm
 
 from atmPy.tools import plt_tools, math_functions, array_tools
@@ -1178,7 +1178,8 @@ class SizeDist_TS(SizeDist):
         """
         dist = self.copy()
         dist.data = dist.data.truncate(before=start, after=end)
-        dist.housekeeping = self.housekeeping.zoom_time(start=start, end=end)
+        if dist.housekeeping:
+            dist.housekeeping = self.housekeeping.zoom_time(start=start, end=end)
 
         dist._update()
         return dist
