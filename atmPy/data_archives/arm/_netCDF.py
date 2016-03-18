@@ -120,7 +120,7 @@ class ArmDataset(object):
         return out
 
 
-    def get_variable_info(self):
+    def _get_variable_info(self):
         for v in self.netCDF.variables.keys():
             var = self.netCDF.variables[v]
             print(v)
@@ -128,7 +128,7 @@ class ArmDataset(object):
             print(var.shape)
             print('--------')
 
-    def close(self):
+    def _close(self):
         self.netCDF.close()
 
     def _parse_netCDF(self):
