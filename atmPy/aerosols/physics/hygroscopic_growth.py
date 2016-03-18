@@ -1,4 +1,8 @@
-import numpy as np
+import numpy as _np
+from scipy.optimize import fsolve as _fsolve
+import pandas as _pd
+import atmPy.general.timeseries as _timeseries
+import pdb as _pdb
 
 def kappa_simple(k,RH, n = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
@@ -36,11 +40,11 @@ def kappa_simple(k,RH, n = None, inverse = False):
     """
 
     if not inverse:
-        if np.any(k > 1.4) or np.any(k < 0):
+        if _np.any(k > 1.4) or _np.any(k < 0):
             txt = '''The kappa value has to be between 0 and 1.4.'''
             raise ValueError(txt)
 
-    if np.any(RH > 100) or np.any(RH < 0):
+    if _np.any(RH > 100) or _np.any(RH < 0):
         txt = """RH has to be between 0 and 100"""
         raise ValueError(txt)
 
@@ -58,3 +62,76 @@ def kappa_simple(k,RH, n = None, inverse = False):
             n_mix = lambda n,gf: (n + ((gf-1)*nw))/gf
             return out, n_mix(n,out)
     return out
+
+
+def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False):
+    """
+    Calculates kappa from f of RH and a size distribution.
+    Parameters
+    ----------
+    f_of_RH: TimeSeries
+    dist: SizeDist
+    wavelength: float
+    RH: float
+        Relative humidity at which the f_of_RH is taken.
+    verbose: bool
+
+    Returns
+    -------
+    TimeSeries
+    """
+
+    def minimize_this(gf, sr, f_rh_soll, ext, wavelength, verbose = False):
+        gf = float(gf)
+        sr_g = sr.apply_growth(gf, how='shift_bins')
+        sr_g_opt = sr_g.calculate_optical_properties(wavelength)
+        ext_g = sr_g_opt.extinction_coeff_sum_along_d.data.values[0][0]
+        f_RH = ext_g / ext
+        out = f_RH - f_rh_soll
+
+        if verbose:
+            print('test growhtfactor: %s'%gf)
+            print('f of RH soll/is: %s/%s'%(f_rh_soll,f_RH))
+            print('diviation from soll: %s'%out)
+            print('---------')
+        return out
+
+    n_values = dist.data.shape[0]
+    gf_calc = _np.zeros(n_values)
+    kappa_calc = _np.zeros(n_values)
+    f_of_RH_aligned = f_of_RH.align_to(dist)
+    for e in range(n_values):
+        frhsoll = f_of_RH_aligned.data.values[e][0]
+        if _np.isnan(frhsoll):
+            kappa_calc[e] = _np.nan
+            gf_calc[e]  = _np.nan
+            continue
+        sr = dist.copy()
+        sr.data = sr.data.iloc[[e],:]
+        sr_opt = sr.calculate_optical_properties(wavelength)
+        ext = sr_opt.extinction_coeff_sum_along_d.data.values[0][0]
+
+
+        if ext == 0:
+            kappa_calc[e] = _np.nan
+            gf_calc[e]  = _np.nan
+            continue
+
+        if verbose:
+            print('goal for f_rh: %s'%frhsoll)
+            print('=======')
+
+        gf_out = _fsolve(minimize_this, 1, args = (sr, frhsoll, ext, wavelength, verbose), factor=0.5, xtol = 0.005)
+        gf_calc[e] = gf_out
+
+        if verbose:
+            print('resulting gf: %s'%gf_out)
+            print('=======\n')
+
+        kappa_calc[e] = kappa_simple(gf_out, RH, inverse=True)
+    ts_kappa = _timeseries.TimeSeries(_pd.DataFrame(kappa_calc, index = f_of_RH_aligned.data.index, columns= ['kappa']))
+    ts_kappa._y_label = '$\kappa$'
+
+    ts_gf = _timeseries.TimeSeries(_pd.DataFrame(gf_calc, index = f_of_RH_aligned.data.index, columns= ['growth factor']))
+    ts_gf._y_label = 'growth factor$'
+    return ts_kappa, ts_gf
