@@ -162,7 +162,7 @@ def read_cdf(fname,
         arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f, data_quality = data_quality, data_quality_flag_max = data_quality_flag_max)
 
         if not leave_cdf_open:
-            arm_file_object.close()
+            arm_file_object._close()
 
         products[product_id].append(arm_file_object)
 
