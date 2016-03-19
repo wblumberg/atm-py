@@ -274,6 +274,8 @@ class SizeDist(object):
         if type(n).__name__ in ('int','float'):
             pass
         elif type(n).__name__  in ('TimeSeries'):
+            if not _np.array_equal(self.data.index, n.data.index):
+                n = n.align_to(self)
             n = n.data
 
         if type(n).__name__ in ('DataFrame', 'ndarray'):
