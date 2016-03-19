@@ -106,8 +106,16 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
             kappa_calc[e] = _np.nan
             gf_calc[e]  = _np.nan
             continue
+
+        ior = dist.index_of_refraction.iloc[e][0]
+        if _np.isnan(ior):
+            kappa_calc[e] = _np.nan
+            gf_calc[e]  = _np.nan
+            continue
+
         sr = dist.copy()
         sr.data = sr.data.iloc[[e],:]
+        sr.index_of_refraction = ior
         sr_opt = sr.calculate_optical_properties(wavelength)
         ext = sr_opt.extinction_coeff_sum_along_d.data.values[0][0]
 
