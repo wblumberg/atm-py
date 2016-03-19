@@ -39,6 +39,7 @@ class ArmDatasetSub(_ArmDataset):
         self.__mass_concentration_corr = None
         self.__refractive_index = None
         self.__density = None
+        self.__mass_concentration_corr_relative = None
 
     def _data_quality_control(self):
         ## Define what is good, patchy or bad data
@@ -85,12 +86,14 @@ class ArmDatasetSub(_ArmDataset):
         self.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(org_mx)
         return
 
+
     @property
-    def mass_concentration_corr(self):
-        if self.__mass_concentration_corr is None:
-            self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
-            self.__mass_concentration_corr.data['total'] = self.__mass_concentration_corr.data.sum(axis = 1)
-        return self.__mass_concentration_corr
+    @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_density, add_warning=False)
+    def density(self):
+        if self.__density is None:
+            self.__density = self.mass_concentration_corr.calculate_density()
+        return self.__density
+
 
     @property
     @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_kappa, add_warning=False)
@@ -100,18 +103,30 @@ class ArmDatasetSub(_ArmDataset):
         return self.__kappa
 
     @property
+    def mass_concentration_corr(self):
+        if self.__mass_concentration_corr is None:
+            self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
+            self.__mass_concentration_corr.data['total'] = self.__mass_concentration_corr.data.sum(axis = 1)
+        return self.__mass_concentration_corr
+
+    @property
+    def mass_concentration_corr_relative(self):
+        if self.__mass_concentration_corr_relative is None:
+            mccr = self.mass_concentration_corr.copy()
+            total = mccr.data.loc[:,'total']
+            mccr.data.drop(['total'], axis=1, inplace=True)
+            mccr.data = mccr.data.divide(total, axis = 0)
+            self.__mass_concentration_corr_relative = mccr
+
+        return self.__mass_concentration_corr_relative
+
+    @property
     @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_refractive_index, add_warning=False)
     def refractive_index(self):
         if self.__refractive_index is None:
             self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
         return self.__refractive_index
 
-    @property
-    @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_density, add_warning=False)
-    def density(self):
-        if self.__density is None:
-            self.__density = self.mass_concentration_corr.calculate_density()
-        return self.__density
 
     def plot_all(self):
         self.mass_concentrations.plot()
