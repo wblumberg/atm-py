@@ -115,6 +115,17 @@ class Correlation(object):
                 index = index[correlant != 0]
             correlant = correlant[correlant != 0]
 
+        # nans have to be removed
+        correlant = correlant[~ _np.isnan(data)]
+        if type(index) != bool:
+            index = index[~ _np.isnan(data)]
+        data = data[~ _np.isnan(data)]
+
+        data = data[~ _np.isnan(correlant)]
+        if type(index) != bool:
+            index = index[~ _np.isnan(correlant)]
+        correlant = correlant[~ _np.isnan(correlant)]
+
         self._data = data
         self._correlant = correlant
         self._index = index
