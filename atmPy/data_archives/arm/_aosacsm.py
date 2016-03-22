@@ -83,6 +83,7 @@ class ArmDatasetSub(_ArmDataset):
 
         self.mass_concentrations = _AMS.AMS_Timeseries_lev01(mass_concentrations)
         self.mass_concentrations.data['total'] = self.mass_concentrations.data.sum(axis = 1)
+        self.mass_concentrations.data.rename(columns= {'total_organics': 'organic_aerosol'}, inplace = True)
         self.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(org_mx)
         return
 
