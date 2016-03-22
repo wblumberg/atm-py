@@ -274,7 +274,8 @@ class Correlation(object):
 
 
         if type(self._index).__name__ == 'DatetimeIndex':
-            f.autofmt_xdate()
+            # f.autofmt_xdate()
+            _plt.setp(a.xaxis.get_majorticklabels(), rotation=30 )
         return a, a2
 
     def plot_pearsonANDoriginal_data(self, gridsize = 20, xlim = None, ylim = None, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
