@@ -9,6 +9,7 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
+        self.__kappa_values = None
 
     def _data_quality_control(self):
         if self.data_quality_flag_max == None:
@@ -66,7 +67,7 @@ class ArmDatasetSub(ArmDataset):
 
     @property
     def kappa_values(self):
-        if '__kappa_values' not in dir(self):
+        if not self.__kappa_values:
             # RH =
             kappa_values = hg.kappa_simple(self.mean_growth_factor.data.values[:,:,0],self.RH_interDMA.data.values, inverse = True)
             kappa_values = pd.DataFrame(kappa_values,columns=self.mean_growth_factor.data.major_axis, index = self.mean_growth_factor.data.items)
