@@ -796,14 +796,23 @@ sizedistribution.align to align the index of the new array."""
         int: if data has only one line
         pandas.DataFrame: else """
         sd = self.convert2numberconcentration()
-        particles = _np.zeros(sd.data.shape[0])
-        for e, line in enumerate(sd.data.values):
-            particles[e] = line.sum()
+
+        particles = sd.data.sum(axis = 1)
+
+        # The code below is old and lead to problems when df contained NaNs
+        # particles = _np.zeros(sd.data.shape[0])
+        # for e, line in enumerate(sd.data.values):
+        #     particles[e] = line.sum()
         if sd.data.shape[0] == 1:
             return particles[0]
         else:
-            df = pd.DataFrame(particles, index=sd.data.index, columns=['Particle number concentration #/$cm^3$'])
-            df = df.drop_duplicates()
+            df = pd.DataFrame(particles,
+                              # index=sd.data.index,
+                              columns=['Particle number concentration #/$cm^3$'])
+
+            # not sure what the purpose of the argument below was, however, it can
+            # result in errors. If desired in future us: df = df.reindex(df.index.drop_duplicates())
+            # df = df.drop_duplicates()
             return df
 
     def _get_surface_concentration(self):
