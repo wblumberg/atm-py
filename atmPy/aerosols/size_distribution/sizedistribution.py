@@ -266,11 +266,13 @@ class SizeDist(object):
 
     @property
     def index_of_refraction(self):
+        """In case of setting the value and value is TimeSeries it will be aligned to the time series of the
+        size distribution.
+        """
         return self.__index_of_refraction
 
     @index_of_refraction.setter
     def index_of_refraction(self,n):
-        # if not self.__index_of_refraction:
         if type(n).__name__ in ('int','float'):
             pass
         elif type(n).__name__  in ('TimeSeries'):
@@ -863,6 +865,14 @@ sizedistribution.align to align the index of the new array."""
         """data: 1D array
         bins: 1D array
         gf: float"""
+
+        if _np.any(gf < 1):
+            # _pdb.set_trace()
+            txt = 'Growth facotor smaller than 1 (is %s). Value adjusted to 1!!'%gf
+            gf = 1
+            # raise ValueError(txt)
+            _warnings.warn(txt)
+
         if gf == 1.:
             out = {}
             out['bins'] = bins
@@ -870,11 +880,7 @@ sizedistribution.align to align the index of the new array."""
             out['num_extr_bins'] = 0
             return out
 
-
         bins_new = bins.copy()
-        if _np.any(gf < 1):
-            txt = 'Growth factor must be equal or larger than 1. No shrinking!!'
-            raise ValueError(txt)
         # pdb.set_trace()
         shifted = bins_new * gf
         ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
