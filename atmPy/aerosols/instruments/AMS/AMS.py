@@ -43,7 +43,7 @@ def ion2electrolyte_mass_concentration(ion_concentrations, ions, electrolytes):
 
 
 
-    cct = ion_concentrations.drop(['total_organics'])/ions.molecular_weight
+    cct = ion_concentrations.drop(['organic_aerosol'])/ions.molecular_weight
 
     ions['molar_concentration'] = cct
 
@@ -156,7 +156,7 @@ class AMS_Timeseries_lev01(_timeseries.TimeSeries):
             cct = self.data.loc[i]
             electro = ion2electrolyte_mass_concentration(cct, material_ions, material_elct)
             df.loc[i] = electro.mass_concentration
-        df['total_organics'] = self.data.total_organics
+        df['organic_aerosol'] = self.data.organic_aerosol
         return AMS_Timeseries_lev02(df)
 
 class AMS_Timeseries_lev02(_timeseries.TimeSeries):
