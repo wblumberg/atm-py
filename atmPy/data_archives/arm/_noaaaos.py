@@ -88,52 +88,6 @@ class ArmDatasetSub(_ArmDataset):
         self.__sup_kappa_sizedist = None
         self.__sup_kappa_wavelength = None
 
-    @property
-    def sup_kappa_wavelength(self):
-        return self.__sup_kappa_wavelength
-
-    @sup_kappa_wavelength.setter
-    def sup_kappa_wavelength(self, value):
-        self.__kappa = None
-        self.__growthfactor = None
-        self.__sup_kappa_wavelength = value
-
-    @property
-    def sup_kappa_sizedist(self):
-        return self.__sup_kappa_sizedist
-
-    @sup_kappa_sizedist.setter
-    def sup_kappa_sizedist(self, value):
-        self.__kappa = None
-        self.__growthfactor = None
-        self.__sup_kappa_sizedist = value
-
-    @property
-    def sup_fofRH_which(self):
-        return self.__sup_fofRH_which
-
-    @sup_fofRH_which.setter
-    def sup_fofRH_which(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_which = value
-
-    @property
-    def sup_fofRH_RH_center(self):
-        return self.__sup_fofRH_RH_center
-
-    @sup_fofRH_RH_center.setter
-    def sup_fofRH_RH_center(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_RH_center = value
-
-    @property
-    def sup_fofRH_RH_tolerance(self):
-        return self.__sup_fofRH_RH_tolerance
-
-    @sup_fofRH_RH_tolerance.setter
-    def sup_fofRH_RH_tolerance(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_RH_tolerance = value
 
     def _parse_netCDF(self):
 
@@ -228,10 +182,12 @@ class ArmDatasetSub(_ArmDataset):
             if not self.sup_fofRH_RH_center or not self.sup_fofRH_RH_tolerance or not self.sup_fofRH_which:
                 txt = "Make sure you define the following attributes first: \nself.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which"
                 raise ValueError(txt)
-
             self.__f_of_RH = calculate_f_RH(self,self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which)
-
         return self.__f_of_RH
+
+    @f_of_RH.setter
+    def f_of_RH(self, value):
+        self.__f_of_RH = value
 
     @property
     @decorators.change_doc(hygrow.kappa_from_fofrh_and_sizedist)
@@ -251,6 +207,54 @@ class ArmDatasetSub(_ArmDataset):
         if self.__growthfactor:
             self.kappa
         return self.__growthfactor
+
+    @property
+    def sup_kappa_wavelength(self):
+        return self.__sup_kappa_wavelength
+
+    @sup_kappa_wavelength.setter
+    def sup_kappa_wavelength(self, value):
+        self.__kappa = None
+        self.__growthfactor = None
+        self.__sup_kappa_wavelength = value
+
+    @property
+    def sup_kappa_sizedist(self):
+        return self.__sup_kappa_sizedist
+
+    @sup_kappa_sizedist.setter
+    def sup_kappa_sizedist(self, value):
+        self.__kappa = None
+        self.__growthfactor = None
+        self.__sup_kappa_sizedist = value
+
+    @property
+    def sup_fofRH_which(self):
+        return self.__sup_fofRH_which
+
+    @sup_fofRH_which.setter
+    def sup_fofRH_which(self, value):
+        self.__f_of_RH = None
+        self.__sup_fofRH_which = value
+
+    @property
+    def sup_fofRH_RH_center(self):
+        return self.__sup_fofRH_RH_center
+
+    @sup_fofRH_RH_center.setter
+    def sup_fofRH_RH_center(self, value):
+        self.__f_of_RH = None
+        self.__sup_fofRH_RH_center = value
+
+    @property
+    def sup_fofRH_RH_tolerance(self):
+        return self.__sup_fofRH_RH_tolerance
+
+    @sup_fofRH_RH_tolerance.setter
+    def sup_fofRH_RH_tolerance(self, value):
+        self.__f_of_RH = None
+        self.__sup_fofRH_RH_tolerance = value
+
 
 
 
