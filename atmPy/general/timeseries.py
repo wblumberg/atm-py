@@ -132,6 +132,13 @@ class TimeSeries(object):
         self._y_label = None
         self._x_label = 'Time'
 
+    def __str__(self):
+        return self.data.__str__()
+
+    def __repr__(self):
+        print(type(self))
+        return self.data.__repr__()
+
     def __truediv__(self,other):
         self = self.copy()
         other = other.copy()
