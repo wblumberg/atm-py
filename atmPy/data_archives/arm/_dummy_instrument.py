@@ -5,7 +5,7 @@ from atmPy.data_archives.arm import _netCDF
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
-
+        self._data_periode = 2500.
         ####
         # for properties
         self.__mean_growth_factor  = None
@@ -48,7 +48,7 @@ def _concat_rules(arm_data_objs):
 
     # populate class with concatinated data
     out.rh = _timeseries.concat([i.rh for i in arm_data_objs])
-
+    # out.rh._data_periode = out._data_periode
     # use time stamps from one of the variables
     out.time_stamps = out.rh.data.index
     return out

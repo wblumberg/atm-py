@@ -45,6 +45,7 @@ def align_to(ts, ts_other):
     ts_other.data = ts_other.data.loc[:,[]]
     ts_t =  merge(ts_other, ts)
     ts.data = ts_t.data
+    ts._data_periode = ts_other._data_periode
     return ts
 
 
@@ -70,10 +71,6 @@ def merge(ts, ts_other):
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
-
-
-
-
 
 def concat(ts_list):
     for ts in ts_list:
@@ -129,10 +126,101 @@ class TimeSeries(object):
     def __init__(self, data, info=None):
         # if not type(data).__name__ == 'DataFrame':
         #     raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
+        self._data_periode = None
         self.data = data
         self.info = info
         self._y_label = None
         self._x_label = 'Time'
+
+    def __truediv__(self,other):
+        self = self.copy()
+        other = other.copy()
+        if self._data_periode > other._data_periode:
+            other = other.align_to(self)
+            # other._data_periode = self._data_periode
+        else:
+            self = self.align_to(other)
+            # self._data_periode = other._data_periode
+
+        if other.data.shape[1] == 1:
+            out = self.data.divide(other.data.iloc[:,0], axis = 0)
+        elif self.data.shape[1] == 1:
+            out = other.data.divide(self.data.iloc[:,0], axis = 0)
+            out = 1/out
+        else:
+            txt = 'at least one of the dataframes have to have one column only'
+            raise ValueError(txt)
+
+        ts = TimeSeries(out)
+        ts._data_periode = self._data_periode
+        return ts
+
+    def __add__(self,other):
+        self = self.copy()
+        other = other.copy()
+        if self._data_periode > other._data_periode:
+            other = other.align_to(self)
+            other._data_periode = self._data_periode
+        else:
+            self = self.align_to(other)
+            self._data_periode = other._data_periode
+
+        if other.data.shape[1] == 1:
+            out = self.data.add(other.data.iloc[:,0], axis = 0)
+        elif self.data.shape[1] == 1:
+            out = other.data.add(self.data.iloc[:,0], axis = 0)
+        else:
+            txt = 'at least one of the dataframes have to have one column only'
+            raise ValueError(txt)
+
+        ts = TimeSeries(out)
+        ts._data_periode = self._data_periode
+        return ts
+
+    def __sub__(self,other):
+        self = self.copy()
+        other = other.copy()
+        if self._data_periode > other._data_periode:
+            other = other.align_to(self)
+            other._data_periode = self._data_periode
+        else:
+            self = self.align_to(other)
+            self._data_periode = other._data_periode
+
+        if other.data.shape[1] == 1:
+            out = self.data.sub(other.data.iloc[:,0], axis = 0)
+        elif self.data.shape[1] == 1:
+            out = other.data.sub(self.data.iloc[:,0], axis = 0)
+            out = - out
+        else:
+            txt = 'at least one of the dataframes have to have one column only'
+            raise ValueError(txt)
+
+        ts = TimeSeries(out)
+        ts._data_periode = self._data_periode
+        return ts
+
+    def __mul__(self,other):
+        self = self.copy()
+        other = other.copy()
+        if self._data_periode > other._data_periode:
+            other = other.align_to(self)
+            other._data_periode = self._data_periode
+        else:
+            self = self.align_to(other)
+            self._data_periode = other._data_periode
+
+        if other.data.shape[1] == 1:
+            out = self.data.multiply(other.data.iloc[:,0], axis = 0)
+        elif self.data.shape[1] == 1:
+            out = other.data.multiply(self.data.iloc[:,0], axis = 0)
+        else:
+            txt = 'at least one of the dataframes have to have one column only'
+            raise ValueError(txt)
+
+        ts = TimeSeries(out)
+        ts._data_periode = self._data_periode
+        return ts
 
     @property
     def data(self):
@@ -309,7 +397,8 @@ class TimeSeries(object):
         return start, end
 
     def save(self, fname):
-        """currently this simply saves the data of the timeseries
+        """currently this simply saves the data of the timeseries using pandas
+        to_csv
 
         Arguments
         ---------

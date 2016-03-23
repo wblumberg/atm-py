@@ -138,8 +138,10 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
 
         kappa_calc[e] = kappa_simple(gf_out, RH, inverse=True)
     ts_kappa = _timeseries.TimeSeries(_pd.DataFrame(kappa_calc, index = f_of_RH_aligned.data.index, columns= ['kappa']))
+    ts_kappa._data_periode = f_of_RH_aligned._data_periode
     ts_kappa._y_label = '$\kappa$'
 
     ts_gf = _timeseries.TimeSeries(_pd.DataFrame(gf_calc, index = f_of_RH_aligned.data.index, columns= ['growth factor']))
+    ts_kappa._data_periode = f_of_RH_aligned._data_periode
     ts_gf._y_label = 'growth factor$'
     return ts_kappa, ts_gf

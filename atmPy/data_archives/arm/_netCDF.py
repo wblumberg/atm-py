@@ -6,6 +6,7 @@ from atmPy.tools import array_tools as _arry_tools
 
 class ArmDataset(object):
     def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None):
+        self._data_periode = None
         if fname:
             self.netCDF = Dataset(fname)
             self.data_quality_flag_max = data_quality_flag_max
@@ -117,6 +118,8 @@ class ArmDataset(object):
         out = _timeseries.TimeSeries(df)
         if column_name:
             out._y_label = column_name
+
+        out._data_periode = self._data_periode
         return out
 
 

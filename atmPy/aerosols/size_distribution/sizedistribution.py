@@ -429,28 +429,23 @@ sizedistribution.align to align the index of the new array."""
                 txt = 'Make sure type of growthfactor is int,float,TimeSeries, Series or ndarray. It currently is: %s.'%(type(growth_factor).__name__)
                 raise TypeError(txt)
 
-            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, float(growth_factor.data.max()))
+            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, float(_np.nanmax(growth_factor.data)), ignore_data_nan = True)
             bin_num = test['data'].shape[0]
-            # pdb.set_trace()
             data_new = _np.zeros((dist_g.data.shape[0],bin_num))
             #todo: it would be nicer to have _hygro_growht_shift_data take the TimeSeries directly
-            growth_factor = growth_factor.data.values.transpose()[0]
+            gf = growth_factor.data.values.transpose()[0]
             for e,i in enumerate(dist_g.data.values):
-                out = dist_g._hygro_growht_shift_data(i, dist_g.bins, growth_factor[e])
+                out = dist_g._hygro_growht_shift_data(i, dist_g.bins, gf[e])
                 dt = out['data']
                 diff = bin_num - dt.shape[0]
 
-                # print('e', e)
-                # print('growth_factor', growth_factor[e])
-                # print('-----------')
-                # print('bin_num', bin_num)
-                # print('dt.shape[0]', dt.shape[0])
-                # print('diff', diff)
                 dt = _np.append(dt, _np.zeros(diff))
                 data_new[e] = dt
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
+            dp = dist_g._data_periode
             dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
+            dist_g._data_periode = dp
 
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
@@ -861,7 +856,7 @@ sizedistribution.align to align the index of the new array."""
         return out
 
 
-    def _hygro_growht_shift_data(self, data, bins, gf):
+    def _hygro_growht_shift_data(self, data, bins, gf, ignore_data_nan = False):
         """data: 1D array
         bins: 1D array
         gf: float"""
@@ -869,31 +864,47 @@ sizedistribution.align to align the index of the new array."""
         if _np.any(gf < 1):
             # _pdb.set_trace()
             txt = 'Growth facotor smaller than 1 (is %s). Value adjusted to 1!!'%gf
-            gf = 1
-            # raise ValueError(txt)
+            gf = 1.
             _warnings.warn(txt)
 
+        # no shift if gf is 1
         if gf == 1.:
             out = {}
             out['bins'] = bins
             out['data'] = data
             out['num_extr_bins'] = 0
             return out
+        # all data nan if gf is nan
+        elif _np.isnan(gf):
+            out = {}
+            out['bins'] = bins
+            data = data.copy()
+            data[:] = _np.nan
+            out['data'] = data
+            out['num_extr_bins'] = 0
+            return out
+        # return as is if all data is nan
+        elif _np.all(_np.isnan(data)):
+            if not ignore_data_nan:
+                out = {}
+                out['bins'] = bins
+                out['data'] = data
+                out['num_extr_bins'] = 0
+                return out
+
 
         bins_new = bins.copy()
-        # pdb.set_trace()
         shifted = bins_new * gf
+
         ml = array_tools.find_closest(bins_new, shifted, how='closest_low')
         mh = array_tools.find_closest(bins_new, shifted, how='closest_high')
 
         if _np.any((mh - ml) > 1):
             raise ValueError('shifted bins spans over more than two of the original bins, programming required ;-)')
 
-        # no_extra_bins = bins_new[ml].shape[0] - _np.unique(bins_new[ml]).shape[0] + 1
         no_extra_bins = bins_new[ml].shape[0] - bins_new[ml][bins_new[ml] != bins_new[ml][-1]].shape[0]
-        # pdb.set_trace()
-        ######### Ad bins to shift data into
 
+        ######### Ad bins to shift data into
         last_two = _np.log10(bins_new[- (no_extra_bins + 1):])
         step_width = last_two[-1] - last_two[-2]
         new_bins = _np.zeros(no_extra_bins)
@@ -964,6 +975,9 @@ class SizeDist_TS(SizeDist):
        """
     def __init__(self, *args, **kwargs):
         super(SizeDist_TS,self).__init__(*args,**kwargs)
+
+        self._data_periode = None
+
         self.__particle_number_concentration = None
         self.__particle_mass_concentration = None
         self.__particle_mass_mixing_ratio = None
