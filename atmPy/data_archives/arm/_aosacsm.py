@@ -35,9 +35,8 @@ def _concat_rules(arm_data_objs):
 
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
-        super(ArmDatasetSub,self).__init__(*args, **kwargs)
-
         self._data_periode = 2048.
+        super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         self.__kappa = None
         self.__mass_concentration_corr = None

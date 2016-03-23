@@ -8,8 +8,8 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
-        super(ArmDatasetSub,self).__init__(*args, **kwargs)
         self._data_periode = 2500.
+        super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         self.__kappa_values = None
 

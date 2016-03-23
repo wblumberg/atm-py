@@ -4,8 +4,9 @@ from atmPy.data_archives.arm import _netCDF
 
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
+        self._data_periode = None
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
-        self._data_periode = 2500.
+
         ####
         # for properties
         self.__mean_growth_factor  = None

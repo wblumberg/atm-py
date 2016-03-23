@@ -125,6 +125,7 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     # opt_properties.index_of_refractio = n
     # opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
     # opt_properties.parent_dist_LS = self
+
     return out
 
 
@@ -152,6 +153,7 @@ class OpticalProperties(object):
         self.bins = data['bins']
         self.binwidth = data['binwidth']
         self.distributionType = data['distType']
+        self._data_periode = None
 
     # @property
     # def mean_effective_diameter(self):
@@ -171,6 +173,7 @@ class OpticalProperties(object):
                 self.__extinction_coeff_sum_along_d = df
             else:
                 raise TypeError('not possible for this distribution type')
+            self.__extinction_coeff_sum_along_d._data_periode = self._data_periode
         return self.__extinction_coeff_sum_along_d
 
     @extinction_coeff_sum_along_d.setter

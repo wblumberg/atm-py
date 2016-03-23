@@ -1044,6 +1044,11 @@ class SizeDist_TS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_TS
 
+    def calculate_optical_properties(self, wavelength, n = None, AOD = True, noOfAngles=100):
+        opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
+        opt._data_periode = self._data_periode
+        return opt
+
     def _getXYZ(self):
         """
         This will create three arrays, so when plotted with pcolor each pixel will represent the exact bin width

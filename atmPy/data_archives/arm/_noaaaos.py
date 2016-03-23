@@ -77,10 +77,9 @@ def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
 
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
-        super(ArmDatasetSub,self).__init__(*args, **kwargs)
-
         self._data_periode = 60
-
+        super(ArmDatasetSub,self).__init__(*args, **kwargs)
+        
         self.__f_of_RH = None
         self.__kappa = None
         self.__growthfactor = None
