@@ -101,6 +101,10 @@ class ArmDatasetSub(_ArmDataset):
             self.__kappa._data_periode = self._data_periode
         return self.__kappa
 
+    @kappa.setter
+    def kappa(self,value):
+        self.__kappa = value
+
     @property
     def mass_concentration_corr(self):
         if self.__mass_concentration_corr is None:

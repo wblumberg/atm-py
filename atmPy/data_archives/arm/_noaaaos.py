@@ -190,6 +190,10 @@ class ArmDatasetSub(_ArmDataset):
                                                                                      self.sup_kappa_wavelength, self.sup_fofRH_RH_center)
         return self.__kappa
 
+    @kappa.setter
+    def kappa(self,value):
+        self.__kappa = value
+
     @property
     @decorators.change_doc(hygrow.kappa_from_fofrh_and_sizedist)
     def growth_factor(self):

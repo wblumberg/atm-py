@@ -82,6 +82,10 @@ class ArmDatasetSub(ArmDataset):
             self.__kappa_values._data_periode = self._data_periode
         return self.__kappa_values
 
+    @kappa_values.setter
+    def kappa_values(self, value):
+        self.__kappa_values = value
+
 def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
     out.RH_interDMA = timeseries.TimeSeries(pd.concat([i.RH_interDMA.data for i in arm_data_objs]))
