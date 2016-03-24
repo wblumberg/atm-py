@@ -9,10 +9,8 @@ import matplotlib.pylab as _plt
 from atmPy.tools import pandas_tools as _pandas_tools
 from atmPy.tools import time_tools as _time_tools
 from atmPy.tools import array_tools as _array_tools
-# from geopy.distance import vincenty
-# from mpl_toolkits.basemap import Basemap
-# from mpl_toolkits.mplot3d import Axes3D
-# from atmPy.radiation import solar
+
+import warnings as _warnings
 
 def load_csv(fname):
     """Loads the dat of a saved timesereis instance and creates a new TimeSeries instance
@@ -29,7 +27,14 @@ def load_csv(fname):
 
 def align_to(ts, ts_other):
     """
-    Align the TimeSeries ts to another time_series by interpolating (linearly).
+    Align the TimeSeries ts to another time_series by interpolating (linearly). If
+    data periods differe by at least a factor of 2 a rolling mean is calculated
+    with a window size equal to the ratio (if ratio is positive !!!).
+
+    Notes
+    -----
+    For the obvious reason it is recommended to align the time series with the smaller data period to that
+    with the larger period.
 
     Parameters
     ----------
@@ -42,11 +47,29 @@ def align_to(ts, ts_other):
     """
     ts = ts.copy()
     ts_other = ts_other.copy()
+
+    window = ts_other._data_period / ts._data_period
+    if window < 0.5:
+        _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
+                      'align the other time series with this one instead?'%window)
+    window = round(window)
+
+    if window > 1:
+        roll = ts.data.rolling(window,
+                               min_periods=1,
+                               center=True)
+        dfrm = roll.mean()
+
+        tsrm = TimeSeries(_pd.DataFrame(dfrm))
+        # tsrm._data_period = ts._data_period
+    else:
+        tsrm = ts
+
     ts_other.data = ts_other.data.loc[:,[]]
-    ts_t =  merge(ts_other, ts)
-    ts.data = ts_t.data
-    ts._data_periode = ts_other._data_periode
-    return ts
+    ts_t =  merge(ts_other, tsrm)
+    tsrm.data = ts_t.data
+    tsrm._data_period = ts_other._data_period
+    return tsrm
 
 
 def merge(ts, ts_other):
@@ -90,7 +113,6 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
         raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
     else:
         data_values = data.data.iloc[:,0].values
-
     correlant_aligned = correlant.align_to(data)
     if correlant_column:
         correlant_values = correlant_aligned.data[correlant_column].values
@@ -126,7 +148,7 @@ class TimeSeries(object):
     def __init__(self, data, info=None):
         # if not type(data).__name__ == 'DataFrame':
         #     raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
-        self._data_periode = None
+        self._data_period = None
         self.data = data
         self.info = info
         self._y_label = None
@@ -142,12 +164,12 @@ class TimeSeries(object):
     def __truediv__(self,other):
         self = self.copy()
         other = other.copy()
-        if self._data_periode > other._data_periode:
+        if self._data_period > other._data_period:
             other = other.align_to(self)
-            # other._data_periode = self._data_periode
+            # other._data_period = self._data_period
         else:
             self = self.align_to(other)
-            # self._data_periode = other._data_periode
+            # self._data_period = other._data_period
 
         if other.data.shape[1] == 1:
             out = self.data.divide(other.data.iloc[:,0], axis = 0)
@@ -159,18 +181,18 @@ class TimeSeries(object):
             raise ValueError(txt)
 
         ts = TimeSeries(out)
-        ts._data_periode = self._data_periode
+        ts._data_period = self._data_period
         return ts
 
     def __add__(self,other):
         self = self.copy()
         other = other.copy()
-        if self._data_periode > other._data_periode:
+        if self._data_period > other._data_period:
             other = other.align_to(self)
-            other._data_periode = self._data_periode
+            other._data_period = self._data_period
         else:
             self = self.align_to(other)
-            self._data_periode = other._data_periode
+            self._data_period = other._data_period
 
         if other.data.shape[1] == 1:
             out = self.data.add(other.data.iloc[:,0], axis = 0)
@@ -181,18 +203,18 @@ class TimeSeries(object):
             raise ValueError(txt)
 
         ts = TimeSeries(out)
-        ts._data_periode = self._data_periode
+        ts._data_period = self._data_period
         return ts
 
     def __sub__(self,other):
         self = self.copy()
         other = other.copy()
-        if self._data_periode > other._data_periode:
+        if self._data_period > other._data_period:
             other = other.align_to(self)
-            other._data_periode = self._data_periode
+            other._data_period = self._data_period
         else:
             self = self.align_to(other)
-            self._data_periode = other._data_periode
+            self._data_period = other._data_period
 
         if other.data.shape[1] == 1:
             out = self.data.sub(other.data.iloc[:,0], axis = 0)
@@ -204,18 +226,18 @@ class TimeSeries(object):
             raise ValueError(txt)
 
         ts = TimeSeries(out)
-        ts._data_periode = self._data_periode
+        ts._data_period = self._data_period
         return ts
 
     def __mul__(self,other):
         self = self.copy()
         other = other.copy()
-        if self._data_periode > other._data_periode:
+        if self._data_period > other._data_period:
             other = other.align_to(self)
-            other._data_periode = self._data_periode
+            other._data_period = self._data_period
         else:
             self = self.align_to(other)
-            self._data_periode = other._data_periode
+            self._data_period = other._data_period
 
         if other.data.shape[1] == 1:
             out = self.data.multiply(other.data.iloc[:,0], axis = 0)
@@ -226,7 +248,7 @@ class TimeSeries(object):
             raise ValueError(txt)
 
         ts = TimeSeries(out)
-        ts._data_periode = self._data_periode
+        ts._data_period = self._data_period
         return ts
 
     @property
