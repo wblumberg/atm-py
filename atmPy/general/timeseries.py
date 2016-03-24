@@ -4,13 +4,23 @@ from copy import deepcopy as _deepcopy
 from atmPy.general import vertical_profile as _vertical_profile
 
 import pandas as _pd
+import numpy as _np
 import matplotlib.pylab as _plt
 
 from atmPy.tools import pandas_tools as _pandas_tools
 from atmPy.tools import time_tools as _time_tools
 from atmPy.tools import array_tools as _array_tools
 
+from netCDF4 import Dataset as _Dataset
+from netCDF4 import num2date as _num2date
+from netCDF4 import date2num as _date2num
+
+from atmPy.tools import git as _git_tools
+
 import warnings as _warnings
+
+unit_time = 'days since 1900-01-01'
+
 
 def load_csv(fname):
     """Loads the dat of a saved timesereis instance and creates a new TimeSeries instance
@@ -22,6 +32,79 @@ def load_csv(fname):
     data = _pd.read_csv(fname, index_col=0)
     data.index = _pd.to_datetime(data.index)
     return TimeSeries(data)
+
+def none2nan(var):
+    if type(var).__name__ == 'NoneType':
+        var = _np.nan
+    return var
+
+def nan2none(var):
+    if type(var).__name__ == 'str':
+        pass
+    elif _np.isnan(var):
+        var = None
+    return var
+
+def save_netCDF(ts,fname, leave_open = False):
+    file_mode = 'w'
+    ni = _Dataset(fname, file_mode)
+
+    time_dim = ni.createDimension('time', ts.data.shape[0])
+    dim_data_col = ni.createDimension('data_columns', ts.data.shape[1])
+
+    ts_time_num = _date2num(ts.data.index.to_pydatetime(), unit_time)#.astype(float)
+    time_var = ni.createVariable('time', ts_time_num.dtype, 'time')
+    time_var[:] = ts_time_num
+    time_var.units = 'days since 1900-01-01'
+
+    var_data = ni.createVariable('data', ts.data.values.dtype, ('time', 'data_columns'))
+    var_data[:] = ts.data.values
+
+    ts_columns = ts.data.columns.values.astype(str)
+    var_data_collumns = ni.createVariable('data_columns', ts_columns.dtype, 'data_columns')
+    var_data_collumns[:] = ts_columns
+
+    ni._data_period = none2nan(ts._data_period)
+    ni._x_label = none2nan(ts._x_label)
+    ni._y_label =  none2nan(ts._y_label)
+    ni.info = none2nan(ts.info)
+
+    ni._atm_py_commit = _git_tools.current_commit()
+
+    if leave_open:
+        return ni
+    else:
+        ni.close()
+
+def load_netCDF(fname):
+
+    ni = _Dataset(fname, 'r')
+
+    # load time
+    time_var = ni.variables['time']
+    time_var.units
+    ts_time = _num2date(time_var[:], time_var.units)
+    timestamp = _pd.DatetimeIndex(ts_time)
+
+    # load  data
+    var_data = ni.variables['data']
+    ts_data = _pd.DataFrame(var_data[:], index=timestamp)
+
+    # load column names
+    var_data_col = ni.variables['data_columns']
+    ts_data = _pd.DataFrame(var_data[:], index=timestamp,
+                           columns=var_data_col[:])
+
+    # create time series
+    ts_out = TimeSeries(ts_data)
+
+    # load attributes and attach to time series
+    for atr in ni.ncattrs():
+        setattr(ts_out, atr, nan2none(ni.getncattr(atr)))
+
+    ni.close()
+    return ts_out
+
 
 #### Tools
 
@@ -435,6 +518,8 @@ class TimeSeries(object):
             Path to the file."""
 
         self.data.to_csv(fname)
+
+    save_netCDF = save_netCDF
 
 
 class TimeSeries_2D(TimeSeries):
