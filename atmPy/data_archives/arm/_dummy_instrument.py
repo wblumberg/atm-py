@@ -49,7 +49,8 @@ def _concat_rules(arm_data_objs):
 
     # populate class with concatinated data
     out.rh = _timeseries.concat([i.rh for i in arm_data_objs])
-    # out.rh._data_periode = out._data_periode
+    out.rh._data_periode = out._data_periode
+
     # use time stamps from one of the variables
     out.time_stamps = out.rh.data.index
     return out

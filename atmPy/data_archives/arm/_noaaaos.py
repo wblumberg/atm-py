@@ -77,7 +77,7 @@ def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
 
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_periode = 60
+        self._data_period = 60
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
         
         self.__f_of_RH = None
@@ -143,9 +143,8 @@ class ArmDatasetSub(_ArmDataset):
                 df[var] = _pd.Series(data, index = self.time_stamps)
             df.columns.name = column_name
             out = _timeseries.TimeSeries(df)
-            out._data_periode = self._data_periode
+            out._data_period = self._data_period
             return out
-
         self.abs_coeff = var2ts(self, abs_coeff, 'abs_coeff_1/Mm')
         self.scatt_coeff = var2ts(self, scat_coeff, 'scatt_coeff_1/Mm')
         self.back_scatt = var2ts(self, bscat_coeff_vars, 'back_scatt_1/Mm')
@@ -170,7 +169,7 @@ class ArmDatasetSub(_ArmDataset):
                 txt = "Make sure you define the following attributes first: \nself.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which"
                 raise ValueError(txt)
             self.__f_of_RH = calculate_f_RH(self,self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which)
-            self.__f_of_RH._data_periode = self._data_periode
+            self.__f_of_RH._data_period = self._data_period
         return self.__f_of_RH
 
     @f_of_RH.setter
@@ -253,13 +252,13 @@ class ArmDatasetSub(_ArmDataset):
 def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
     out.abs_coeff = _timeseries.TimeSeries(_pd.concat([i.abs_coeff.data for i in arm_data_objs]))
-    # out.abs_coeff._data_periode = out._data_periode
+    out.abs_coeff._data_period = out._data_period
     out.back_scatt = _timeseries.TimeSeries(_pd.concat([i.back_scatt.data for i in arm_data_objs]))
-    # out.back_scatt._data_periode = out._data_periode
+    out.back_scatt._data_period = out._data_period
     out.scatt_coeff = _timeseries.TimeSeries(_pd.concat([i.scatt_coeff.data for i in arm_data_objs]))
-    # out.scatt_coeff._data_periode = out._data_periode
+    out.scatt_coeff._data_period = out._data_period
     out.RH_nephelometer = _timeseries.TimeSeries(_pd.concat([i.RH_nephelometer.data for i in arm_data_objs]))
-    # out.RH_nephelometer._data_periode = out._data_periode
+    out.RH_nephelometer._data_period = out._data_period
     out.time_stamps = out.abs_coeff.data.index
     return out
 

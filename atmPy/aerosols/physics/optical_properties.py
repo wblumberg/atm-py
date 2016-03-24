@@ -153,7 +153,7 @@ class OpticalProperties(object):
         self.bins = data['bins']
         self.binwidth = data['binwidth']
         self.distributionType = data['distType']
-        self._data_periode = None
+        self._data_period = None
 
     # @property
     # def mean_effective_diameter(self):
@@ -173,7 +173,7 @@ class OpticalProperties(object):
                 self.__extinction_coeff_sum_along_d = df
             else:
                 raise TypeError('not possible for this distribution type')
-            self.__extinction_coeff_sum_along_d._data_periode = self._data_periode
+            self.__extinction_coeff_sum_along_d._data_period = self._data_period
         return self.__extinction_coeff_sum_along_d
 
     @extinction_coeff_sum_along_d.setter

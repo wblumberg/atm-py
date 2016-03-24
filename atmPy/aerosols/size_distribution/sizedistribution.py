@@ -424,6 +424,8 @@ sizedistribution.align to align the index of the new array."""
                 growth_factor = _timeseries.TimeSeries(growth_factor)
 
             if type(growth_factor).__name__ == 'TimeSeries':
+                if growth_factor._data_period == None:
+                    growth_factor._data_period = self._data_period
                 growth_factor = growth_factor.align_to(dist_g)
             else:
                 txt = 'Make sure type of growthfactor is int,float,TimeSeries, Series or ndarray. It currently is: %s.'%(type(growth_factor).__name__)
@@ -443,9 +445,9 @@ sizedistribution.align to align the index of the new array."""
                 data_new[e] = dt
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
-            dp = dist_g._data_periode
+            dp = dist_g._data_period
             dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-            dist_g._data_periode = dp
+            dist_g._data_period = dp
 
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
@@ -827,6 +829,7 @@ sizedistribution.align to align the index of the new array."""
             return sfc_df
         elif type(self).__name__ == 'SizeDist_TS':
             out =  _timeseries.TimeSeries(sfc_df)
+            out._data_period = self._data_period
         elif type(self).__name__ == 'SizeDist_LS':
             out =  _vertical_profile.VerticalProfile(sfc_df)
         else:
@@ -848,6 +851,7 @@ sizedistribution.align to align the index of the new array."""
             return  vlc_df
         elif type(self).__name__ == 'SizeDist_TS':
             out =  _timeseries.TimeSeries(vlc_df)
+            out._data_period = self._data_period
         elif type(self).__name__ == 'SizeDist_LS':
             out = _vertical_profile.VerticalProfile(vlc_df)
         else:
@@ -976,7 +980,7 @@ class SizeDist_TS(SizeDist):
     def __init__(self, *args, **kwargs):
         super(SizeDist_TS,self).__init__(*args,**kwargs)
 
-        self._data_periode = None
+        self._data_period = None
 
         self.__particle_number_concentration = None
         self.__particle_mass_concentration = None
@@ -1041,12 +1045,13 @@ class SizeDist_TS(SizeDist):
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
         sd_TS.index_of_refraction = sd.index_of_refraction
         sd_TS._SizeDist__growth_factor = sd.growth_factor
+        sd_TS._data_period = self._data_period
         # out['size_distribution'] = sd_LS
         return sd_TS
 
     def calculate_optical_properties(self, wavelength, n = None, AOD = True, noOfAngles=100):
         opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
-        opt._data_periode = self._data_periode
+        opt._data_period = self._data_period
         return opt
 
     def _getXYZ(self):
@@ -1330,6 +1335,7 @@ know what you are doing'''
             self.__particle_number_concentration._y_label = 'Particle number concentration #/$cm^3$'
             self.__particle_number_concentration._x_label = 'Time'
             self._uptodate_particle_number_concentration = True
+            self.__particle_number_concentration._data_period = self._data_period
         return self.__particle_number_concentration
 
     @property
@@ -1340,9 +1346,10 @@ know what you are doing'''
             self.__particle_mass_concentration = _timeseries.TimeSeries(mass_conc)
             self.__particle_mass_concentration._y_label = 'Mass concentration ($\mu g/m^{3}$)'
             self.__particle_mass_concentration._x_label =  'Time'
-
+            self.__particle_mass_concentration._data_period = self._data_period
             self._uptodate_particle_mass_concentration = True
         return self.__particle_mass_concentration
+
 
     @property
     def particle_mass_mixing_ratio(self):
@@ -1354,6 +1361,7 @@ know what you are doing'''
             # pdb.set_trace()
             self.__particle_mass_mixing_ratio = _timeseries.TimeSeries(mass_mix)
             # pdb.set_trace()
+            self.__particle_mass_mixing_ratio._data_period = self._data_period
             self.__particle_mass_mixing_ratio._y_label = ylabel
             self.__particle_mass_mixing_ratio._x_label = 'Time'
             self._uptodate_particle_mass_mixing_ratio = True
@@ -1369,6 +1377,7 @@ know what you are doing'''
             number_mix = pd.DataFrame(number_mix)
             # pdb.set_trace()
             self.__particle_number_mixing_ratio = _timeseries.TimeSeries(number_mix)
+            self.__particle_number_mixing_ratio._data_period = self._data_period
             # pdb.set_trace()
             self.__particle_number_mixing_ratio._y_label = ylabel
             self.__particle_number_mixing_ratio._x_label = 'Time'

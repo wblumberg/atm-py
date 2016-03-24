@@ -6,7 +6,7 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_periode = 2500.
+        self._data_period = 2500.
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
 
@@ -33,7 +33,7 @@ class ArmDatasetSub(ArmDataset):
         bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
 
         self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
-        self.size_distribution._data_periode = self._data_periode
+        self.size_distribution._data_period = self._data_period
 
     def plot_all(self):
         self.size_distribution.plot()
@@ -42,5 +42,5 @@ def _concat_rules(files):
     out = ArmDatasetSub(False)
     data = pd.concat([i.size_distribution.data for i in files])
     out.size_distribution = sizedistribution.SizeDist_TS(data,files[0].size_distribution.bins,'dNdlogDp')
-    out.size_distribution._data_periode = out._data_periode
+    out.size_distribution._data_period = out._data_period
     return out

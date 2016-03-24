@@ -10,9 +10,9 @@ def _concat_rules(arm_data_objs):
     out = ArmDatasetSub(False)
     out.mass_concentrations = _AMS.AMS_Timeseries_lev01(
         _pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
-    # out.mass_concentrations._data_periode = out._data_periode
+    out.mass_concentrations._data_period = out._data_period
     out.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(_pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
-    # out.organic_mass_spectral_matrix._data_periode = out._data_periode
+    out.organic_mass_spectral_matrix._data_period = out._data_period
 
     # out = _tools.ArmDict(plottable = ['mass_concentrations', 'Organic mass spectral matrix'])
     # out['mass_concentrations'] = timeseries.TimeSeries(pd.concat([i['mass_concentrations'].data for i in files]))
@@ -35,7 +35,7 @@ def _concat_rules(arm_data_objs):
 
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_periode = 2048.
+        self._data_period = 2048.
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         self.__kappa = None
@@ -76,10 +76,10 @@ class ArmDatasetSub(_ArmDataset):
         self.mass_concentrations = _AMS.AMS_Timeseries_lev01(mass_concentrations)
         self.mass_concentrations.data['total'] = self.mass_concentrations.data.sum(axis = 1)
         self.mass_concentrations.data.rename(columns= {'total_organics': 'organic_aerosol'}, inplace = True)
-        self.mass_concentrations._data_periode = self._data_periode
+        self.mass_concentrations._data_period = self._data_period
 
         self.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(org_mx)
-        self.organic_mass_spectral_matrix._data_periode = self._data_periode
+        self.organic_mass_spectral_matrix._data_period = self._data_period
         return
 
 
@@ -88,7 +88,7 @@ class ArmDatasetSub(_ArmDataset):
     def density(self):
         if self.__density is None:
             self.__density = self.mass_concentration_corr.calculate_density()
-            self.__density._data_periode = self._data_periode
+            self.__density._data_period = self._data_period
         return self.__density
 
 
@@ -97,7 +97,7 @@ class ArmDatasetSub(_ArmDataset):
     def kappa(self):
         if self.__kappa is None:
             self.__kappa = self.mass_concentration_corr.calculate_kappa()
-            self.__kappa._data_periode = self._data_periode
+            self.__kappa._data_period = self._data_period
         return self.__kappa
 
     @kappa.setter
@@ -109,7 +109,7 @@ class ArmDatasetSub(_ArmDataset):
         if self.__mass_concentration_corr is None:
             self.__mass_concentration_corr = self.mass_concentrations.calculate_electrolyte_mass_concentrations()
             self.__mass_concentration_corr.data['total'] = self.__mass_concentration_corr.data.sum(axis = 1)
-            self.__mass_concentration_corr._data_periode = self._data_periode
+            self.__mass_concentration_corr._data_period = self._data_period
         return self.__mass_concentration_corr
 
     @property
@@ -127,7 +127,7 @@ class ArmDatasetSub(_ArmDataset):
     def refractive_index(self):
         if self.__refractive_index is None:
             self.__refractive_index = self.mass_concentration_corr.calculate_refractive_index()
-            self.__refractive_index._data_periode = self._data_periode
+            self.__refractive_index._data_period = self._data_period
         return self.__refractive_index
 
 

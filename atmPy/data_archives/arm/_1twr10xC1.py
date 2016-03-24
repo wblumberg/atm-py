@@ -4,7 +4,7 @@ from atmPy.data_archives.arm import _netCDF
 
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_periode = 60.
+        self._data_period = 60.
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
         ## Define what is good, patchy or bad data
 
@@ -41,8 +41,11 @@ def _concat_rules(arm_data_objs):
 
     # populate class with concatinated data
     out.relative_humidity = _timeseries.concat([i.relative_humidity for i in arm_data_objs])
+    out.relative_humidity._data_period = out._data_period
     out.temperature = _timeseries.concat([i.temperature for i in arm_data_objs])
+    out.temperature._data_period = out._data_period
     out.vapor_pressure = _timeseries.concat([i.vapor_pressure for i in arm_data_objs])
+    out.vapor_pressure._data_period = out._data_period
 
     # use time stamps from one of the variables
     out.time_stamps = out.relative_humidity.data.index
