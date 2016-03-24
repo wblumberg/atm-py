@@ -38,12 +38,12 @@ def none2nan(var):
         var = _np.nan
     return var
 
-def nan2none(var):
-    if type(var).__name__ == 'str':
-        pass
-    elif _np.isnan(var):
-        var = None
-    return var
+# def nan2none(var):
+#     if type(var).__name__ == 'str':
+#         pass
+#     elif _np.isnan(var):
+#         var = None
+#     return var
 
 def save_netCDF(ts,fname, leave_open = False):
     file_mode = 'w'
@@ -100,7 +100,19 @@ def load_netCDF(fname):
 
     # load attributes and attach to time series
     for atr in ni.ncattrs():
-        setattr(ts_out, atr, nan2none(ni.getncattr(atr)))
+        value = ni.getncattr(atr)
+        # there is a bug in pandas where it does not like numpy types ->
+        if type(value).__name__ == 'str':
+            pass
+        elif 'float' in value.dtype.name:
+            value = float(value)
+        elif 'int' in value.dtype.name:
+            value = int(value)
+        # netcdf did not like NoneType so i converted it to np.nan. Here i am converting back.
+        elif _np.isnan(value):
+            value = None
+
+        setattr(ts_out, atr, value)
 
     ni.close()
     return ts_out
