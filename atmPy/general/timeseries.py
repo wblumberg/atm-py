@@ -253,7 +253,6 @@ class TimeSeries(object):
         return self.data.__str__()
 
     def __repr__(self):
-        print(type(self))
         return self.data.__repr__()
 
     def __truediv__(self,other):
@@ -261,13 +260,10 @@ class TimeSeries(object):
     # def test(self,other):
         self = self.copy()
         other = other.copy()
-        print(self._data_period / other._data_period)
         if self._data_period > other._data_period:
-            print('1. larger than other')
             other = other.align_to(self)
             # other._data_period = self._data_period
         else:
-            print('1. smaller')
             self = self.align_to(other)
             # self._data_period = other._data_period
         # return self,other
