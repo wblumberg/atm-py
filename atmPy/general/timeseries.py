@@ -149,7 +149,7 @@ def align_to(ts, ts_other):
                       'align the other time series with this one instead?'%window)
     window = round(window)
 
-    if window > 1:
+    if window > 2:
         roll = ts.data.rolling(window,
                                min_periods=1,
                                center=True)
@@ -185,7 +185,7 @@ def merge(ts, ts_other):
     """
     ts_this = ts.copy()
     ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
+    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
@@ -257,15 +257,20 @@ class TimeSeries(object):
         return self.data.__repr__()
 
     def __truediv__(self,other):
+        import pdb
+    # def test(self,other):
         self = self.copy()
         other = other.copy()
+        print(self._data_period / other._data_period)
         if self._data_period > other._data_period:
+            print('1. larger than other')
             other = other.align_to(self)
             # other._data_period = self._data_period
         else:
+            print('1. smaller')
             self = self.align_to(other)
             # self._data_period = other._data_period
-
+        # return self,other
         if other.data.shape[1] == 1:
             out = self.data.divide(other.data.iloc[:,0], axis = 0)
         elif self.data.shape[1] == 1:
