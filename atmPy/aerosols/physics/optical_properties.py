@@ -9,6 +9,7 @@ from atmPy.aerosols.size_distribution import \
 from atmPy.general import timeseries
 from atmPy.general import vertical_profile
 from atmPy.radiation.mie_scattering import bhmie
+import warnings as _warnings
 
 
 # Todo: Docstring is wrong
@@ -44,11 +45,11 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     if dist_class not in ['SizeDist','SizeDist_TS']:
         raise TypeError('this distribution class (%s) can not be converted into optical property yet!'%dist_class)
 
+    # determin if index of refraction changes or if it is constant
     if isinstance(n, pd.DataFrame):
         n_multi = True
     else:
         n_multi = False
-
     if not n_multi:
         mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
                                                        noOfAngles=noOfAngles)
@@ -62,7 +63,8 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
 
     for i, lc in enumerate(sdls.data.index.values):
-        laydata = sdls.data.iloc[i].values
+        laydata = sdls.data.iloc[i].values # picking a size distribution (either a layer or a point in time)
+
         if n_multi:
             mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n.iloc[i].values[0],
                                                        noOfAngles=noOfAngles)
@@ -98,10 +100,12 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
 
     extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
-    if dist_class == 'SizeDist_TS':
-        out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
-    elif dist_class == 'SizeDist':
+    # if dist_class == 'SizeDist_TS':
+    #     out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
+    if dist_class == 'SizeDist':
         out['extCoeff_perrow_perbin'] = timeseries.TimeSeries(extCoeff_perrow_perbin)
+    else:
+        out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
     # extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
     # if index.dtype == '<M8[ns]':
     #     out['extCoeff_perrow'] = timeseries.TimeSeries(extCoeff_perrow)
@@ -125,8 +129,86 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     # opt_properties.index_of_refractio = n
     # opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
     # opt_properties.parent_dist_LS = self
+    if dist_class == 'SizeDist_TS':
+        return OpticalProperties_TS(out,parent = sd)
+
 
     return out
+
+
+def hemispheric_backscattering(osf_df):
+    """scattering into backwards hemisphere from angulare scattering intensity
+
+    Parameters
+    ----------
+    osf_df: pandas DataFrame
+        This contains the angulare scattering intensity with column names giving the
+        angles in radiant
+
+
+    Returns
+    -------
+    pandas data frame with the scattering intensities
+    """
+    def ang_scat_funk2bs(index,ol):
+        x = index
+        f = ol
+        # my phase function goes all the way to two py
+        f = f[ x < np.pi]
+        x = x[ x < np.pi]
+        f_b = f[x >= np.pi/2.]
+        x_b = x[x >= np.pi/2.]
+
+        res_b = 2* np.pi * integrate.simps(f_b * np.sin(x_b),x_b)
+        return res_b
+
+    bs = np.zeros(osf_df.shape[0])
+    index = osf_df.columns
+    for i in range(osf_df.shape[0]):
+        ol = osf_df.iloc[i,:].values
+        bs[i] = ang_scat_funk2bs(index,ol)
+    bs = pd.DataFrame(bs, index = osf_df.index)
+    return bs
+
+def hemispheric_forwardscattering(osf_df):
+    """scattering into forward hemisphere from angulare scattering intensity
+
+    Parameters
+    ----------
+    osf_df: pandas DataFrame
+        This contains the angulare scattering intensity with column names giving the
+        angles in radiant
+
+    Returns
+    -------
+    pandas data frame with the scattering intensities
+    """
+
+    def ang_scat_funk2fs(index,ol):
+        x = index #ol.index.values
+        f = ol
+
+        # my phase function goes all the way to two py
+        f = f[ x < np.pi]
+        x = x[ x < np.pi]
+        f_f = f[x < np.pi/2.]
+        x_f = x[x < np.pi/2.]
+
+        res_f = 2* np.pi * integrate.simps(f_f * np.sin(x_f),x_f)
+        return res_f
+
+    fs = np.zeros(osf_df.shape[0])
+    index = osf_df.columns
+    for i in range(osf_df.shape[0]):
+        ol = osf_df.iloc[i,:].values
+        fs[i] = ang_scat_funk2fs(index,ol)
+    fs = pd.DataFrame(fs, index = osf_df.index)
+    return fs
+
+
+
+
+
 
 
 
@@ -134,12 +216,14 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
 # Todo: some functions should be switched of
 # todo: right now this for layer and time series, not ok
 class OpticalProperties(object):
-    def __init__(self, data, bins):
+    def __init__(self, data, parent = None):
+        self.parent_sizedist = parent
+
         self.data_orig = data
         self.wavelength =  data['wavelength']
         self.index_of_refraction = data['index_of_refraction']
-
-        self.extinction_coeff = data['extCoeff_perrow_perbin']
+        self.extinction_coeff_per_bin = data['extCoeff_perrow_perbin']
+        self.angular_scatt_func = data['angular_scatt_func']
 
         # self.asymmetry_param = data['asymmetry_param']
 
@@ -153,18 +237,20 @@ class OpticalProperties(object):
         self.bins = data['bins']
         self.binwidth = data['binwidth']
         self.distributionType = data['distType']
-        self._data_period = None
+        self._data_period = self.parent_sizedist._data_period
+
 
     # @property
     # def mean_effective_diameter(self):
     #     if not self.__mean_effective_diameter:
 
 
-
+    # todo: remove
     @property
     def extinction_coeff_sum_along_d(self):
+        _warnings.warn('extinction_coeff_sum_along_d is deprecated and will be removed in future versions. Use extingction_coeff instead')
         if not np.any(self.__extinction_coeff_sum_along_d):
-            data = self.extinction_coeff.data.sum(axis = 1)
+            data = self.extinction_coeff_per_bin.data.sum(axis = 1)
             df = pd.DataFrame()
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
@@ -176,15 +262,118 @@ class OpticalProperties(object):
             self.__extinction_coeff_sum_along_d._data_period = self._data_period
         return self.__extinction_coeff_sum_along_d
 
+    # todo: remove
     @extinction_coeff_sum_along_d.setter
     def extinction_coeff_sum_along_d(self, data):
         self.__extinction_coeff_sum_along_d = data
+
+    @property
+    def extinction_coeff(self):
+        if not np.any(self.__extinction_coeff_sum_along_d):
+            data = self.extinction_coeff_per_bin.data.sum(axis=1)
+            df = pd.DataFrame()
+            df['ext_coeff_m^1'] = data
+            if self._parent_type == 'SizeDist_TS':
+                self.__extinction_coeff_sum_along_d = timeseries.TimeSeries(df)
+            elif self._parent_type == 'SizeDist':
+                self.__extinction_coeff_sum_along_d = df
+            else:
+                raise TypeError('not possible for this distribution type')
+            self.__extinction_coeff_sum_along_d._data_period = self._data_period
+        return self.__extinction_coeff_sum_along_d
+
+    @extinction_coeff.setter
+    def extinction_coeff(self, data):
+        self.__extinction_coeff_sum_along_d = data
+
+    @property
+    def hemispheric_backscattering(self):
+        if not self.__hemispheric_backscattering:
+            self.__hemispheric_backscattering = hemispheric_backscattering(self.angular_scatt_func)
+        return self.__hemispheric_backscattering
+
+    @property
+    def hemispheric_forwardscattering(self):
+        if not self.__hemispheric_forwardscattering:
+            self.__hemispheric_forwardscattering = hemispheric_forwardscattering(self.angular_scatt_func)
+        return self.__hemispheric_forwardscattering
+
+    @property
+    def hemispheric_backscattering_ratio(self):
+        if not self.__hemispheric_backscattering_ratio:
+            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.extinction_coeff
+        return self.__hemispheric_backscattering_ratio
+
+    @property
+    def hemispheric_forwardscattering_ratio(self):
+        if not self.hemispheric_forwardscattering_ratio:
+            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.extinction_coeff
+        return self.__hemispheric_forwardscattering_ratio
 
     def convert_between_moments(self, moment, verbose = False):
         return _sizedist_moment_conversion.convert(self,moment, verbose = verbose)
 
     def copy(self):
         return _deepcopy(self)
+
+
+
+class OpticalProperties_TS(OpticalProperties):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extinction_coeff_per_bin = timeseries.TimeSeries_2D(self.extinction_coeff_per_bin)
+        self.extinction_coeff_per_bin._data_period = self.parent_sizedist._data_period
+
+        self.angular_scatt_func = timeseries.TimeSeries_2D(self.angular_scatt_func.transpose())
+        self.angular_scatt_func._data_period = self.parent_sizedist._data_period
+
+        self.__hemispheric_forwardscattering = None
+        self.__hemispheric_backscattering = None
+        self.__hemispheric_backscattering_ratio = None
+        self.__hemispheric_forwardscattering_ratio = None
+
+
+    @property
+    def hemispheric_backscattering(self):
+        if not self.__hemispheric_backscattering:
+            out = hemispheric_backscattering(self.angular_scatt_func.data)
+            out = timeseries.TimeSeries(out)
+            out._data_period = self.angular_scatt_func._data_period
+            self.__hemispheric_backscattering = out
+        return self.__hemispheric_backscattering
+
+    @hemispheric_backscattering.setter
+    def hemispheric_backscattering(self,value):
+        self.__hemispheric_backscattering = value
+
+    @property
+    def hemispheric_forwardscattering(self):
+        if not self.__hemispheric_forwardscattering:
+            out = hemispheric_forwardscattering(self.angular_scatt_func.data)
+            out = timeseries.TimeSeries(out)
+            out._data_period = self.angular_scatt_func._data_period
+            self.__hemispheric_forwardscattering = out
+        return self.__hemispheric_forwardscattering
+
+
+    @hemispheric_forwardscattering.setter
+    def hemispheric_forwardscattering(self, value):
+        self.__hemispheric_forwardscattering = value
+
+    @property
+    def hemispheric_backscattering_ratio(self):
+        """ratio between backscattering and overall scattering"""
+        if not self.__hemispheric_backscattering_ratio:
+            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.extinction_coeff
+        return self.__hemispheric_backscattering_ratio
+
+    @property
+    def hemispheric_forwardscattering_ratio(self):
+        """ratio between forwardscattering and over scattering"""
+        if not self.__hemispheric_forwardscattering_ratio:
+            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.extinction_coeff
+        return self.__hemispheric_forwardscattering_ratio
+
 
 
 #Todo: bins are redundand

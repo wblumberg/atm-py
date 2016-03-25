@@ -491,11 +491,11 @@ sizedistribution.align to align the index of the new array."""
             txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
             raise ValueError(txt)
         out = optical_properties.size_dist2optical_properties(self, wavelength, n, aod = AOD, noOfAngles=noOfAngles)
-        opt_properties = optical_properties.OpticalProperties(out, self.bins)
-        opt_properties.wavelength = wavelength
-        opt_properties.index_of_refractio = n
-        opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
-        opt_properties.parent_dist = self
+        opt_properties = optical_properties.OpticalProperties(out, parent = self)
+        # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
+        # opt_properties.index_of_refractio = n
+        #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+        # opt_properties.parent_dist = self
         return opt_properties
 
     def fillGaps(self, scale=1.1):
@@ -1049,10 +1049,20 @@ class SizeDist_TS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_TS
 
-    def calculate_optical_properties(self, wavelength, n = None, AOD = True, noOfAngles=100):
-        opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
-        opt._data_period = self._data_period
-        return opt
+    def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
+        # opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
+        if not _np.any(n):
+            n = self.index_of_refraction
+        if not _np.any(n):
+            txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+            raise ValueError(txt)
+
+        out = optical_properties.size_dist2optical_properties(self, wavelength, n,
+                                                              aod=False,
+                                                              noOfAngles=noOfAngles)
+        # opt_properties = optical_properties.OpticalProperties(out, self.bins)
+        # opt._data_period = self._data_period
+        return out
 
     def _getXYZ(self):
         """
@@ -2004,7 +2014,8 @@ def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, center
 def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=100, centerOfAerosolMode=200,
                                          widthOfAerosolMode=0.2, numberOfParticsInMode=1000,
                                          startDate='2014-11-24 17:00:00',
-                                         endDate='2014-11-24 18:00:00', frequency=10):
+                                         endDate='2014-11-24 18:00:00',
+                                         frequency=10):
     delta = datetime.datetime.strptime(endDate, '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(startDate,
                                                                                                   '%Y-%m-%d %H:%M:%S')
     periods = delta.total_seconds() / float(frequency)
@@ -2021,8 +2032,9 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
                                           centerOfAerosolMode=centerOfAerosolMode + (ampOfOsz * _np.sin(oszi[e])))
         sdArray[e] = sdtmp.data
     sdts = pd.DataFrame(sdArray, index=rng, columns=sdtmp.data.columns)
-
-    return SizeDist_TS(sdts, sdtmp.bins, sdtmp.distributionType)
+    ts = SizeDist_TS(sdts, sdtmp.bins, sdtmp.distributionType)
+    ts._data_period = frequency
+    return ts
 
 
 def simulate_sizedistribution_layerseries(diameter=[10, 2500], numberOfDiameters=100, heightlimits=[0, 6000],
