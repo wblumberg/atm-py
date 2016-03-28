@@ -83,12 +83,14 @@ class ArmDatasetSub(_ArmDataset):
         self.__f_of_RH = None
         self.__kappa = None
         self.__growthfactor = None
+        self.__hemispheric_backscattering_ratio = None
 
         self.__sup_fofRH_RH_center = None
         self.__sup_fofRH_RH_tolerance = None
         self.__sup_fofRH_which = None
         self.__sup_kappa_sizedist = None
         self.__sup_kappa_wavelength = None
+
 
 
     def _parse_netCDF(self):
@@ -175,6 +177,38 @@ class ArmDatasetSub(_ArmDataset):
     @f_of_RH.setter
     def f_of_RH(self, value):
         self.__f_of_RH = value
+
+
+    @property
+    def hemispheric_backscattering_ratio(self):
+        if not self.__hemispheric_backscattering_ratio:
+            if _np.any(self.back_scatt.data.index != self.scatt_coeff.data.index):
+                raise IndexError(
+                    "The indeces doe not seam to match, that should not be possible!")
+
+            bdf = self.back_scatt.data
+            sdf = self.scatt_coeff.data
+
+            bk = [i.replace('Bbs_', '') for i in bdf.keys()]
+            sk = [i.replace('Bs_', '') for i in sdf.keys()]
+            if bk != sk:
+                raise KeyError(
+                    'These two data frames seam to be not the right ones ... headers do not match (%s,%s)' % (
+                    bk, sk))
+
+            new_col_names = bk
+            bdf.columns = new_col_names
+            sdf.columns = new_col_names
+
+            out = _timeseries.TimeSeries(bdf.div(sdf))
+            out._data_period = self.back_scatt._data_period
+            self.__hemispheric_backscattering_ratio = out
+
+        return self.__hemispheric_backscattering_ratio
+
+    @hemispheric_backscattering_ratio.setter
+    def hemispheric_backscattering_ratio(self,value):
+        self.__hemispheric_backscattering_ratio = value
 
     @property
     @decorators.change_doc(hygrow.kappa_from_fofrh_and_sizedist)
