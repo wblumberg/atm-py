@@ -10,6 +10,8 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         ####
         # for properties
         self.__mean_growth_factor  = None
+        self._concatable = ['rh']
+
 
     def _data_quality_control(self):
         #######
@@ -44,13 +46,20 @@ class ArmDatasetSub(_netCDF.ArmDataset):
 
 
 def _concat_rules(arm_data_objs):
-    # create class
+    """nothing here"""
+    # out = arm_data_obj
     out = ArmDatasetSub(False)
-
-    # populate class with concatinated data
-    out.rh = _timeseries.concat([i.rh for i in arm_data_objs])
-    out.rh._data_periode = out._data_periode
-
-    # use time stamps from one of the variables
-    out.time_stamps = out.rh.data.index
+    out._concat(arm_data_objs)
     return out
+
+# def _concat_rules(arm_data_objs):
+#     # create class
+#     out = ArmDatasetSub(False)
+#
+#     # populate class with concatinated data
+#     out.rh = _timeseries.concat([i.rh for i in arm_data_objs])
+#     out.rh._data_periode = out._data_periode
+#
+#     # use time stamps from one of the variables
+#     out.time_stamps = out.rh.data.index
+#     return out

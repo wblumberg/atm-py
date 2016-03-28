@@ -4,34 +4,26 @@ from atmPy.aerosols.instruments.AMS import AMS as _AMS
 from atmPy.data_archives.arm._netCDF import ArmDataset as _ArmDataset
 from atmPy.tools import decorators as _decorators
 
+
+
+# def _concat_rules(arm_data_objs):
+#     """nothing here"""
+#     # out = arm_data_obj
+#     out = ArmDatasetSub(False)
+#     out.mass_concentrations = _AMS.AMS_Timeseries_lev01(
+#         _pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
+#     out.mass_concentrations._data_period = out._data_period
+#     out.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(_pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
+#     out.organic_mass_spectral_matrix._data_period = out._data_period
+#
+#     return out
+
 def _concat_rules(arm_data_objs):
     """nothing here"""
     # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.mass_concentrations = _AMS.AMS_Timeseries_lev01(
-        _pd.concat([i.mass_concentrations.data for i in arm_data_objs]))
-    out.mass_concentrations._data_period = out._data_period
-    out.organic_mass_spectral_matrix = _timeseries.TimeSeries_2D(_pd.concat([i.organic_mass_spectral_matrix.data for i in arm_data_objs]))
-    out.organic_mass_spectral_matrix._data_period = out._data_period
-
-    # out = _tools.ArmDict(plottable = ['mass_concentrations', 'Organic mass spectral matrix'])
-    # out['mass_concentrations'] = timeseries.TimeSeries(pd.concat([i['mass_concentrations'].data for i in files]))
-    # out['Organic mass spectral matrix'] = timeseries.TimeSeries_2D(pd.concat([i['Organic mass spectral matrix'].data for i in files]))
+    out._concat(arm_data_objs)
     return out
-
-
-        # var = file_obj.variables[k]
-        # data = var[:]
-        # var_qc = file_obj.variables["qc_" + k]
-        # data_qc = var_qc[:]
-        # data = np.ma.array(data, mask = data_qc, fill_value= -9999)
-        #
-        # if any(data_qc > 2):
-        #     txt = "I was not aware of a quality control level %s. Maximum is 2."%quality_control
-        #     raise ValueError(txt)
-        # data_qc[data_qc <= quality_control] = 0
-        # data_qc[data_qc > quality_control] = 1
-        # mass_concentrations[k] = pd.Series(data, index = index)
 
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
@@ -43,6 +35,9 @@ class ArmDatasetSub(_ArmDataset):
         self.__refractive_index = None
         self.__density = None
         self.__mass_concentration_corr_relative = None
+
+        self._concatable = ['mass_concentrations', 'organic_mass_spectral_matrix']
+
 
     def _data_quality_control(self):
         ## Define what is good, patchy or bad data

@@ -8,7 +8,7 @@ class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         self._data_period = 2500.
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
-
+        self._concatable = ['size_distribution']
 
 
     def _data_quality_control(self):
@@ -38,9 +38,15 @@ class ArmDatasetSub(ArmDataset):
     def plot_all(self):
         self.size_distribution.plot()
 
-def _concat_rules(files):
+def _concat_rules(arm_data_objs):
+    """nothing here"""
     out = ArmDatasetSub(False)
-    data = pd.concat([i.size_distribution.data for i in files])
-    out.size_distribution = sizedistribution.SizeDist_TS(data,files[0].size_distribution.bins,'dNdlogDp')
-    out.size_distribution._data_period = out._data_period
+    out._concat(arm_data_objs)
     return out
+
+# def _concat_rules(files):
+#     out = ArmDatasetSub(False)
+#     data = pd.concat([i.size_distribution.data for i in files])
+#     out.size_distribution = sizedistribution.SizeDist_TS(data,files[0].size_distribution.bins,'dNdlogDp')
+#     out.size_distribution._data_period = out._data_period
+#     return out

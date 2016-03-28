@@ -10,7 +10,7 @@ class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         self._data_period = 2500.
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
-
+        self._concatable = ['RH_interDMA', 'hyg_distributions']
         self.__kappa_values = None
 
 
@@ -87,12 +87,19 @@ class ArmDatasetSub(ArmDataset):
         self.__kappa_values = value
 
 def _concat_rules(arm_data_objs):
+    """nothing here"""
+    # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.RH_interDMA = timeseries.TimeSeries(pd.concat([i.RH_interDMA.data for i in arm_data_objs]))
-    out.RH_interDMA._data_period = out._data_period
-
-    out.hyg_distributions = timeseries.TimeSeries_3D(pd.concat([i.hyg_distributions.data for i in arm_data_objs]))
-    out.hyg_distributions._data_period = out._data_period
-
-    out.time_stamps = out.RH_interDMA.data.index
+    out._concat(arm_data_objs)
     return out
+
+# def _concat_rules(arm_data_objs):
+#     out = ArmDatasetSub(False)
+#     out.RH_interDMA = timeseries.TimeSeries(pd.concat([i.RH_interDMA.data for i in arm_data_objs]))
+#     out.RH_interDMA._data_period = out._data_period
+#
+#     out.hyg_distributions = timeseries.TimeSeries_3D(pd.concat([i.hyg_distributions.data for i in arm_data_objs]))
+#     out.hyg_distributions._data_period = out._data_period
+#
+#     out.time_stamps = out.RH_interDMA.data.index
+#     return out

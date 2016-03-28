@@ -1,8 +1,10 @@
 from netCDF4 import Dataset
 import numpy as np
-import pandas as pd
+import pandas as _pd
 from atmPy.general import timeseries as _timeseries
 from atmPy.tools import array_tools as _arry_tools
+from atmPy.aerosols.instruments.AMS import AMS as _AMS
+from atmPy.aerosols.size_distribution import sizedistribution as _sizedistribution
 
 class ArmDataset(object):
     def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None):
@@ -13,6 +15,40 @@ class ArmDataset(object):
             self.data_quality = data_quality
             self._parse_netCDF()
 
+
+    def _concat(self, arm_data_objs, close_gaps = True):
+        for att in self._concatable:
+            print('attribute: ', att)
+            first_object = getattr(arm_data_objs[0], att)
+            which_type = type(first_object).__name__
+            data_period = first_object._data_period
+            print(which_type)
+            if which_type == 'TimeSeries_2D':
+                value = _timeseries.TimeSeries_2D(_pd.concat([getattr(i, att).data for i in arm_data_objs]))
+            elif which_type == 'TimeSeries':
+                value = _timeseries.TimeSeries(
+                    _pd.concat([getattr(i, att).data for i in arm_data_objs]))
+            elif which_type == 'AMS_Timeseries_lev01':
+                value = _AMS.AMS_Timeseries_lev01(
+                    _pd.concat([getattr(i, att).data for i in arm_data_objs]))
+            elif which_type == 'SizeDist_TS':
+                # value = _AMS.AMS_Timeseries_lev01(pd.concat([getattr(i, att).data for i in arm_data_objs]))
+                data = _pd.concat([getattr(i, att).data for i in arm_data_objs])
+                value = _sizedistribution.SizeDist_TS(data, getattr(arm_data_objs[0], att).bins,
+                                             'dNdlogDp')
+            elif which_type == 'TimeSeries_3D':
+                value = _timeseries.TimeSeries_3D(_pd.concat([getattr(i, att).data for i in arm_data_objs]))
+            else:
+                raise TypeError(
+                    '%s is not an allowed type here (TimeSeries_2D, TimeSeries)' % which_type)
+
+            value._data_period = data_period
+            if close_gaps:
+                setattr(self, att, value.close_gaps())
+            else:
+                setattr(self, att, value)
+
+
     @property
     def time_stamps(self):
         if '__time_stamps' in dir(self):
@@ -20,7 +56,7 @@ class ArmDataset(object):
         else:
             bt = self.netCDF.variables['base_time']
             toff = self.netCDF.variables['time_offset']
-            self.__time_stamps = pd.to_datetime(0) + pd.to_timedelta(bt[:].flatten()[0], unit = 's') + pd.to_timedelta(toff[:], unit = 's')
+            self.__time_stamps = _pd.to_datetime(0) + _pd.to_timedelta(bt[:].flatten()[0], unit ='s') + _pd.to_timedelta(toff[:], unit ='s')
             self.__time_stamps.name = 'Time'
         return self.__time_stamps
 
@@ -109,10 +145,10 @@ class ArmDataset(object):
         if type(variable).__name__ == 'str':
             variable = [variable]
 
-        df = pd.DataFrame(index = self.time_stamps)
+        df = _pd.DataFrame(index = self.time_stamps)
         for var in variable:
             data = self._read_variable(var)
-            df[var] = pd.Series(data, index = self.time_stamps)
+            df[var] = _pd.Series(data, index = self.time_stamps)
         if column_name:
             df.columns.name = column_name
         out = _timeseries.TimeSeries(df)

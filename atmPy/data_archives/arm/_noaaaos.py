@@ -79,7 +79,9 @@ class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
         self._data_period = 60
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
-        
+
+        self._concatable = ['abs_coeff', 'back_scatt', 'scatt_coeff', 'RH_nephelometer']
+
         self.__f_of_RH = None
         self.__kappa = None
         self.__growthfactor = None
@@ -281,19 +283,24 @@ class ArmDatasetSub(_ArmDataset):
         self.__sup_fofRH_RH_tolerance = value
 
 
-
-
 def _concat_rules(arm_data_objs):
+    """nothing here"""
+    # out = arm_data_obj
     out = ArmDatasetSub(False)
-    out.abs_coeff = _timeseries.TimeSeries(_pd.concat([i.abs_coeff.data for i in arm_data_objs]))
-    out.abs_coeff._data_period = out._data_period
-    out.back_scatt = _timeseries.TimeSeries(_pd.concat([i.back_scatt.data for i in arm_data_objs]))
-    out.back_scatt._data_period = out._data_period
-    out.scatt_coeff = _timeseries.TimeSeries(_pd.concat([i.scatt_coeff.data for i in arm_data_objs]))
-    out.scatt_coeff._data_period = out._data_period
-    out.RH_nephelometer = _timeseries.TimeSeries(_pd.concat([i.RH_nephelometer.data for i in arm_data_objs]))
-    out.RH_nephelometer._data_period = out._data_period
-    out.time_stamps = out.abs_coeff.data.index
+    out._concat(arm_data_objs)
     return out
-
+#
+# def _concat_rules(arm_data_objs):
+#     out = ArmDatasetSub(False)
+#     out.abs_coeff = _timeseries.TimeSeries(_pd.concat([i.abs_coeff.data for i in arm_data_objs]))
+#     out.abs_coeff._data_period = out._data_period
+#     out.back_scatt = _timeseries.TimeSeries(_pd.concat([i.back_scatt.data for i in arm_data_objs]))
+#     out.back_scatt._data_period = out._data_period
+#     out.scatt_coeff = _timeseries.TimeSeries(_pd.concat([i.scatt_coeff.data for i in arm_data_objs]))
+#     out.scatt_coeff._data_period = out._data_period
+#     out.RH_nephelometer = _timeseries.TimeSeries(_pd.concat([i.RH_nephelometer.data for i in arm_data_objs]))
+#     out.RH_nephelometer._data_period = out._data_period
+#     out.time_stamps = out.abs_coeff.data.index
+#     return out
+#
 
