@@ -187,7 +187,7 @@ class SizeDist(object):
     #  changed too
     def __init__(self, data, bins, distType,
                  # bincenters=False,
-                 fixGaps=True):
+                 fixGaps=False):
 
         if type(data).__name__ == 'NoneType':
             self.data = pd.DataFrame()
@@ -510,6 +510,7 @@ sizedistribution.align to align the index of the new array."""
         scale:  float, optional
                 This is a scale.
         """
+        _warnings.warn('This function is deprecated use close_gaps instead ... unless you like thisone better')
         diff = self.data.index[1:].values - self.data.index[0:-1].values
         threshold = _np.median(diff) * scale
         where = _np.where(diff > threshold)[0]
@@ -989,6 +990,8 @@ class SizeDist_TS(SizeDist):
         self._update()
         if not self.data.index.name:
             self.data.index.name = 'Time'
+
+    close_gaps = _timeseries.close_gaps
 
     def _update(self):
         self._uptodate_particle_number_concentration = False
