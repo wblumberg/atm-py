@@ -143,6 +143,10 @@ def align_to(ts, ts_other):
     ts = ts.copy()
     ts_other = ts_other.copy()
 
+    # if _np.all(ts.data.index == ts_other.data.index):
+    if _np.array_equal(ts.data.index, ts_other.data.index):
+        return ts
+
     window = ts_other._data_period / ts._data_period
     if window < 0.5:
         _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
@@ -184,10 +188,17 @@ def merge(ts, ts_other):
 
     """
     ts_this = ts.copy()
-    ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
-    merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
-    ts_this.data = merged
+
+    # if _np.all(ts_this.data.index == ts_other.data.index):
+    if _np.array_equal(ts_this.data.index, ts_other.data.index):
+        ts_this.data = _pd.concat([ts_this.data, ts_other.data], axis=1)
+
+    else:
+        ts_data_list = [ts_this.data, ts_other.data]
+        catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
+        merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+        ts_this.data = merged
+
     return ts_this
 
 def concat(ts_list):
@@ -246,7 +257,7 @@ class TimeSeries(object):
         self._data_period = None
         self.data = data
         self.info = info
-        self._y_label = None
+        self._y_label = ''
         self._x_label = 'Time'
 
     def __str__(self):
