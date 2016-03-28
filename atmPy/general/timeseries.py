@@ -122,8 +122,12 @@ def load_netCDF(fname):
 def close_gaps(ts):
     ts = ts.copy()
     ts.data = ts.data.sort_index()
-    data = ts.data.index.values
-    index = ts.data.index
+    if type(ts.data).__name__ == 'Panel':
+        data = ts.data.items.values
+        index = ts.data.items
+    else:
+        data = ts.data.index.values
+        index = ts.data.index
 
     index_df = _pd.DataFrame(index = index)
 
@@ -138,10 +142,10 @@ def close_gaps(ts):
     point_dist = (index.values[1:] - index.values[:-1]) / _np.timedelta64(1, 's')
     where = point_dist > 2 * ts._data_period
     off_periods = _np.array([index[:-1][where], index[1:][where]]).transpose()
-
+    print('found %i gaps'%(off_periods.shape[0]))
     for i, op in enumerate(off_periods):
-        no_periods = round((op[1] - op[0])/ _np.timedelta64(ts._data_period,'s'))
-        out = _pd.date_range(start = op[0], periods= no_periods, freq= '%s s'%ts._data_period)
+        no_periods = round((op[1] - op[0])/ _np.timedelta64(1,'s')) / ts._data_period
+        out = _pd.date_range(start = op[0], periods= no_periods, freq= '%i s'%ts._data_period)
         out = out[1:]
         out = _pd.DataFrame(index = out)
         index_df = _pd.concat([index_df, out])
@@ -238,6 +242,7 @@ def concat(ts_list):
             raise TypeError('Currently works only with TimeSeries not with %s'%(type(ts).__name__))
     ts = ts_list[0].copy()
     ts.data = _pd.concat([i.data for i in ts_list])
+
     return ts
 
 
@@ -419,13 +424,13 @@ class TimeSeries(object):
         out._x_label = self._y_label
         return out
 
-    def average_overTime(self, window='1S'):
+    def average_overTime(self, window):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
         Arguments
         ---------
-        window: str ['1S']. Optional
-            window over which to average. For aliases see
+        window: int
+            window over which to average in seconds. For aliases see
             http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
 
         Returns
@@ -435,8 +440,7 @@ class TimeSeries(object):
         """
 
         ts = self.copy()
-        window = window
-        ts.data = ts.data.resample(window, closed='right', label='right')
+        ts.data = ts.data.resample('%iS'%window, closed='right', label='right')
 
         return ts
 
