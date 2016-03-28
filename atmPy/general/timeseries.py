@@ -119,6 +119,37 @@ def load_netCDF(fname):
 
 
 #### Tools
+def close_gaps(ts):
+    ts = ts.copy()
+    ts.data = ts.data.sort_index()
+    data = ts.data.index.values
+    index = ts.data.index
+
+    index_df = _pd.DataFrame(index = index)
+
+    dt = data[1:] - data[:-1]
+    dt = dt / _np.timedelta64(1,'s')
+
+    median = _np.median(dt)
+
+    if median > (1.1 * ts._data_period) or median < (0.9 * ts._data_period):
+        raise ValueError('periode and median missmatch (%0.1f,%0.1f)'%(median,ts._data_period))
+
+    point_dist = (index.values[1:] - index.values[:-1]) / _np.timedelta64(1, 's')
+    where = point_dist > 2 * ts._data_period
+    off_periods = _np.array([index[:-1][where], index[1:][where]]).transpose()
+
+    for i, op in enumerate(off_periods):
+        no_periods = round((op[1] - op[0])/ _np.timedelta64(ts._data_period,'s'))
+        out = _pd.date_range(start = op[0], periods= no_periods, freq= '%s s'%ts._data_period)
+        out = out[1:]
+        out = _pd.DataFrame(index = out)
+        index_df = _pd.concat([index_df, out])
+
+    index_df.sort_index(inplace=True)
+    ts.data = ts.data.reindex(index_df.index)
+    return ts
+
 
 def align_to(ts, ts_other):
     """
@@ -368,6 +399,8 @@ class TimeSeries(object):
             raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
         self.__data = data
 
+
+
     def convert2verticalprofile(self, alt_label = None, alt_timeseries = None):
         ts_tmp = self.copy()
     #     hk_tmp.data['Time'] = hk_tmp.data.index
@@ -410,6 +443,8 @@ class TimeSeries(object):
     align_to = align_to
     # def align_to(self, ts_other):
     #     return align_to(self, ts_other)
+
+    close_gaps = close_gaps
 
     correlate_to = correlate
     # def correlate_to(self,correlant, data_column = False, correlant_column = False, remove_zeros=True):
