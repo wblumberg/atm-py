@@ -92,7 +92,6 @@ class ArmDatasetSub(_netCDF.ArmDataset):
     def f_RH_scatt_3p(self):
         """do something more with the data"""
         if not self.__f_RH_scatt_3p:
-            print('recalc 3p')
             if not self.sup_RH:
                 raise ValueError('please set the relative humidity in sup_RH')
 
@@ -106,13 +105,13 @@ class ArmDatasetSub(_netCDF.ArmDataset):
             data = self.f_RH_scatt_funcs_3p.data.applymap(applyfunk)
             # data = _pd.DataFrame(data, columns=['f_%i'%(self.sup_RH)])
             self.__f_RH_scatt_3p = _timeseries.TimeSeries(data)
+            self.__f_RH_scatt_3p._data_period = self.f_RH_scatt_funcs_3p._data_period
         return self.__f_RH_scatt_3p
 
     @property
     def f_RH_scatt_2p(self):
         """do something more with the data"""
         if not self.__f_RH_scatt_2p:
-            print('recalc 2p')
             if not self.sup_RH:
                 raise ValueError('please set the relative humidity in sup_RH')
 
@@ -126,6 +125,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
             data = self.f_RH_scatt_funcs_2p.data.applymap(applyfunk)
             # data = _pd.DataFrame(data, columns=['f_%i'%(self.sup_RH)])
             self.__f_RH_scatt_2p = _timeseries.TimeSeries(data)
+            self.__f_RH_scatt_2p._data_period = self.f_RH_scatt_funcs_2p._data_period
         return self.__f_RH_scatt_2p
 
     @property

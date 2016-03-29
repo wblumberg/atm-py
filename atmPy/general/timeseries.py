@@ -119,7 +119,7 @@ def load_netCDF(fname):
 
 
 #### Tools
-def close_gaps(ts):
+def close_gaps(ts, verbose = False):
     ts = ts.copy()
     ts.data = ts.data.sort_index()
     if type(ts.data).__name__ == 'Panel':
@@ -142,7 +142,8 @@ def close_gaps(ts):
     point_dist = (index.values[1:] - index.values[:-1]) / _np.timedelta64(1, 's')
     where = point_dist > 2 * ts._data_period
     off_periods = _np.array([index[:-1][where], index[1:][where]]).transpose()
-    print('found %i gaps'%(off_periods.shape[0]))
+    if verbose:
+        print('found %i gaps'%(off_periods.shape[0]))
     for i, op in enumerate(off_periods):
         no_periods = round((op[1] - op[0])/ _np.timedelta64(1,'s')) / ts._data_period
         out = _pd.date_range(start = op[0], periods= no_periods, freq= '%i s'%ts._data_period)

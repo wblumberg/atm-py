@@ -95,7 +95,6 @@ class ArmDataset(object):
 
         variable_qc = "qc_" + variable
         if variable_qc in self.netCDF.variables.keys():
-            # print('has qc')
             var_qc = self.netCDF.variables["qc_" + variable]
             data_qc = var_qc[:]
             if reverse_qc_flag:
@@ -112,7 +111,6 @@ class ArmDataset(object):
             data = np.ma.array(data, mask = data_qc, fill_value= -9999)
 
         elif 'missing_data' in var.ncattrs():
-            # print('has missing data')
             fill_value = var.missing_data
             data = np.ma.masked_where(data == fill_value, data)
         # else:
