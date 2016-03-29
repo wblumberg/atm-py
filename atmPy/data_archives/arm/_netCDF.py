@@ -123,7 +123,7 @@ class ArmDataset(object):
             data = data.data
         return data
 
-    def _read_variable2timeseries(self, variable, column_name = False):
+    def _read_variable2timeseries(self, variable, column_name = False, reverse_qc_flag = False):
         """
         Reads the specified variables and puts them into a timeseries.
 
@@ -147,7 +147,7 @@ class ArmDataset(object):
 
         df = _pd.DataFrame(index = self.time_stamps)
         for var in variable:
-            data = self._read_variable(var)
+            data = self._read_variable(var, reverse_qc_flag = reverse_qc_flag)
             df[var] = _pd.Series(data, index = self.time_stamps)
         if column_name:
             df.columns.name = column_name

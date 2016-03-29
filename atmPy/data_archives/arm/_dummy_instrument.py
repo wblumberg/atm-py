@@ -4,7 +4,7 @@ from atmPy.data_archives.arm import _netCDF
 
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_periode = None
+        self._data_period = None
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         ####
@@ -40,7 +40,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
     @property
     def mean_growth_factor(self):
         """do something more with the data"""
-        if '__mean_growth_factor' not in dir(self):
+        if not self.__mean_growth_factor:
             self.__mean_growth_factor = 'bla'
         return self.__mean_growth_factor
 

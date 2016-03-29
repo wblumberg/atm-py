@@ -1,6 +1,6 @@
 from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
-from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1
+from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1, _aipfitrh1ogrenC1
 import pandas as _pd
 import pylab as _plt
 import warnings
@@ -11,7 +11,8 @@ arm_products = {'tdmasize':   {'module': _tdmasize},
                 'tdmahyg':    {'module': _tdmahyg},
                 'aosacsm':    {'module': _aosacsm},
                 'noaaaos':    {'module': _noaaaos},
-                '1twr10xC1':  {'module': _1twr10xC1}
+                '1twr10xC1':  {'module': _1twr10xC1},
+                'aipfitrh1ogrenC1': {'module': _aipfitrh1ogrenC1}
                 }
 
 
@@ -218,7 +219,6 @@ def _is_in_product_keys(f, ignore_unknown,verbose):
         if ignore_unknown:
             if verbose:
                 print(txt + '... skipping')
-
         else:
             raise KeyError(txt)
     return product_id
