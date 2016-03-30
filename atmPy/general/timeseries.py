@@ -156,7 +156,7 @@ def close_gaps(ts, verbose = False):
     return ts
 
 
-def align_to(ts, ts_other):
+def align_to(ts, ts_other, verbose= False):
     """
     Align the TimeSeries ts to another time_series by interpolating (linearly). If
     data periods differe by at least a factor of 2 a rolling mean is calculated
@@ -178,9 +178,13 @@ def align_to(ts, ts_other):
     """
     ts = ts.copy()
     ts_other = ts_other.copy()
-
+    if verbose:
+        print('=================================')
+        print('=====  perform alignment ========')
     # if _np.all(ts.data.index == ts_other.data.index):
     if _np.array_equal(ts.data.index, ts_other.data.index):
+        if verbose:
+            print('indeces are identical, returning original time series.')
         return ts
 
     window = ts_other._data_period / ts._data_period
@@ -190,6 +194,8 @@ def align_to(ts, ts_other):
     window = round(window)
 
     if window > 2:
+        if verbose:
+            print('Data period difference larger than a factor of 2 -> performing rolling mean')
         roll = ts.data.rolling(window,
                                min_periods=1,
                                center=True)
@@ -198,16 +204,24 @@ def align_to(ts, ts_other):
         tsrm = TimeSeries(_pd.DataFrame(dfrm))
         # tsrm._data_period = ts._data_period
     else:
+        if verbose:
+            print('Data period difference smaller than a factor of 2 -> do nothing')
         tsrm = ts
 
     ts_other.data = ts_other.data.loc[:,[]]
-    ts_t =  merge(ts_other, tsrm)
+    if verbose:
+        print('performing merge with empty index of other time series')
+    ts_t =  merge(ts_other, tsrm, verbose = verbose)
     tsrm.data = ts_t.data
     tsrm._data_period = ts_other._data_period
+    if verbose:
+        print('=====  alignment done ========')
+        print('=================================')
+
     return tsrm
 
 
-def merge(ts, ts_other):
+def merge(ts, ts_other, verbose = False):
     """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
     one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
 
@@ -223,6 +237,10 @@ def merge(ts, ts_other):
     TimeSeries object or one of its subclasses
 
     """
+    if verbose:
+        print('=================================')
+        print('=====  perform merge ========')
+
     ts_this = ts.copy()
 
     # if _np.all(ts_this.data.index == ts_other.data.index):
@@ -231,10 +249,28 @@ def merge(ts, ts_other):
 
     else:
         ts_data_list = [ts_this.data, ts_other.data]
-        catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
-        merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+        # catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
+        # merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+        # ts_this.data = merged
+
+        # ts_data_list = [data.data, correlant_nocol]
+        catsort = _pd.concat(ts_data_list).sort_index()  # .interpolate(method='index')
+
+        mask = catsort.copy()
+        grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
+        grp['ones'] = 1
+        for i in catsort.columns:
+            mask[i] = (grp.groupby(i)['ones'].transform('count') < 2) | catsort[i].notnull()
+
+        catsortinterp = catsort.interpolate(method='index')
+        catsortinterpmasked = catsortinterp[mask]
+
+        merged = catsortinterpmasked.groupby(catsortinterpmasked.index).mean().reindex(ts_data_list[0].index)
         ts_this.data = merged
 
+    if verbose:
+        print('=====  merge done ========')
+        print('==========================')
     return ts_this
 
 def concat(ts_list):
