@@ -4,7 +4,7 @@ import pandas as _pd
 import atmPy.general.timeseries as _timeseries
 import pdb as _pdb
 
-def kappa_simple(k,RH, n = None, inverse = False):
+def kappa_simple(k, RH, refractive_index = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
     This function is based on the simplified model introduced by Rissler et al. (2006).
     It ignores the curvature effect and is therefore independend of the exact particle diameter.
@@ -36,7 +36,7 @@ def kappa_simple(k,RH, n = None, inverse = False):
     Returns
     -------
     float: The growth factor of the particle.
-    if n is given a further float is returned which gives the new refractiv index of the grown particle
+    if refractive_index is given a further float is returned which gives the new refractiv index of the grown particle
     """
 
     if not inverse:
@@ -57,10 +57,16 @@ def kappa_simple(k,RH, n = None, inverse = False):
 
     # adjust index of refraction
     if not inverse:
-        if n:
+        if _np.any(refractive_index):
             nw = 1.33
-            n_mix = lambda n,gf: (n + ((gf-1)*nw))/gf
-            return out, n_mix(n,out)
+            # n_mix = lambda n,gf: (n + ((gf-1)*nw))/gf
+            n_mix = lambda n, gf: (n + (nw * (gf ** 3 - 1))) / gf ** 3 # This is the correct function for volume mixing ratio
+            if type(refractive_index).__name__ == 'DataFrame':
+                refractive_index = refractive_index.iloc[:,0]
+            # import pdb
+            # pdb.set_trace()
+            return out, n_mix(refractive_index, out)
+
     return out
 
 
