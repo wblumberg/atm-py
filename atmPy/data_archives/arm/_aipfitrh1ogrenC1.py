@@ -2,6 +2,8 @@ from atmPy.general import timeseries as _timeseries
 from atmPy.data_archives.arm import _netCDF
 import pandas as _pd
 import numpy as _np
+from atmPy.aerosols.physics import hygroscopic_growth as _hygrow
+from atmPy.tools import decorators as _decorators
 
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
@@ -16,6 +18,10 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         self.__f_RH_scatt_2p = None
         self.__f_RH_scatt_3p  = None
         self.__sup_RH = None
+        self.__kappa = None
+        self.__growthfactor = None
+        self.__sup_kappa_sizedist = None
+        self.__sup_kappa_wavelength = None
 
 
     def _data_quality_control(self):
@@ -137,6 +143,49 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         self.__sup_RH = value
         self.__f_RH_scatt_3p = None
         self.__f_RH_scatt_2p = None
+
+    @property
+    @_decorators.change_doc(_hygrow.kappa_from_fofrh_and_sizedist)
+    def kappa(self):
+        if not self.__kappa:
+            if not self.sup_kappa_sizedist or not self.sup_kappa_wavelength:
+                txt = "Make sure you define the following attributes first: \nself.sup_kappa_sizedist and self.sup_kappa_wavelength"
+                raise ValueError(txt)
+
+            self.__kappa, self.__growthfactor = _hygrow.kappa_from_fofrh_and_sizedist(self.f_RH_scatt_2p, self.sup_kappa_sizedist,
+                                                                                      self.sup_kappa_wavelength, self.sup_RH)
+        return self.__kappa
+
+    @kappa.setter
+    def kappa(self, value):
+        self.__kappa = value
+
+    @property
+    @_decorators.change_doc(_hygrow.kappa_from_fofrh_and_sizedist)
+    def growth_factor(self):
+        if self.__growthfactor:
+            self.kappa
+        return self.__growthfactor
+
+    @property
+    def sup_kappa_sizedist(self):
+        return self.__sup_kappa_sizedist
+
+    @sup_kappa_sizedist.setter
+    def sup_kappa_sizedist(self, value):
+        self.__kappa = None
+        self.__growthfactor = None
+        self.__sup_kappa_sizedist = value
+
+    @property
+    def sup_kappa_wavelength(self):
+        return self.__sup_kappa_wavelength
+
+    @sup_kappa_wavelength.setter
+    def sup_kappa_wavelength(self, value):
+        self.__kappa = None
+        self.__growthfactor = None
+        self.__sup_kappa_wavelength = value
 
 
 
