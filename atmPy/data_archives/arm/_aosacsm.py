@@ -35,6 +35,7 @@ class ArmDatasetSub(_ArmDataset):
         self.__refractive_index = None
         self.__density = None
         self.__mass_concentration_corr_relative = None
+        self.__mass_concentrations_relative = None
 
         self._concatable = ['mass_concentrations', 'organic_mass_spectral_matrix']
 
@@ -116,6 +117,16 @@ class ArmDatasetSub(_ArmDataset):
             mccr.data = mccr.data.divide(total, axis = 0)
             self.__mass_concentration_corr_relative = mccr
         return self.__mass_concentration_corr_relative
+
+    @property
+    def mass_concentrations_relative(self):
+        if self.__mass_concentrations_relative is None:
+            mccr = self.mass_concentrations.copy()
+            total = mccr.data.loc[:,'total']
+            mccr.data.drop(['total'], axis=1, inplace=True)
+            mccr.data = mccr.data.divide(total, axis = 0)
+            self.__mass_concentrations_relative = mccr
+        return self.__mass_concentrations_relative
 
     @property
     @_decorators.change_doc(_AMS.AMS_Timeseries_lev02.calculate_refractive_index, add_warning=False)
