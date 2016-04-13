@@ -104,6 +104,9 @@ class Correlation(object):
         self.__pearson_r = None
         self.__linear_regression = None
         self.__linear_regression_function = None
+        self.__linear_regression_zero = None
+        self.__linear_regression_zero_function= None
+
         if remove_zeros:
             correlant = correlant[data != 0]
             if type(index) != bool:
@@ -148,13 +151,28 @@ class Correlation(object):
         return self.__linear_regression
 
     @property
+    def linear_regression_zero_intersect(self):
+        if not self.__linear_regression_zero:
+            x = self._data
+            x = x[:, _np.newaxis]
+            self.__linear_regression_zero = _np.linalg.lstsq(x, self._correlant)
+        return self.__linear_regression_zero
+
+    @property
     def linear_regression_function(self):
         if not self.__linear_regression_function:
             self.__linear_regression_function = lambda x: x * self.linear_regression.slope + self.linear_regression.intercept
         return self.__linear_regression_function
 
+    @property
+    def linear_regression_zero_intersect_function(self):
+        if not self.__linear_regression_zero_function:
+            self.__linear_regression_zero_function = lambda x: x * self.linear_regression_zero_intersect[0]
+        return self.__linear_regression_zero_function
+
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
-    def plot_pearson(self, gridsize = 100, cm = 'auto', xlim = None, ylim = None, p_value = True, colorbar = False, ax = None, **kwargs):
+    def plot_pearson(self, zero_intersect = False, gridsize = 100, cm = 'auto', xlim = None,
+                     ylim = None, p_value = True, colorbar = False, ax = None, text_pos = (0.1,0.9), **kwargs):
         """
 
         Parameters
@@ -223,21 +241,34 @@ class Correlation(object):
         # data.min()
 
         x_reg_func = _np.array([self._data.min(), self._data.max()])
-        y_reg_func = self.linear_regression_function(x_reg_func)
+
+        if zero_intersect:
+            y_reg_func = self.linear_regression_zero_intersect_function(x_reg_func)
+            slope = self.linear_regression_zero_intersect[0]
+            intersect = 0
+            std = (self._correlant - self.linear_regression_zero_intersect_function(self._data)).std()
+        else:
+            y_reg_func = self.linear_regression_function(x_reg_func)
+            slope = self.linear_regression.slope
+            intersect = self.linear_regression.intercept
+            # std = self.linear_regression.stderr
+            std = (self._correlant - self.linear_regression_function(self._data)).std()
 
         color = _plt_tools.color_cycle[2]
         a.plot(x_reg_func, y_reg_func, lw = 2, color = color)
 
 
         txt = '$r = %0.2f$'%(self.pearson_r[0])
+        txt += '\n$r^2 = %0.2f$' % ((self.pearson_r[0])**2)
         # if p_value:
         txt += '\n$p = %0.2f$'%(self.pearson_r[1])
-        txt += '\n$m = %0.2f$'%(self.linear_regression.slope)
-        txt += '\n$c = %0.2f$'%(self.linear_regression.intercept)
-        txt += '\n$std = %0.2f$'%(self.linear_regression.stderr)
+        txt += '\n$m = %0.2f$'%(slope)
+        txt += '\n$c = %0.2f$'%(intersect)
+        txt += '\n$std = %0.2f$'%(std)
 
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-        a.text(0.1,0.9, txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
+
+        a.text(text_pos[0],text_pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
         return a
 
     def plot_original_data(self, ax = None, **kwargs):
@@ -254,6 +285,9 @@ class Correlation(object):
         else:
             a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0], **kwargs)
 
+        g = a.get_lines()[-1]
+        g.set_marker('.')
+
         a.set_ylabel(self._y_label_orig_data)
 
         a.tick_params(axis = 'y', left = True, color = _plt_tools.color_cycle[0], zorder = 99)
@@ -265,6 +299,9 @@ class Correlation(object):
             a2.plot(self._index,self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1], **kwargs)
         else:
             a2.plot(self._correlant, linewidth = 2, color = _plt_tools.color_cycle[1])
+
+        g = a2.get_lines()[-1]
+        g.set_marker('.')
 
         a2.set_ylabel(self._y_label_orig_correlant)
 
@@ -278,9 +315,9 @@ class Correlation(object):
             _plt.setp(a.xaxis.get_majorticklabels(), rotation=30 )
         return a, a2
 
-    def plot_pearsonANDoriginal_data(self, gridsize = 20, xlim = None, ylim = None, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, zero_intersect = False, xlim = None, ylim = None, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
         f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
         f.set_figwidth(f.get_figwidth()*1.7)
-        a1 = self.plot_pearson(gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, p_value=p_value, ax = a_corr, **corr_kwargs)
+        a1 = self.plot_pearson(zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, p_value=p_value, ax = a_corr, **corr_kwargs)
         a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3
