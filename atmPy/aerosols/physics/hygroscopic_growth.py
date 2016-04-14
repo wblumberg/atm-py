@@ -2,7 +2,7 @@ import numpy as _np
 from scipy.optimize import fsolve as _fsolve
 import pandas as _pd
 import atmPy.general.timeseries as _timeseries
-import pdb as _pdb
+import warnings as _warnings
 
 def kappa_simple(k, RH, refractive_index = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
@@ -41,8 +41,14 @@ def kappa_simple(k, RH, refractive_index = None, inverse = False):
 
     if not inverse:
         if _np.any(k > 1.4) or _np.any(k < 0):
-            txt = '''The kappa value has to be between 0 and 1.4.'''
-            raise ValueError(txt)
+            # txt = '''The kappa value has to be between 0 and 1.4.'''
+            # txt = txt + '\nk[k>1.4]:\n%s'%(k[k>1.4]) +'\nk[k<0]:\n%s'%(k[k<0])
+            # print(txt)
+            # raise ValueError(txt)
+            if _np.any(k > 1.4):
+                _warnings.warn('There are kappa values lareger than 1.4 in this dataset!')
+            if _np.any(k < 0):
+                _warnings.warn('There are kappa values smaller than 0 in this dataset!')
 
     if _np.any(RH > 100) or _np.any(RH < 0):
         txt = """RH has to be between 0 and 100"""
