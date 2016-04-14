@@ -220,6 +220,7 @@ class SizeDist(object):
 
     @physical_property_density.setter
     def physical_property_density(self, value):
+        """if type timeseries or vertical profile alignment is taken care of"""
         if type(value).__name__ in ['TimeSeries','VerticalProfile']:
             if not _np.array_equal(self.data.index.values, value.data.index.values):
                 value = value.align_to(self)
@@ -340,7 +341,7 @@ sizedistribution.align to align the index of the new array."""
         return self.__particle_surface_concentration
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
-        """
+        """Note kappa values are !!NOT!! aligned to self in case its timesersies
         how: string ['shift_bins', 'shift_data']
             If the shift_bins the growth factor has to be the same for all lines in
             data (important for timeseries and vertical profile.
@@ -348,7 +349,7 @@ sizedistribution.align to align the index of the new array."""
             'shift_data'
         """
 
-        if not self.index_of_refraction:
+        if type(self.index_of_refraction).__name__ == 'NoneType':
             txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
             raise ValueError(txt)
 
@@ -357,7 +358,7 @@ sizedistribution.align to align the index of the new array."""
         dist_g = self.convert2numberconcentration()
 
 
-        gf,n_mix = hg.kappa_simple(kappa, RH, n = dist_g.index_of_refraction)
+        gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
 
         if how == 'shift_bins':
             if not isinstance(gf, (float,int)):
@@ -385,6 +386,8 @@ sizedistribution.align to align the index of the new array."""
         #     # return df
         #     dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
             df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
+            # import pdb
+            # pdb.set_trace()
             df.index = dist_g.data.index
             dist_g.index_of_refraction = df
         # else:
@@ -396,6 +399,7 @@ sizedistribution.align to align the index of the new array."""
         return dist_g
 
     def apply_growth(self, growth_factor, how ='auto'):
+        """Note this does not adjust the refractive index according to the dilution!!!!!!!"""
         if how == 'auto':
             if isinstance(growth_factor, (float, int)):
                 how = 'shift_bins'
