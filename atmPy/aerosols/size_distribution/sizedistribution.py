@@ -340,7 +340,7 @@ sizedistribution.align to align the index of the new array."""
             self._uptodate_particle_surface_concentration = True
         return self.__particle_surface_concentration
 
-    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins'):
+    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins', adjust_refractive_index = True):
         """Note kappa values are !!NOT!! aligned to self in case its timesersies
         how: string ['shift_bins', 'shift_data']
             If the shift_bins the growth factor has to be the same for all lines in
@@ -385,11 +385,20 @@ sizedistribution.align to align the index of the new array."""
         #     df.index = dist_g.data.index
         #     # return df
         #     dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-            df = pd.DataFrame(n_mix, columns = ['index_of_refraction'])
-            # import pdb
-            # pdb.set_trace()
-            df.index = dist_g.data.index
-            dist_g.index_of_refraction = df
+        #     import pdb
+        #     pdb.set_trace()
+            if adjust_refractive_index:
+                print('n_mix.shape', n_mix.shape)
+                df = pd.DataFrame(n_mix)
+                df.columns = ['index_of_refraction']
+                print('df.shape', df.shape)
+                # import pdb
+                # pdb.set_trace()
+                df.index = dist_g.data.index
+                dist_g.index_of_refraction = df
+            else:
+                dist_g.index_of_refraction = self.index_of_refraction
+
         # else:
         #     txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
         #     raise ValueError(txt)
@@ -1017,7 +1026,7 @@ class SizeDist_TS(SizeDist):
         return self.data_fit_normal
 
 
-    def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
+    def apply_hygro_growth(self, kappa, RH = None, how='shift_data', adjust_refractive_index = True):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
         ----------
@@ -1029,7 +1038,7 @@ class SizeDist_TS(SizeDist):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
         # return kappa,RH,how
-        sd = super(SizeDist_TS,self).apply_hygro_growth(kappa,RH,how = how)
+        sd = super(SizeDist_TS,self).apply_hygro_growth(kappa,RH,how = how, adjust_refractive_index = adjust_refractive_index)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
