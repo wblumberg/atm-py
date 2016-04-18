@@ -6,11 +6,15 @@ from atmPy.aerosols.physics import hygroscopic_growth as _hygrow
 from atmPy.tools import decorators as _decorators
 
 class ArmDatasetSub(_netCDF.ArmDataset):
+
+    info = ("This data product has a few gotchas:\n"
+            "- The function profided is not agains 40 as it suggests, it must be some other value, which I don't what it is")
+
     def __init__(self,*args, **kwargs):
         self._data_period = 3600
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
-        self._concatable = ['f_RH_scatt_funcs_2p', 'f_RH_scatt_funcs_3p']
+        self._concatable = ['f_RH_scatt_funcs_2p', 'f_RH_scatt_funcs_3p','f_RH_scatt_2p_85_40', 'f_RH_scatt_3p_85_40', 'f_RH_scatt_2p_ab_G_1um']
 
 
         ####
@@ -50,6 +54,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         def ab_2_f_RH_func(ab):
             ab = ab.copy()
             a, b = ab
+            # a = 1. # I was just told that a is supposed to be set to one from Ann (upstairs)
             f_RH = lambda RH: a * (1 - (RH / 100.)) ** (-b)  # 'bsp(RH%)/Bsp(~40%) = a*[1-(RH%/100)]^(-b)'
             return f_RH
 
@@ -61,18 +66,26 @@ class ArmDatasetSub(_netCDF.ArmDataset):
                   'fRH_Bs_B_1um_2p']
 
         df = _pd.DataFrame(index=self.time_stamps)
+        df_ab = _pd.DataFrame(index=self.time_stamps)
         for key in varies:
             data = self._read_variable(key, reverse_qc_flag=8)
             dft = _pd.DataFrame(data, index=self.time_stamps)
             df[key] = dft.apply(ab_2_f_RH_func, axis=1)
+            if key == 'fRH_Bs_G_1um_2p':
+                self.f_RH_scatt_2p_ab_G_1um = _timeseries.TimeSeries(_pd.DataFrame(dft))
+                self.f_RH_scatt_2p_ab_G_1um._data_period = self._data_period
+
         self.f_RH_scatt_funcs_2p = _timeseries.TimeSeries(df)
         self.f_RH_scatt_funcs_2p._data_period = self._data_period
+
+
 
 
         #for the 3 parameter function
         def abc_2_f_RH_func(abc):
             abc = abc.copy()
             a, b, c = abc
+            # a = 1.
             f_RH = lambda RH: a * (1 + (b * (RH / 100.)**c))
             return f_RH
 
@@ -91,12 +104,43 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         self.f_RH_scatt_funcs_3p = _timeseries.TimeSeries(df)
         self.f_RH_scatt_funcs_3p._data_period = self._data_period
 
+        # f or RH at predifined point
+        varies = ['ratio_85by40_Bs_R_10um_2p',
+                  'ratio_85by40_Bs_G_10um_2p',
+                  'ratio_85by40_Bs_B_10um_2p',
+                  'ratio_85by40_Bs_R_1um_2p',
+                  'ratio_85by40_Bs_G_1um_2p',
+                  'ratio_85by40_Bs_B_1um_2p']
+
+        self.f_RH_scatt_2p_85_40 = self._read_variable2timeseries(varies,reverse_qc_flag=8)
+
+        varies = ['ratio_85by40_Bs_R_10um_3p',
+                  'ratio_85by40_Bs_G_10um_3p',
+                  'ratio_85by40_Bs_B_10um_3p',
+                  'ratio_85by40_Bs_R_1um_3p',
+                  'ratio_85by40_Bs_G_1um_3p',
+                  'ratio_85by40_Bs_B_1um_3p']
+
+        self.f_RH_scatt_3p_85_40 = self._read_variable2timeseries(varies, reverse_qc_flag=8)
+
+        varies = ['ratio_85by40_Bbs_R_10um_2p',
+                  'ratio_85by40_Bbs_G_10um_2p',
+                  'ratio_85by40_Bbs_B_10um_2p',
+                  'ratio_85by40_Bbs_R_1um_2p',
+                  'ratio_85by40_Bbs_G_1um_2p',
+                  'ratio_85by40_Bbs_B_1um_2p']
+
+        self.f_RH_backscatt_2p_85_40 = self._read_variable2timeseries(varies, reverse_qc_flag=8)
+
+
     def plot_all(self):
         self.rh.plot()
 
     @property
     def f_RH_scatt_3p(self):
-        """do something more with the data"""
+        """Note, when calculating a f(RH) with this function it has a mysterious off set in it.
+        When you plan is to calculate f(RH) between 80 and 40 you actually have to apply this function for
+        both values and than divide."""
         if not self.__f_RH_scatt_3p:
             if not self.sup_RH:
                 raise ValueError('please set the relative humidity in sup_RH')
@@ -116,7 +160,9 @@ class ArmDatasetSub(_netCDF.ArmDataset):
 
     @property
     def f_RH_scatt_2p(self):
-        """do something more with the data"""
+        """Note, when calculating a f(RH) with this function it has a mysterious off set in it.
+        When you plan is to calculate f(RH) between 80 and 40 you actually have to apply this function for
+        both values and than divide."""
         if not self.__f_RH_scatt_2p:
             if not self.sup_RH:
                 raise ValueError('please set the relative humidity in sup_RH')
