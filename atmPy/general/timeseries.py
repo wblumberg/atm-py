@@ -305,6 +305,39 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
     out._x_label_orig = 'DataTime'
     return out
 
+def rolling_correlation(data, correlant, window, min_good_ratio = 0.67, verbose = True):
+    "time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"
+
+    correlant = correlant.align_to(data) # I do align before merge, because it is more suffisticated!
+    merged = data.copy()
+    merged.data['correlant'] = correlant.data
+
+    data_period = _np.timedelta64(int(merged._data_period), 's')
+    window = _np.timedelta64(window[0], window[1])
+    window = int(window/data_period)
+    if verbose:
+        print('Each window contains %s data points of which at least %s are not nan.'%(window, int(window * min_good_ratio)))
+
+    min_good = window * min_good_ratio
+    size = merged.data.shape[0]-window + 1
+    timestamps = _pd.TimeSeries(_pd.to_datetime(_pd.Series(_np.zeros(size))))
+    pear_r = _np.zeros(size)
+    for i in range(size):
+        secment = TimeSeries(merged.data.iloc[i:i+window,:])
+        secment._data_period = merged._data_period
+    #     print(secment.data.dropna().shape[0] < min_good)
+        if secment.data.dropna().shape[0] < min_good:
+            pear_r[i]= _np.nan
+        else:
+            corr = secment.correlate_to(secment, data_column=merged.data.columns[0], correlant_column=merged.data.columns[1])
+            pear_r[i] = corr.pearson_r[0]
+        timestamps.iloc[i] = secment.data.index[0] + ((secment.data.index[-1] - secment.data.index[0])/2.)
+    #     break
+
+    pear_r_ts = TimeSeries(_pd.DataFrame(pear_r, index = timestamps, columns = ['pearson_r']))
+    pear_r_ts._data_period = merged._data_period
+    pear_r_ts._y_label = 'r'
+    return pear_r_ts
 
 class TimeSeries(object):
     """
@@ -488,19 +521,12 @@ class TimeSeries(object):
     close_gaps = close_gaps
 
     correlate_to = correlate
-    # def correlate_to(self,correlant, data_column = False, correlant_column = False, remove_zeros=True):
-    #     """%s"""%(correlate.__doc__)
-    #     return correlate(self,correlant, data_column = data_column, correlant_column = correlant_column, remove_zeros=remove_zeros)
+
+    rolling_correlation = rolling_correlation
 
     merge = merge
-    # def merge(self, ts):
-    #     return merge(self,ts)
 
     copy = _deepcopy
-    # def copy(self):
-    #     return _deepcopy(self)
-
-
 
     def plot(self, ax = None, legend = True, label = None, **kwargs):
         """Plot each parameter separately versus time
