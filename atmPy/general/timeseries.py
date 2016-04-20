@@ -1,7 +1,7 @@
 __author__ = 'htelg'
 
 from copy import deepcopy as _deepcopy
-from atmPy.general import vertical_profile as _vertical_profile
+import atmPy.general.vertical_profile 
 
 import pandas as _pd
 import numpy as _np
@@ -488,7 +488,7 @@ class TimeSeries(object):
         else:
             _pandas_tools.ensure_column_exists(ts_tmp.data, 'Altitude', col_alt=alt_label)
             ts_tmp.data.index = ts_tmp.data['Altitude']
-        out = _vertical_profile.VerticalProfile(ts_tmp.data)
+        out = atmPy.general.vertical_profile.VerticalProfile(ts_tmp.data)
         out._x_label = self._y_label
         return out
 
