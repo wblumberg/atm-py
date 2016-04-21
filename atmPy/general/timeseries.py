@@ -305,8 +305,14 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
     out._x_label_orig = 'DataTime'
     return out
 
-def rolling_correlation(data, correlant, window, min_good_ratio = 0.67, verbose = True):
+def rolling_correlation(data, correlant, window, data_column = False, correlant_column = False,  min_good_ratio = 0.67, verbose = True):
     "time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"
+
+    if correlant_column:
+        correlant = correlant._del_all_columns_but(correlant_column)
+
+    if data_column:
+        data = data._del_all_columns_but(data_column)
 
     correlant = correlant.align_to(data) # I do align before merge, because it is more suffisticated!
     merged = data.copy()
@@ -492,6 +498,13 @@ class TimeSeries(object):
         out._x_label = self._y_label
         return out
 
+    def _del_all_columns_but(self, keep):
+        ts = self.copy()
+        all_keys = ts.data.keys()
+        del_keys = all_keys.drop(keep)
+        ts.data = ts.data.drop(labels=del_keys, axis=1)
+        return ts
+
     def average_overTime(self, window):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
@@ -542,18 +555,26 @@ class TimeSeries(object):
         else:
             f = ax.get_figure()
 
+        did_plot = False  # had to implement that since matploglib cept crashing when all where nan
         for k in self.data.keys():
             if not label:
                 label_t = k
             else:
                 label_t = label
+
+            if _np.all(_np.isnan(self.data[k].values)):
+                continue
+
             ax.plot(self.data.index, self.data[k].values, label = label_t, **kwargs)
+            did_plot = True
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
         if len(self.data.keys()) > 1:
             ax.legend()
-        f.autofmt_xdate()
+
+        if did_plot:
+            f.autofmt_xdate()
 
         return ax
 
