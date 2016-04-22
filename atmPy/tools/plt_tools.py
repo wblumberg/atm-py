@@ -14,6 +14,19 @@ red = np.array([120.,17.,0.])/255.
 
 color_cycle = [blue,orange,green,purple,yellow,turques,red]
 
+def set_plot_size_aspect(a, aspect = 1):
+    """instead of adjusting the plot to the data, this will actually make the plot size to the wanted aspect, e.g. 1 is
+    a sqare
+
+    Parameters
+    ----------
+    a: matplotlib.axes._subplots.AxesSubplot instance
+    asp: int,float"""
+
+    x0,x1 = a.get_xlim()
+    y0,y1 = a.get_ylim()
+    a.set_aspect(aspect * (abs(x1-x0)/abs(y1-y0)))
+    return
 
 def setRcParams_fontsize(plt, style='paper'):
     textsizescale_paper = 2.
