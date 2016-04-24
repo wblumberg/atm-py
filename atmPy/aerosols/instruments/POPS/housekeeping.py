@@ -34,7 +34,7 @@ def _read_housekeeping(fname):
     return POPSHouseKeeping(df)
 
 
-def read_csv(fname):
+def read_csv(fname, verbose = False):
     """
     Parameters
     ----------
@@ -59,6 +59,9 @@ def read_csv(fname):
                     break
                 else:
                     is_hk = False
+            if verbose and not is_hk:
+                print('%s is not a housekeeping file ... continue')
+
             if is_hk:
                 hktmp = _read_housekeeping(file)
                 if not hktmp:
@@ -66,6 +69,7 @@ def read_csv(fname):
                 elif first:
                     data = hktmp.data.copy()
                     first = False
+                    hk = POPSHouseKeeping(data)
                     # continue
                 else:
                     data = pd.concat((data, hktmp.data))
