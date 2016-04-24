@@ -839,7 +839,7 @@ sizedistribution.align to align the index of the new array."""
         sfc_all = surface_conc.sum(axis = 1) # nm^2/cm^3
         sfc_all = sfc_all * 1e-6 # um^2/cm^3
         label = 'Surface concentration $\mu m^2 / cm^{-3}$'
-        sfc_df = pd.DataFrame(sfc_all * 1e-9, columns = [label])
+        sfc_df = pd.DataFrame(sfc_all, columns = [label])
         if type(self).__name__ == 'SizeDist':
             return sfc_df
         elif type(self).__name__ == 'SizeDist_TS':
@@ -849,8 +849,10 @@ sizedistribution.align to align the index of the new array."""
             out =  _vertical_profile.VerticalProfile(sfc_df)
         else:
             raise ValueError("Can't be! %s is not an option here"%(type(self).__name__))
-        out._x_label = label
+        out._y_label = label
         return out
+
+
 
     def _get_volume_concentration(self):
         """ volume of particles per volume air"""
@@ -861,7 +863,7 @@ sizedistribution.align to align the index of the new array."""
 
         vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
         vlc_all = vlc_all * 1e-9 # um^3/cm^3
-        vlc_df = pd.DataFrame(vlc_all * 1e-9, columns = ['volume concentration $\mu m^3 / cm^{-3}$'])
+        vlc_df = pd.DataFrame(vlc_all, columns = ['volume concentration $\mu m^3 / cm^{3}$'])
         if type(self).__name__ == 'SizeDist':
             return  vlc_df
         elif type(self).__name__ == 'SizeDist_TS':
@@ -1274,7 +1276,8 @@ class SizeDist_TS(SizeDist):
         if dist.distributionType == 'calibration':
             dist.data.values[_np.where(_np.isnan(self.data.values))] = 0
 
-        dist.housekeeping = self.housekeeping.average_overTime(window = window)
+        if dist.housekeeping:
+            dist.housekeeping = self.housekeeping.average_overTime(window = window)
 
 
         dist._update()
