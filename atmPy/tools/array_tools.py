@@ -172,7 +172,7 @@ class Correlation(object):
 
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
     def plot_pearson(self, zero_intersect = False, gridsize = 100, cm = 'auto', xlim = None,
-                     ylim = None, p_value = True, colorbar = False, ax = None, text_pos = (0.1,0.9), **kwargs):
+                     ylim = None, colorbar = False, ax = None, fit_res = (0.1,0.9), **kwargs):
         """
 
         Parameters
@@ -255,7 +255,8 @@ class Correlation(object):
             std = (self._correlant - self.linear_regression_function(self._data)).std()
 
         color = _plt_tools.color_cycle[2]
-        a.plot(x_reg_func, y_reg_func, lw = 2, color = color)
+        if fit_res:
+            a.plot(x_reg_func, y_reg_func, lw = 2, color = color)
 
 
         txt = '$r = %0.2f$'%(self.pearson_r[0])
@@ -267,8 +268,8 @@ class Correlation(object):
         txt += '\n$std = %0.2f$'%(std)
 
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-
-        a.text(text_pos[0],text_pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
+        if fit_res:
+            a.text(fit_res[0],fit_res[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
         return a
 
     def plot_original_data(self, ax = None, **kwargs):
@@ -315,9 +316,9 @@ class Correlation(object):
             _plt.setp(a.xaxis.get_majorticklabels(), rotation=30 )
         return a, a2
 
-    def plot_pearsonANDoriginal_data(self, gridsize = 20, zero_intersect = False, xlim = None, ylim = None, cm = 'auto', p_value = True, width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
+    def plot_pearsonANDoriginal_data(self, gridsize = 20, zero_intersect = False, xlim = None, ylim = None, cm = 'auto', width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
         f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
         f.set_figwidth(f.get_figwidth()*1.7)
-        a1 = self.plot_pearson(zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, p_value=p_value, ax = a_corr, **corr_kwargs)
+        a1 = self.plot_pearson(zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, ax = a_corr, **corr_kwargs)
         a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3
