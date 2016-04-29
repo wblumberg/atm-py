@@ -1015,6 +1015,8 @@ class SizeDist_TS(SizeDist):
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_mass_mixing_ratio = False
         self._uptodate_particle_number_mixing_ratio = False
+        self._uptodate_particle_surface_concentration = False
+        self._uptodate_particle_volume_concentration = False
 
     def fit_normal(self, log=True, p0=[10, 180, 0.2]):
         """ Fits a single normal distribution to each line in the data frame.
@@ -1256,7 +1258,7 @@ class SizeDist_TS(SizeDist):
         return dist
 
 
-    def average_overTime(self, window='1S'):
+    def average_time(self, window='1S'):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
         Arguments
@@ -1273,12 +1275,12 @@ class SizeDist_TS(SizeDist):
 
         dist = self.copy()
         window = window
-        dist.data = dist.data.resample(window, closed='right', label='right')
+        dist.data = dist.data.resample(window, closed='right', label='right').mean()
         if dist.distributionType == 'calibration':
             dist.data.values[_np.where(_np.isnan(self.data.values))] = 0
 
         if dist.housekeeping:
-            dist.housekeeping = self.housekeeping.average_overTime(window = window)
+            dist.housekeeping = self.housekeeping.average_time(window = window)
 
 
         dist._update()
@@ -1296,7 +1298,7 @@ class SizeDist_TS(SizeDist):
 
         data = pd.DataFrame(_np.array([singleHist]), columns=self.data.columns)
         avgDist = SizeDist(data, self.bins, self.distributionType)
-        self._update()
+        # self._update()
         return avgDist
 
     def convert2layerseries(self, hk, layer_thickness=10, force=False):

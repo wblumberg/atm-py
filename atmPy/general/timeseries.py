@@ -543,13 +543,13 @@ class TimeSeries(object):
         ts._time_format = 'datetime'
         return ts
 
-    def average_overTime(self, window):
+    def average_time(self, window):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
         Arguments
         ---------
-        window: int
-            window over which to average in seconds. For aliases see
+        window: str
+            window over which to average. For aliases see
             http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
 
         Returns
@@ -559,7 +559,8 @@ class TimeSeries(object):
         """
 
         ts = self.copy()
-        ts.data = ts.data.resample('%iS'%window, closed='right', label='right')
+        # ts.data = ts.data.resample(window, closed='right', label='right')
+        ts.data = ts.data.resample(window, closed='right', label='right').mean()
         ts._start_time = ts.data.index[0]
         return ts
 

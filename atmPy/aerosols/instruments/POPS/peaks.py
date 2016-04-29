@@ -190,7 +190,7 @@ def read_cal_process_peakFile(fname, cal, bins, average_over_time=False, normali
     peakdf.apply_calibration(cal)
     dist = peakdf.peak2numberdistribution(bins=bins)
     if average_over_time:
-        dist = dist.average_overTime(average_over_time)
+        dist = dist.average_time(average_over_time)
     if normalize:
         dist.data *= 1./normalize
     dist = dist.convert2dNdlogDp()
