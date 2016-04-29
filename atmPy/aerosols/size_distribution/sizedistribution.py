@@ -81,8 +81,9 @@ def read_csv(fname, fixGaps=True):
 
     rein.close()
     data = pd.read_csv(fname, header=i + 1, index_col=0)
-    data.index = pd.to_datetime(data.index)
+    # data.index = pd.to_datetime(data.index)
     if outDict['objectType'] == 'SizeDist_TS':
+        data.index = pd.to_datetime(data.index)
         distRein = SizeDist_TS(data, outDict['bins'], outDict['distributionType'], fixGaps=fixGaps)
     elif outDict['objectType'] == 'SizeDist':
         distRein = SizeDist(data, outDict['bins'], outDict['distributionType'], fixGaps=fixGaps)
