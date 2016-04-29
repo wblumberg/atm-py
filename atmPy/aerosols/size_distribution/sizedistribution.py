@@ -1084,11 +1084,8 @@ class SizeDist_TS(SizeDist):
         # if not np.array_equal(sd.data.index.values, sd.housekeeping.data.index.values): raise ValueError()
         # if not np.array_equal(sd.data.index.values, sd.housekeeping.data.index.values): raise ValueError()
 
-        # todo: replace alt_df with sd.data
-        alt_df = sd.data
-
-        alt_df.index = sd.housekeeping.data.Altitude
-        alt_df.sort_index(inplace=True)
+        sd.data.index = sd.housekeeping.data.Altitude
+        sd.data.sort_index(inplace=True)
 
         sd.housekeeping.data.index = sd.housekeeping.data.Altitude
         sd.housekeeping.data.sort_index(inplace=True)
@@ -1100,13 +1097,13 @@ class SizeDist_TS(SizeDist):
         layerbounderies = _np.array([layerbounderies[0:-1], layerbounderies[1:]]).transpose()
 
         index = _np.apply_along_axis(lambda x: x.sum(), 1, layerbounderies) / 2.
-        df = pd.DataFrame(_np.zeros((layerbounderies.shape[0], alt_df.shape[1])), index=index, columns=alt_df.columns)
+        df = pd.DataFrame(_np.zeros((layerbounderies.shape[0], sd.data.shape[1])), index=index, columns=sd.data.columns)
 
         dfhk = pd.DataFrame(_np.zeros((layerbounderies.shape[0], sd.housekeeping.data.shape[1])), index=index, columns=sd.housekeeping.data.columns)
 
         for l in layerbounderies:
-            where = _np.where(_np.logical_and(alt_df.index > l[0], alt_df.index < l[1]))[0]
-            mean = alt_df.iloc[where, :].mean()
+            where = _np.where(_np.logical_and(sd.data.index > l[0], sd.data.index < l[1]))[0]
+            mean = sd.data.iloc[where, :].mean()
             df.loc[(l[0] + l[1]) / 2] = mean
 
             mean = sd.housekeeping.data.iloc[where, :].mean()
