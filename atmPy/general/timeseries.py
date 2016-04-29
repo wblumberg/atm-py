@@ -18,6 +18,9 @@ from netCDF4 import date2num as _date2num
 from atmPy.tools import git as _git_tools
 
 import warnings as _warnings
+import datetime
+from matplotlib.ticker import FuncFormatter
+import os as _os
 
 unit_time = 'days since 1900-01-01'
 
@@ -46,8 +49,17 @@ def none2nan(var):
 #     return var
 
 def save_netCDF(ts,fname, leave_open = False):
+
+    # if ts._time_format == 'timedelta':
+    #     ts.timed
+
     file_mode = 'w'
-    ni = _Dataset(fname, file_mode)
+    try:
+        ni = _Dataset(fname, file_mode)
+    except RuntimeError:
+        if _os.path.isfile(fname):
+            _os.remove(fname)
+            ni = _Dataset(fname, file_mode)
 
     time_dim = ni.createDimension('time', ts.data.shape[0])
     dim_data_col = ni.createDimension('data_columns', ts.data.shape[1])
@@ -371,6 +383,8 @@ class TimeSeries(object):
         self.info = info
         self._y_label = ''
         self._x_label = 'Time'
+        self._time_format = 'datetime' #'timedelta'
+        self._start_time = self.data.index[0]
 
     def __str__(self):
         return self.data.__str__()
@@ -505,6 +519,30 @@ class TimeSeries(object):
         ts.data = ts.data.drop(labels=del_keys, axis=1)
         return ts
 
+    def datetime2timedelta(self):
+        """Sets the time index so that it starts at zero"""
+        if self._time_format == 'timedelta':
+            return self
+
+        ts = self.copy()
+        data = ts.data
+        time_from_start = data.index - ts._start_time
+        ts.data.index = time_from_start
+        ts._time_format = 'timedelta'
+        return ts
+
+    def timedelta2datetime(self):
+        """Sets the time index so that it starts at zero"""
+        if self._time_format == 'datetime':
+            return self
+
+        ts = self.copy()
+        data = ts.data
+        time = data.index + ts._start_time
+        ts.data.index = time
+        ts._time_format = 'datetime'
+        return ts
+
     def average_overTime(self, window):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
@@ -522,7 +560,7 @@ class TimeSeries(object):
 
         ts = self.copy()
         ts.data = ts.data.resample('%iS'%window, closed='right', label='right')
-
+        ts._start_time = ts.data.index[0]
         return ts
 
     align_to = align_to
@@ -549,6 +587,10 @@ class TimeSeries(object):
         -------
         list of matplotlib axes object """
 
+        def timeTicks(x, pos):
+            d = datetime.timedelta(seconds=x * 1e-9)
+            return str(d)
+
         # a = self.data.plot(**kwargs)
         if not ax:
             f,ax = _plt.subplots()
@@ -566,6 +608,11 @@ class TimeSeries(object):
                 continue
 
             ax.plot(self.data.index, self.data[k].values, label = label_t, **kwargs)
+
+            if self._time_format == 'timedelta':
+                formatter = FuncFormatter(timeTicks)
+                ax.xaxis.set_major_formatter(formatter)
+
             did_plot = True
 
         ax.set_xlabel(self._x_label)
@@ -618,6 +665,8 @@ class TimeSeries(object):
             txt = '''This error is most likely related to the fact that the index of the timeseries is not in order.
                   Run the sort_index() attribute of the DataFrame'''
             raise KeyError(txt)
+
+        housek._start_time = housek.data.index[0]
 
         if copy:
             return housek
