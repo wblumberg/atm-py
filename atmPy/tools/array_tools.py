@@ -172,7 +172,7 @@ class Correlation(object):
 
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
     def plot_pearson(self, zero_intersect = False, gridsize = 100, cm = 'auto', xlim = None,
-                     ylim = None, colorbar = False, ax = None, fit_res = (0.1,0.9), **kwargs):
+                     ylim = None, colorbar = False, ax = None, aspect = 'auto', fit_res = (0.1,0.9), vmin = 0.001, **kwargs):
         """
 
         Parameters
@@ -201,7 +201,10 @@ class Correlation(object):
             f = ax.get_figure()
             a = ax
 
-        ratio = 14/20 #at this ratio hexagons look symmetric at the particular setting
+        if aspect == 'auto':
+            ratio = 14/20 #at this ratio hexagons look symmetric at the particular setting
+        else:
+            ratio = aspect * 20/14
 
         a.set_xlabel(self._x_label_correlation)
         a.set_ylabel(self._y_label_correlation)
@@ -211,29 +214,50 @@ class Correlation(object):
 
         cm.set_under('w')
 
+
+
         if xlim:
             if type(xlim).__name__ in ['int', 'float']:
-                xratio = self._data.max() / xlim
-                gridsize_x = int(gridsize * xratio)
+                # xratio = self._data.max() / xlim
+                # gridsize_x = int(gridsize * xratio)
+                xmax = xlim
+                xmin = self._data.min()
+                xlim = (xmin,xmax)
+            elif type(xlim).__name__ == 'tuple''':
+                xmax = xlim[1]
+                xmin = xlim[0]
+
+            xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
+            gridsize_x = int(gridsize * xratio)
         else:
             gridsize_x = gridsize
 
         if ylim:
-            yratio = self._correlant.max() / ylim
-            gridsize_y = int(ratio * gridsize * yratio)
+            if type(ylim).__name__ in ['int', 'float']:
+                # yratio = self._correlant.max() / ylim
+                # gridsize_y = int(ratio * gridsize * yratio)
+                ymax = ylim
+                ymin = self._correlant.min()
+                ylim = (ymin, ymax)
+            elif type(ylim).__name__ == 'tuple''':
+                ymax = ylim[1]
+                ymin = ylim[0]
+            xratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
+            gridsize_y = int(gridsize * xratio)
         else:
             gridsize_y = int(gridsize * ratio)
+
 
         gridsize_new = (gridsize_x, gridsize_y)
 
         # import pdb
         # pdb.set_trace()
-        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, cmap=cm, vmin = 0.001, **kwargs)
+        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, cmap=cm, vmin = vmin, **kwargs)
 
         if xlim:
-            a.set_xlim(right=xlim)
+            a.set_xlim(xlim)
         if ylim:
-            a.set_ylim(top=ylim)
+            a.set_ylim(ylim)
 
         if colorbar:
             f.colorbar(hb, ax = a)
@@ -270,6 +294,11 @@ class Correlation(object):
         props = dict(boxstyle='round', facecolor='white', alpha=0.5)
         if fit_res:
             a.text(fit_res[0],fit_res[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox = props)
+
+        if aspect != 'auto':
+            x0, x1 = a.get_xlim()
+            y0, y1 = a.get_ylim()
+            a.set_aspect(aspect * (abs(x1 - x0) / abs(y1 - y0)))
         return a
 
     def plot_original_data(self, ax = None, **kwargs):
