@@ -89,7 +89,7 @@ def read_cdf(fname,
              concat = True,
              ignore_unknown = False,
              leave_cdf_open = False,
-             verbose = True,
+             verbose = False,
              ):
     """
     Reads ARM NetCDF file(s) and returns a containers with the results.
