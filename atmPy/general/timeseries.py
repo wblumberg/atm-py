@@ -10,7 +10,7 @@ import matplotlib.pylab as _plt
 from atmPy.tools import pandas_tools as _pandas_tools
 from atmPy.tools import time_tools as _time_tools
 from atmPy.tools import array_tools as _array_tools
-
+from atmPy.tools import plt_tools as _plt_tools
 from netCDF4 import Dataset as _Dataset
 from netCDF4 import num2date as _num2date
 from netCDF4 import date2num as _date2num
@@ -221,6 +221,7 @@ def align_to(ts, ts_other, verbose= False):
         tsrm = ts
 
     ts_other.data = ts_other.data.loc[:,[]]
+    ts_other.data.columns.name = None # if this is not empty it will give an error
     if verbose:
         print('performing merge with empty index of other time series')
     ts_t =  merge(ts_other, tsrm, verbose = verbose)
@@ -356,6 +357,55 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     pear_r_ts._data_period = merged._data_period
     pear_r_ts._y_label = 'r'
     return pear_r_ts
+
+
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10):
+    """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"""
+    # periods = 1
+    # frequency = 'h'
+    if periods >1:
+        raise ValueError('Sorry periods larger one is not working ... consider fixing it?!?')
+    start, end = ts.get_timespan()
+    length = end - start
+    periods_no = int(_np.ceil(length/_np.timedelta64(periods, frequency))) - 1
+    start_t = start
+    # maxp = 2
+    # periods_no = maxp
+    if periods_no > max_wraps:
+        raise ValueError("To many wraps (%i). Change frequency or max_wraps."%periods_no)
+    f,a = _plt.subplots(periods_no, sharex=True, gridspec_kw={'hspace': 0})
+    f.set_figheight(3*periods_no)
+    bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
+    for i in range(int(periods_no)):
+        end_t = start_t + _np.timedelta64(periods, frequency)
+        try:
+            tst = ts.zoom_time(start_t, end_t)
+        except IndexError:
+            break
+        tst = tst.datetime2timedelta()
+        at = a[i]
+        at.set_ylim((ts.data.min().min(), ts.data.max().max()))
+    #     if i == maxp:
+    #         break
+        txtpos = (0.05,0.8)
+        text = str(start_t).split(' ')
+        if frequency == 'h':
+            text = text[1]
+        elif frequency == 'Y':
+            text = text[0].split('-')[0]
+
+        at.text(txtpos[0],txtpos[1], text, transform=at.transAxes, bbox = bbox_props)
+        tst.plot(ax = at)
+        start_t = end_t
+        at.set_ylabel('')
+
+
+    at.set_xlim(left=0, right = _np.timedelta64(periods,frequency)/_np.timedelta64(1,'ns'))
+    if ylabel == 'auto':
+        ylabel = ts._y_label
+    _plt_tools.set_shared_ylabel(a,ylabel)
+    return a
+
 
 class TimeSeries(object):
     """
@@ -626,6 +676,8 @@ class TimeSeries(object):
 
         return ax
 
+    plot_wrapped = plot_wrapped
+
     def zoom_time(self, start=None, end=None, copy=True):
         """ Selects a strech of time from a housekeeping instance.
 
@@ -689,7 +741,7 @@ class TimeSeries(object):
     #         axes.append(a)
     #     return axes
 
-    def get_timespan(self):
+    def get_timespan(self, verbose = False):
         """
         Returns the first and last value of the index, which should be the first and last timestamp
 
@@ -699,8 +751,9 @@ class TimeSeries(object):
         """
         start = self.data.index[0]
         end = self.data.index[-1]
-        print('start: %s' % start.strftime('%Y-%m-%d %H:%M:%S.%f'))
-        print('end:   %s' % end.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        if verbose:
+            print('start: %s' % start.strftime('%Y-%m-%d %H:%M:%S.%f'))
+            print('end:   %s' % end.strftime('%Y-%m-%d %H:%M:%S.%f'))
         return start, end
 
     def save(self, fname):
