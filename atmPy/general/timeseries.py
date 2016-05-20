@@ -434,7 +434,13 @@ class TimeSeries(object):
         self._y_label = ''
         self._x_label = 'Time'
         self._time_format = 'datetime' #'timedelta'
-        self._start_time = self.data.index[0]
+        if hasattr(self.data, 'index'):
+            self._start_time = self.data.index[0]
+        elif hasattr(self.data, 'major_axis'):
+            self._start_time = self.data.major_axis[0]
+        else:
+            txt = 'Looks like data is neither series nor panel ... what is it!?!'
+            raise AttributeError(txt)
 
     def __str__(self):
         return self.data.__str__()
