@@ -21,7 +21,7 @@ defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 #### Peak file
 def _read_PeakFile_Binary(fname, version = 'current', deltaTime=0):
     """returns a peak instance
-    fname: ...
+    test_data_folder: ...
     deltaTime: if you want to apply a timedelay in seconds"""
     directory, filename = os.path.split(fname)
     if version == 'current':
@@ -75,9 +75,9 @@ def read_binary(fname, version = 'current'):
 #############################################
 #############################################
 
-# def _PeakFileArray2dataFrame(data,fname,deltaTime):
+# def _PeakFileArray2dataFrame(data,test_data_folder,deltaTime):
 #     data = data.copy()
-#     dateString = fname.split('_')[0]
+#     dateString = test_data_folder.split('_')[0]
 #     dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
 #     dts = dt.total_seconds()
 #     #dtsPlus = datetime.timedelta(seconds = deltaTime).total_seconds()
@@ -93,7 +93,7 @@ def read_binary(fname, version = 'current'):
 #     except OverflowError:
 #
 #         data, report = _cleanPeaksArray(data)
-#         warnings.warn('Binary file %s is corrupt. Will try to fix it. if no exception accured it probably worked\nReport:\n%s'%(fname,report))
+#         warnings.warn('Binary file %s is corrupt. Will try to fix it. if no exception accured it probably worked\nReport:\n%s'%(test_data_folder,report))
 #
 #
 #         Time_s = data[:,0]
@@ -118,7 +118,7 @@ def _csv2array(fname):
 
 def _read_peak_file_csv(fname, deltaTime=0, log = True, since_midnight = True):
     """returns a peak instance
-    fname: ...
+    test_data_folder: ...
     deltaTime: if you want to apply a timedelay in seconds"""
     data = _csv2array(fname)
     directory, fname = os.path.split(fname)
