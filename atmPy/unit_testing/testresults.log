@@ -1,0 +1,12 @@
+sh: sysctl: command not found
+sh: sysctl: command not found
+sh: sysctl: command not found
+sh: sysctl: command not found
+sh: sysctl: command not found
+/opt/local/Library/Frameworks/Python.framework/Versions/3.5/lib/python3.5/site-packages/numexpr/cpuinfo.py:76: UserWarning: [Errno 2] No such file or directory: 'sysctl'
+  stacklevel=stacklevel + 1):
+.
+----------------------------------------------------------------------
+Ran 1 test in 2.171s
+
+OK
