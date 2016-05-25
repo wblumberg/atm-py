@@ -19,10 +19,12 @@ from atmPy.tools import git as _git_tools
 
 import warnings as _warnings
 import datetime
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter as _FuncFormatter
+from matplotlib.dates import DayLocator as _DayLocator
 import os as _os
 
 unit_time = 'days since 1900-01-01'
+
 
 
 def load_csv(fname):
@@ -273,7 +275,7 @@ def merge(ts, ts_other, verbose = False):
         grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
         grp['ones'] = 1
         for i in catsort.columns:
-            mask[i] = (grp.groupby(i)['ones'].transform('count') < 2) | catsort[i].notnull()
+            mask[i] = (grp.groupby(i)['ones'].transform('count') < 3) | catsort[i].notnull()
 
         catsortinterp = catsort.interpolate(method='index')
         catsortinterpmasked = catsortinterp[mask]
@@ -359,52 +361,258 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     return pear_r_ts
 
 
-def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10):
-    """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"""
-    # periods = 1
-    # frequency = 'h'
+class Rolling(object):
+    # def __init__(self, data):
+    #     self.data = data
+
+    def __init__(self, data, correlant, window, data_column=False,
+                 correlant_column=False, min_good_ratio=0.67, verbose=True):
+        "time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"
+
+        if correlant_column:
+            correlant = correlant._del_all_columns_but(correlant_column)
+
+        if data_column:
+            data = data._del_all_columns_but(data_column)
+
+
+        correlant = correlant.align_to(data)  # I do align before merge, because it is more suffisticated!
+        merged = data.copy()
+        merged.data.columns = ['data']
+        merged.data['correlant'] = correlant.data
+
+        #         self.data = data
+        #         self.correlant = correlant
+        self._merged = merged
+        self._data_column = data_column
+        self._correlant_column = correlant_column
+        self._min_good_ratio = min_good_ratio
+        self._verbose = verbose
+        self._data_period = _np.timedelta64(int(merged._data_period), 's')
+        window = _np.timedelta64(window[0], window[1])
+        self._window = int(window / self._data_period)
+        if verbose:
+            print('Each window contains %s data points of which at least %s are not nan.' % (self._window,
+                                                                                             int(self._window * min_good_ratio)))
+        self._min_good = self._window * min_good_ratio
+        self._size = merged.data.shape[0] - self._window + 1
+        self._timestamps = _pd.TimeSeries(_pd.to_datetime(_pd.Series(_np.zeros(self._size))))
+        # self.dt_min = dt_min
+        # self.center = center
+        # self.no_of_steps = no_of_steps
+
+    def correlation(self):
+        # self._prepare(correlant, window, data_column=data_column, correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+        out = self._loop_over_segments_and_apply_funk('correlation')
+        out._y_label = 'r'
+        return out
+
+    def timelaps_correlation(self,
+                             # correlant, window,
+                             dt_min=10, center=0,
+                             no_of_steps=10,
+                             # data_column=False, correlant_column=False,
+                             # min_good_ratio=0.67, verbose=True
+                             ):
+        # self._prepare(correlant, window, data_column=data_column, dt_min=dt_min, center=center,
+        #               no_of_steps=no_of_steps,
+        #               correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+        self.dt_min = dt_min
+        self.center = center
+        self.no_of_steps = no_of_steps
+        out = self._loop_over_segments_and_apply_funk('timelaps_correlation')
+        out._y_label = 'dt at max correlations'
+        return out
+
+    def _timelap_correlation(self, secment):
+        start_dt = (- int(self.no_of_steps / 2) + self.center) * self.dt_min
+        end_dt = (int(self.no_of_steps / 2) + self.center) * self.dt_min
+        dt_array = _np.linspace(start_dt, end_dt, self.no_of_steps)
+        self.timelaps_shifts = dt_array
+
+        corcoeffs = _np.zeros((self.no_of_steps))
+        dataVcorr_mean = _np.zeros((self.no_of_steps))
+        dataVcorr_std = _np.zeros((self.no_of_steps))
+        for e, i in enumerate(dt_array):
+            datatmp = secment._del_all_columns_but('data')
+            datatmp.data.index += _pd.Timedelta('%s minutes' % i)
+            out = datatmp.correlate_to(secment._del_all_columns_but('correlant'))
+            corcoeffs[e] = out.pearson_r[0]
+            dataVcorr_mean[e] = (out._data / out._correlant).mean()
+            dataVcorr_std[e] = (out._data / out._correlant).std()
+        time_at_max = dt_array[corcoeffs.argmax()]
+        return time_at_max
+
+    def _loop_over_segments_and_apply_funk(self, what):
+        pear_r = _np.zeros(self._size)
+        if what == 'correlation':
+            colname = 'pearson_r'
+        elif what == 'timelaps_correlation':
+            colname = 'argmax of corr'
+        else:
+            corname = 'blablabla'
+        for i in range(self._size):
+            secment = TimeSeries(self._merged.data.iloc[i:i + self._window, :])
+            secment._data_period = self._merged._data_period
+            #     print(secment.data.dropna().shape[0] < min_good)
+            if secment.data.dropna().shape[0] < self._min_good:
+                pear_r[i] = _np.nan
+            else:
+                if what == 'correlation':
+                    corr = secment.correlate_to(secment, data_column=self._merged.data.columns[0],
+                                                correlant_column=self._merged.data.columns[1])
+                    pear_r[i] = corr.pearson_r[0]
+                if what == 'timelaps_correlation':
+                    pear_r[i] = self._timelap_correlation(secment)
+
+            self._timestamps.iloc[i] = secment.data.index[0] + ((secment.data.index[-1] - secment.data.index[0]) / 2.)
+        # break
+
+        pear_r_ts = TimeSeries(_pd.DataFrame(pear_r, index=self._timestamps, columns=[colname]))
+        pear_r_ts._data_period = self._merged._data_period
+        return pear_r_ts
+
+class WrappedPlot(list):
+    def __init__(self, axes_list):
+        for a in axes_list:
+            self.append(a)
+
+
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ax = None):
+    """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
+
+    if ax is set, all other parameters will be ignored"""
+
+
+    if ax:
+        periods = ax._periods
+        frequency =  ax._frequency
+        ylabel = ax._ylabel
+        max_wraps = ax._max_wraps
+        ylim_old = ax._ylim
+
     if periods >1:
         raise ValueError('Sorry periods larger one is not working ... consider fixing it?!?')
     start, end = ts.get_timespan()
     length = end - start
-    periods_no = int(_np.ceil(length/_np.timedelta64(periods, frequency))) - 1
+
+    if frequency == 'Y':
+        start = _np.datetime64(str(start.year))
+        end = _np.datetime64(str(end.year))
+        periods_no = int((end - start + 1) / _np.timedelta64(1, 'Y'))
+        autofmt_xdate = False
+        xlabel = 'Month of year'
+
+    elif frequency == 'M':
+        start = _np.datetime64(str(start.year)) + _np.timedelta64(start.month - 1, 'M')
+        end = _np.datetime64(str(end.year)) + _np.timedelta64(end.month - 1, 'M')
+        periods_no = int((end - start + 1) / _np.timedelta64(1, 'M'))
+        autofmt_xdate = False
+        xlabel = 'Day of month'
+
+
+    elif frequency == 'D':
+        start = _np.datetime64(str(start.year)) + _np.timedelta64(start.month - 1, 'M') + _np.timedelta64(start.day - 1, 'D')
+        end = _np.datetime64(str(end.year)) + _np.timedelta64(end.month - 1, 'M') + _np.timedelta64(end.day - 1, 'D')
+        periods_no = int((end - start + 1) / _np.timedelta64(1, 'D'))
+        autofmt_xdate = True
+        xlabel = 'Hour of day'
+
+    else:
+        periods_no = int(_np.ceil(length/_np.timedelta64(periods, frequency))) - 1
+        autofmt_xdate = False
+        xlabel = 'Time'
+
     start_t = start
     # maxp = 2
     # periods_no = maxp
     if periods_no > max_wraps:
         raise ValueError("To many wraps (%i). Change frequency or max_wraps."%periods_no)
-    f,a = _plt.subplots(periods_no, sharex=True, gridspec_kw={'hspace': 0})
-    f.set_figheight(3*periods_no)
+    if ax:
+        a = ax
+        # f = a[0].get_figure()
+    else:
+        f,a = _plt.subplots(periods_no, sharex=True, gridspec_kw={'hspace': 0})
+        f.set_figheight(3*periods_no)
     bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
+    ylim = [ts.data.min().min(), ts.data.max().max()]
+    if ax:
+        if ylim_old[0] < ylim[0]:
+            ylim[0] = ylim_old[0]
+        if ylim_old[1] > ylim[1]:
+            ylim[1] = ylim_old[1]
+
     for i in range(int(periods_no)):
         end_t = start_t + _np.timedelta64(periods, frequency)
         try:
             tst = ts.zoom_time(start_t, end_t)
         except IndexError:
             break
-        tst = tst.datetime2timedelta()
+        # tst = tst.datetime2timedelta()
+        tst.data.index  = tst.data.index - start_t
+        tst.data.index += _np.datetime64('1900')
+
         at = a[i]
-        at.set_ylim((ts.data.min().min(), ts.data.max().max()))
+        at.set_ylim(ylim)
     #     if i == maxp:
     #         break
         txtpos = (0.05,0.8)
+
         text = str(start_t).split(' ')
         if frequency == 'h':
             text = text[1]
+        elif frequency == 'M':
+            def day_formatter(x, pos):
+                dt = _np.datetime64('0') + _np.timedelta64(int(x), 'D')
+                dt = _pd.Timestamp(dt)
+                out = dt.day
+                return out
+            text = start_t
+
+            df = _FuncFormatter(day_formatter)
+            at.xaxis.set_major_formatter(df)
+            at.xaxis.set_major_locator(_DayLocator(interval=4))
+
         elif frequency == 'Y':
             text = text[0].split('-')[0]
+        elif frequency == 'D':
+            text = start_t
+        else:
+            text = 'not set'
 
+
+        # tst.data.index += _np.datetime64('1900')
         at.text(txtpos[0],txtpos[1], text, transform=at.transAxes, bbox = bbox_props)
-        tst.plot(ax = at)
+        tst.plot(ax=at, autofmt_xdate = autofmt_xdate)
+
+        # formatter = FuncFormatter(timeTicks)
+        # at.xaxis.set_major_formatter(formatter)
+
+
+
+        # from matplotlib.dates import DayLocator
+        # if frequency == 'M':
+        #     at.xaxis.set_major_locator(DayLocator())
+
+
         start_t = end_t
         at.set_ylabel('')
 
 
-    at.set_xlim(left=0, right = _np.timedelta64(periods,frequency)/_np.timedelta64(1,'ns'))
+
+    # at.set_xlim(left=0, right = _np.timedelta64(periods,frequency)/_np.timedelta64(1,'ns'))
+    # at.set_xlim(left=0, right=_np.timedelta64(periods, frequency) / _np.timedelta64(1, 'ns'))
     if ylabel == 'auto':
         ylabel = ts._y_label
     _plt_tools.set_shared_ylabel(a,ylabel)
-    return a
+    at.set_xlabel(xlabel)
+    out = WrappedPlot(a)
+    out._periods = periods
+    out._frequency = frequency
+    out._ylabel = ylabel
+    out._max_wraps = max_wraps
+    out._ylim = ylim
+    return out
 
 
 class TimeSeries(object):
@@ -634,7 +842,14 @@ class TimeSeries(object):
 
     copy = _deepcopy
 
-    def plot(self, ax = None, legend = True, label = None, **kwargs):
+    # rollingR = Rolling
+
+    def rolling(self, correlant, window, data_column=False,
+                 correlant_column=False, min_good_ratio=0.67, verbose=True):
+        return Rolling(self, correlant, window, data_column=data_column,
+                 correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+
+    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -667,7 +882,7 @@ class TimeSeries(object):
             ax.plot(self.data.index, self.data[k].values, label = label_t, **kwargs)
 
             if self._time_format == 'timedelta':
-                formatter = FuncFormatter(timeTicks)
+                formatter = _FuncFormatter(timeTicks)
                 ax.xaxis.set_major_formatter(formatter)
 
             did_plot = True
@@ -678,7 +893,8 @@ class TimeSeries(object):
             ax.legend()
 
         if did_plot:
-            f.autofmt_xdate()
+            if autofmt_xdate:
+                f.autofmt_xdate()
 
         return ax
 
