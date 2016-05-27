@@ -78,11 +78,11 @@ def save_netCDF(ts,fname, leave_open = False):
     var_data_collumns = ni.createVariable('data_columns', ts_columns.dtype, 'data_columns')
     var_data_collumns[:] = ts_columns
 
+    ni._ts_type = type(ts).__name__
     ni._data_period = none2nan(ts._data_period)
     ni._x_label = none2nan(ts._x_label)
     ni._y_label =  none2nan(ts._y_label)
     ni.info = none2nan(ts.info)
-
     ni._atm_py_commit = _git_tools.current_commit()
 
     if leave_open:
@@ -109,8 +109,18 @@ def load_netCDF(fname):
     ts_data = _pd.DataFrame(var_data[:], index=timestamp,
                            columns=var_data_col[:])
 
+    # test which type of timeseries (1D, 2D, 3D)
+    try:
+        ts_type = ni.getncattr('_ts_type')
+    except AttributeError:
+        ts_type = 'TimeSeries'
     # create time series
-    ts_out = TimeSeries(ts_data)
+    if ts_type == 'TimeSeries':
+        ts_out = TimeSeries(ts_data)
+    elif ts_type == 'TimeSeries_2D':
+        ts_out = TimeSeries_2D(ts_data)
+    elif ts_type == 'TimeSeries_3D':
+        ts_out = TimeSeries_3D(ts_data)
 
     # load attributes and attach to time series
     for atr in ni.ncattrs():
@@ -413,7 +423,9 @@ class Rolling(object):
                              no_of_steps=10,
                              # data_column=False, correlant_column=False,
                              # min_good_ratio=0.67, verbose=True
+                             # output_dimentions = 1
                              ):
+        # """"""
         # self._prepare(correlant, window, data_column=data_column, dt_min=dt_min, center=center,
         #               no_of_steps=no_of_steps,
         #               correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
@@ -421,7 +433,7 @@ class Rolling(object):
         self.center = center
         self.no_of_steps = no_of_steps
         out = self._loop_over_segments_and_apply_funk('timelaps_correlation')
-        out._y_label = 'dt at max correlations'
+
         return out
 
     def _timelap_correlation(self, secment):
@@ -441,14 +453,19 @@ class Rolling(object):
             dataVcorr_mean[e] = (out._data / out._correlant).mean()
             dataVcorr_std[e] = (out._data / out._correlant).std()
         time_at_max = dt_array[corcoeffs.argmax()]
-        return time_at_max
+        # corframe = _pd.DataFrame(corcoeffs, index = dt_array)
+        # corframe = corcoeffs
+        out = {'time_at_max': time_at_max,
+               'time_lapse_corr': corcoeffs / corcoeffs.max()}
+        return out
 
     def _loop_over_segments_and_apply_funk(self, what):
-        pear_r = _np.zeros(self._size)
+        out = _np.zeros(self._size)
         if what == 'correlation':
             colname = 'pearson_r'
         elif what == 'timelaps_correlation':
-            colname = 'argmax of corr'
+            colname = 'dt at max correlations'
+            time_lapse_corr = _np.zeros((self._size, self.no_of_steps))
         else:
             corname = 'blablabla'
         for i in range(self._size):
@@ -456,21 +473,33 @@ class Rolling(object):
             secment._data_period = self._merged._data_period
             #     print(secment.data.dropna().shape[0] < min_good)
             if secment.data.dropna().shape[0] < self._min_good:
-                pear_r[i] = _np.nan
+                out[i] = _np.nan
             else:
                 if what == 'correlation':
                     corr = secment.correlate_to(secment, data_column=self._merged.data.columns[0],
                                                 correlant_column=self._merged.data.columns[1])
-                    pear_r[i] = corr.pearson_r[0]
+                    out[i] = corr.pearson_r[0]
                 if what == 'timelaps_correlation':
-                    pear_r[i] = self._timelap_correlation(secment)
+                    tlc = self._timelap_correlation(secment)
+                    out[i] = tlc['time_at_max']
+                    time_lapse_corr[i] = tlc['time_lapse_corr']
 
             self._timestamps.iloc[i] = secment.data.index[0] + ((secment.data.index[-1] - secment.data.index[0]) / 2.)
         # break
 
-        pear_r_ts = TimeSeries(_pd.DataFrame(pear_r, index=self._timestamps, columns=[colname]))
-        pear_r_ts._data_period = self._merged._data_period
-        return pear_r_ts
+        out_ts = TimeSeries(_pd.DataFrame(out, index=self._timestamps, columns=[colname]))
+        out_ts._y_label = colname
+        out_ts._data_period = self._merged._data_period
+        if what == 'timelaps_correlation':
+            time_lapse_corr_ts = TimeSeries_2D(_pd.DataFrame(time_lapse_corr, index = self._timestamps, columns=self.timelaps_shifts))
+            time_lapse_corr_ts._data_period = self._merged._data_period
+            time_lapse_corr_ts._y_label = 'Time shift (min.)'
+
+            # out = {'time_at_max': time_at_max_ts,
+            #        'time_lapse_corr': time_lapse_corr_ts}
+            return out_ts, time_lapse_corr_ts
+        else:
+            return out_ts
 
 class WrappedPlot(list):
     def __init__(self, axes_list):
