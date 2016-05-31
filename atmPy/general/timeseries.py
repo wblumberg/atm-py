@@ -437,22 +437,17 @@ class Rolling(object):
         return out
 
     def _timelap_correlation(self, secment):
-        start_dt = (- int(self.no_of_steps / 2) + self.center) * self.dt_min
-        end_dt = (int(self.no_of_steps / 2) + self.center) * self.dt_min
-        dt_array = _np.linspace(start_dt, end_dt, self.no_of_steps)
-        self.timelaps_shifts = dt_array
-
         corcoeffs = _np.zeros((self.no_of_steps))
         dataVcorr_mean = _np.zeros((self.no_of_steps))
         dataVcorr_std = _np.zeros((self.no_of_steps))
-        for e, i in enumerate(dt_array):
+        for e, i in enumerate(self.timelaps_shifts):
             datatmp = secment._del_all_columns_but('data')
             datatmp.data.index += _pd.Timedelta('%s minutes' % i)
             out = datatmp.correlate_to(secment._del_all_columns_but('correlant'))
             corcoeffs[e] = out.pearson_r[0]
             dataVcorr_mean[e] = (out._data / out._correlant).mean()
             dataVcorr_std[e] = (out._data / out._correlant).std()
-        time_at_max = dt_array[corcoeffs.argmax()]
+        time_at_max = self.timelaps_shifts[corcoeffs.argmax()]
         # corframe = _pd.DataFrame(corcoeffs, index = dt_array)
         # corframe = corcoeffs
         out = {'time_at_max': time_at_max,
@@ -461,11 +456,17 @@ class Rolling(object):
 
     def _loop_over_segments_and_apply_funk(self, what):
         out = _np.zeros(self._size)
+        out[:] = _np.nan
         if what == 'correlation':
             colname = 'pearson_r'
         elif what == 'timelaps_correlation':
             colname = 'dt at max correlations'
             time_lapse_corr = _np.zeros((self._size, self.no_of_steps))
+            time_lapse_corr[:] = _np.nan
+            start_dt = (- int(self.no_of_steps / 2) + self.center) * self.dt_min
+            end_dt = (int(self.no_of_steps / 2) + self.center) * self.dt_min
+            dt_array = _np.linspace(start_dt, end_dt, self.no_of_steps)
+            self.timelaps_shifts = dt_array
         else:
             corname = 'blablabla'
         for i in range(self._size):
@@ -473,7 +474,7 @@ class Rolling(object):
             secment._data_period = self._merged._data_period
             #     print(secment.data.dropna().shape[0] < min_good)
             if secment.data.dropna().shape[0] < self._min_good:
-                out[i] = _np.nan
+                pass
             else:
                 if what == 'correlation':
                     corr = secment.correlate_to(secment, data_column=self._merged.data.columns[0],
@@ -1032,8 +1033,8 @@ class TimeSeries_2D(TimeSeries):
     def __init__(self, *args):
         super(TimeSeries_2D,self).__init__(*args)
 
-    def plot(self, xaxis = 0, ax = None):
-        return _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax)
+    def plot(self, xaxis = 0, ax = None, cb_kwargs = {}):
+        return _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax, cb_kwargs = cb_kwargs)
 
 
 class TimeSeries_3D(TimeSeries):
