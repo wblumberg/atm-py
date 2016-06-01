@@ -78,6 +78,7 @@ def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
 class ArmDatasetSub(_ArmDataset):
     def __init__(self,*args, **kwargs):
         self._data_period = 60
+        self._time_offset = (-30, 's')
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         self._concatable = ['abs_coeff', 'back_scatt', 'scatt_coeff', 'RH_nephelometer']

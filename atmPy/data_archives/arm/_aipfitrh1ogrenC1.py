@@ -12,6 +12,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
 
     def __init__(self,*args, **kwargs):
         self._data_period = 3600
+        self._time_offset = (-30, 'm')
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         self._concatable = ['f_RH_scatt_funcs_2p', 'f_RH_scatt_funcs_3p','f_RH_scatt_2p_85_40', 'f_RH_scatt_3p_85_40', 'f_RH_scatt_2p_ab_G_1um']

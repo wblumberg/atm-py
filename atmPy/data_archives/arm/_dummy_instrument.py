@@ -4,7 +4,8 @@ from atmPy.data_archives.arm import _netCDF
 
 class ArmDatasetSub(_netCDF.ArmDataset):
     def __init__(self,*args, **kwargs):
-        self._data_period = None
+        self._data_period = #None
+        self._time_offset = #(-30, 's')
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
 
         ####
