@@ -33,7 +33,7 @@ def ensure_column_exists(df, col_name, col_alt = False, raise_error = True):
                 raise AttributeError(txt)
     return out
 
-def plot_dataframe_meshgrid(df, xaxis = 0, ax = None):
+def plot_dataframe_meshgrid(df, xaxis = 0, ax = None, cb_kwargs = {}):
     axes_list = [df.index, df.columns]
     x_index = axes_list[xaxis]
 
@@ -58,7 +58,7 @@ def plot_dataframe_meshgrid(df, xaxis = 0, ax = None):
 
     if 'datetime' in df.index.dtype_str:
         f.autofmt_xdate()
-    cb = f.colorbar(pc)
+    cb = f.colorbar(pc, **cb_kwargs)
     a.set_xlabel(df.index.name)
     a.set_ylabel(df.columns.name)
 
