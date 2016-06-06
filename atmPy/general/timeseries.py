@@ -837,14 +837,18 @@ class TimeSeries(object):
         ts._time_format = 'datetime'
         return ts
 
-    def average_time(self, window):
-        """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
+    def average_time(self, window, std = False, envelope = False):
+        """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window.
+        The difference to panda's resample is that it takes a time window instead of a point window.
 
         Arguments
         ---------
-        window: str
-            window over which to average. For aliases see
-            http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+        window: tuple
+            tuple[0]: periods
+            tuple[1]: frequency (Y,M,W,D,h,m,s...) according to:
+                http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
+                if error also check out:
+                http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
 
         Returns
         -------
@@ -853,8 +857,27 @@ class TimeSeries(object):
         """
 
         ts = self.copy()
-        # ts.data = ts.data.resample(window, closed='right', label='right')
-        ts.data = ts.data.resample(window, closed='right', label='right').mean()
+        # ts.data = ts.data.resample(window, closed='right', label='right').mean() #old
+
+        # determine offset, so the label is in the center
+        toff = _np.timedelta64(window[0], window[1]) / _np.timedelta64(2, 's')
+        ts._data_period = _np.timedelta64(window[0], window[1]) / _np.timedelta64(1, 's')
+        toff = '%iS' % toff
+
+        resample = ts.data.resample(window,
+                            label = 'left',
+                            loffset = toff,
+                           )
+
+        ts.data = resample.mean()
+        if std or envelope:
+            std_tmp = resample.std()
+            if std:
+                ts.data['std'] = std_tmp
+            if envelope:
+                ts.data['envelope_low'] = ts.data.iloc[:,0] - std_tmp.iloc[:,0]
+                ts.data['envelope_high'] = ts.data.iloc[:,0] + std_tmp.iloc[:,0]
+
         ts._start_time = ts.data.index[0]
         return ts
 
