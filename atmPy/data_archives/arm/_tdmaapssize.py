@@ -7,7 +7,7 @@ from atmPy.data_archives.arm._netCDF import ArmDataset
 class ArmDatasetSub(ArmDataset):
     def __init__(self,*args, **kwargs):
         self._data_period = 2700.
-        self._time_offset = (-1350, 's')
+        self._time_offset = (- self._data_period, 's')
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
         self._concatable = ['size_distribution']
 

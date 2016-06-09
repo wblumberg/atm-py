@@ -1353,14 +1353,17 @@ class SizeDist_TS(SizeDist):
         return dist
 
 
-    def average_time(self, window='1S'):
+    def average_time(self, window=(1, 's')):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window
 
         Arguments
         ---------
-        window: str ['1S']. Optional
-            window over which to average. For aliases see
-            http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+        window: tuple
+            tuple[0]: periods
+            tuple[1]: frequency (Y,M,W,D,h,m,s...) according to:
+                http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
+                if error also check out:
+                http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
 
         Returns
         -------
@@ -1369,8 +1372,8 @@ class SizeDist_TS(SizeDist):
         """
 
         dist = self.copy()
-        window = window
-        dist.data = dist.data.resample(window, closed='right', label='right').mean()
+        dist.data = dist.data.resample(window, label='left').mean()
+        dist._data_period = _np.timedelta64(window[0], window[1]) / _np.timedelta64(1, 's')
         if dist.distributionType == 'calibration':
             dist.data.values[_np.where(_np.isnan(self.data.values))] = 0
 

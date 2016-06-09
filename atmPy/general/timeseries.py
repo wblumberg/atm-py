@@ -182,6 +182,75 @@ def close_gaps(ts, verbose = False):
 
 def align_to(ts, ts_other, verbose= False):
     """
+    Main change, timestamp at beginning!
+    Align the TimeSeries ts to another time_series by interpolating (linearly). If
+    data periods differe by at least a factor of 2 a rolling mean is calculated
+    with a window size equal to the ratio (if ratio is positive !!!).
+
+    Notes
+    -----
+    For the obvious reason it is recommended to align the time series with the smaller data period to that
+    with the larger period.
+
+    Parameters
+    ----------
+    ts: original time series
+    ts_other: timeseries to align to
+
+    Returns
+    -------
+    timeseries eqivalent to the original but with an index aligned to the other
+    """
+    ts = ts.copy()
+    ts_other = ts_other.copy()
+    if verbose:
+        print('=================================')
+        print('=====  perform alignment ========')
+
+    if _np.array_equal(ts.data.index, ts_other.data.index):
+        if verbose:
+            print('indeces are identical, returning original time series.')
+        return ts
+
+    window = ts_other._data_period / ts._data_period
+    if window < 0.5:
+        _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
+                      'align the other time series with this one instead?'%window)
+    window = int(round(window))
+
+    if window > 2:
+        if verbose:
+            print('Data period difference larger than a factor of 2 -> performing rolling mean')
+
+        roll = ts.data.rolling(window,
+                               min_periods=1,
+                               # center=True
+                               )
+        dfrm = roll.mean()
+        dfrm = dfrm.shift( - window) # rolling puts the timestamp to the end of the window, this shifts it to the beginning of the window
+        tsrm = TimeSeries(_pd.DataFrame(dfrm))
+        # tsrm._data_period = ts._data_period
+    else:
+        if verbose:
+            print('Data period difference smaller than a factor of 2 -> do nothing')
+        tsrm = ts
+
+    ts_other.data = ts_other.data.loc[:,[]]
+    ts_other.data.columns.name = None # if this is not empty it will give an error
+    if verbose:
+        print('performing merge with empty index of other time series')
+    ts_t =  merge(ts_other, tsrm, verbose = verbose)
+    tsrm.data = ts_t.data
+
+    tsrm._data_period = ts_other._data_period
+    if verbose:
+        print('=====  alignment done ========')
+        print('=================================')
+
+    return tsrm
+
+def align_to_old(ts, ts_other, verbose= False):
+    """
     Align the TimeSeries ts to another time_series by interpolating (linearly). If
     data periods differe by at least a factor of 2 a rolling mean is calculated
     with a window size equal to the ratio (if ratio is positive !!!).
@@ -215,11 +284,12 @@ def align_to(ts, ts_other, verbose= False):
     if window < 0.5:
         _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
                       'align the other time series with this one instead?'%window)
-    window = round(window)
+    window = int(round(window))
 
     if window > 2:
         if verbose:
             print('Data period difference larger than a factor of 2 -> performing rolling mean')
+
         roll = ts.data.rolling(window,
                                min_periods=1,
                                center=True)
@@ -806,12 +876,18 @@ class TimeSeries(object):
         out._x_label = self._y_label
         return out
 
-    def _del_all_columns_but(self, keep):
-        ts = self.copy()
+    def _del_all_columns_but(self, keep, inplace = False):
+        if inplace:
+            ts = self
+        else:
+            ts = self.copy()
         all_keys = ts.data.keys()
         del_keys = all_keys.drop(keep)
         ts.data = ts.data.drop(labels=del_keys, axis=1)
-        return ts
+        if inplace:
+            return
+        else:
+            return ts
 
     def datetime2timedelta(self):
         """Sets the time index so that it starts at zero"""
@@ -838,6 +914,52 @@ class TimeSeries(object):
         return ts
 
     def average_time(self, window, std = False, envelope = False):
+        """Massive change: time stamp at beginning! returns a copy of the sizedistribution_TS with reduced size by averaging over a given window.
+        The difference to panda's resample is that it takes a time window instead of a point window.
+
+        Arguments
+        ---------
+        window: tuple
+            tuple[0]: periods
+            tuple[1]: frequency (Y,M,W,D,h,m,s...) according to:
+                http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
+                if error also check out:
+                http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+
+        Returns
+        -------
+        SizeDistribution_TS instance
+            copy of current instance with resampled data frame
+        """
+
+        ts = self.copy()
+        # ts.data = ts.data.resample(window, closed='right', label='right').mean() #old
+
+        # determine offset, so the label is in the center
+        # toff = _np.timedelta64(window[0], window[1]) / _np.timedelta64(2, 's')
+        # toff = '%iS' % toff
+
+        ts._data_period = _np.timedelta64(window[0], window[1]) / _np.timedelta64(1, 's')
+
+        resample = ts.data.resample(window,
+                            label = 'left',
+                            # loffset = toff,
+                           )
+
+        ts.data = resample.mean()
+        if std or envelope:
+            std_tmp = resample.std()
+            if std:
+                ts.data['std'] = std_tmp
+            if envelope:
+                ts.data['envelope_low'] = ts.data.iloc[:,0] - std_tmp.iloc[:,0]
+                ts.data['envelope_high'] = ts.data.iloc[:,0] + std_tmp.iloc[:,0]
+
+        ts._start_time = ts.data.index[0]
+        return ts
+
+
+    def average_time_old(self, window, std = False, envelope = False):
         """returns a copy of the sizedistribution_TS with reduced size by averaging over a given window.
         The difference to panda's resample is that it takes a time window instead of a point window.
 
@@ -882,6 +1004,7 @@ class TimeSeries(object):
         return ts
 
     align_to = align_to
+    align_to_new = align_to_old
     # def align_to(self, ts_other):
     #     return align_to(self, ts_other)
 
