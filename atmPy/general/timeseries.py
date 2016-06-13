@@ -578,7 +578,7 @@ class WrappedPlot(list):
             self.append(a)
 
 
-def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ax = None):
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ax = None, **plot_kwargs):
     """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
 
     if ax is set, all other parameters will be ignored"""
@@ -590,6 +590,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         ylabel = ax._ylabel
         max_wraps = ax._max_wraps
         ylim_old = ax._ylim
+        col_no = _np.array([len(a.get_lines()) for a in ax]).max()
 
     if periods >1:
         raise ValueError('Sorry periods larger one is not working ... consider fixing it?!?')
@@ -634,6 +635,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     else:
         f,a = _plt.subplots(periods_no, sharex=True, gridspec_kw={'hspace': 0})
         f.set_figheight(3*periods_no)
+        col_no = 0
     bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
     ylim = [ts.data.min().min(), ts.data.max().max()]
     if ax:
@@ -647,15 +649,12 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         try:
             tst = ts.zoom_time(start_t, end_t)
         except IndexError:
-            break
-        # tst = tst.datetime2timedelta()
-        tst.data.index  = tst.data.index - start_t
-        tst.data.index += _np.datetime64('1900')
+            # print('voll der index error')
+            tst = False
+
 
         at = a[i]
         at.set_ylim(ylim)
-    #     if i == maxp:
-    #         break
         txtpos = (0.05,0.8)
 
         text = str(start_t).split(' ')
@@ -679,11 +678,14 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
             text = start_t
         else:
             text = 'not set'
+        at.text(txtpos[0], txtpos[1], text, transform=at.transAxes, bbox=bbox_props)
 
 
-        # tst.data.index += _np.datetime64('1900')
-        at.text(txtpos[0],txtpos[1], text, transform=at.transAxes, bbox = bbox_props)
-        tst.plot(ax=at, autofmt_xdate = autofmt_xdate)
+        if tst:
+            tst.data.index  = tst.data.index - start_t
+            tst.data.index += _np.datetime64('1900')
+
+            tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
 
         # formatter = FuncFormatter(timeTicks)
         # at.xaxis.set_major_formatter(formatter)
@@ -697,6 +699,11 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
 
         start_t = end_t
         at.set_ylabel('')
+
+        # if an existing set of axes was provided the following will prevent an IndexError
+        if i == len(a) - 1:
+            # print('did the break')
+            break
 
 
 
