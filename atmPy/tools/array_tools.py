@@ -194,13 +194,13 @@ class Correlation(object):
                                                      'function': lambda x: _odr.unilinear.fcn(myoutput.beta, x)}
         return self.__orthogonal_distance_regression
 
-    def plot_regression(self, type = 'simple',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
+    def plot_regression(self, reg_type = 'simple',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
                      ylim=None, colorbar=False, ax=None, aspect='auto', fit_res=(0.1, 0.9), vmin=0.001, **kwargs):
         """
 
         Parameters
         ----------
-        type: string
+        reg_type: string
             which type of regression:
                 - 'simple'
                 - 'odr' -- orthogonlal distance regression (scipy.odr)
@@ -289,7 +289,7 @@ class Correlation(object):
         # data.min()
 
 
-        if 'simple' in type:
+        if 'simple' in reg_type:
             x_reg_func = _np.array([self._data.min(), self._data.max()])
             if zero_intersect:
                 y_reg_func = self.linear_regression_zero_intersect_function(x_reg_func)
@@ -304,7 +304,7 @@ class Correlation(object):
                 std = (self._correlant - self.linear_regression_function(self._data)).std()
             a.plot(x_reg_func, y_reg_func, lw=2)
 
-        if 'odr' in type:
+        if 'odr' in reg_type:
             x_reg_func = _np.array([self._data.min(), self._data.max()])
             y_reg_func = self.orthogonla_distance_regression['function'](x_reg_func)
             slope = self.orthogonla_distance_regression['output'].beta[0]
