@@ -441,7 +441,115 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     return pear_r_ts
 
 
-class Rolling(object):
+class Rolling(_pd.core.window.Rolling):
+    def __init__(self, obj, window, min_good_ratio=0.67,
+                 verbose=True,center = True,
+                 **kwargs):
+        self.data = obj
+        window = _np.timedelta64(window[0], window[1])
+        window = int(window / _np.timedelta64(int(obj._data_period), 's'))
+        min_periods = int(window * min_good_ratio)
+        if obj.data.columns.shape[0] == 1:
+            self._data_column = obj.data.columns[0]
+        else:
+            txt = 'please make sure the timeseries has only one collumn'
+            raise ValueError(txt)
+
+        if verbose:
+            print('Each window contains %s data points of which at least %s are not nan.' % (window,
+                                                                                             min_periods))
+        super().__init__(obj.data[self._data_column],
+                         window,
+                         min_periods=min_periods,
+                         center = center,
+                         **kwargs)
+
+    #         print(self.window)
+
+    def corr(self, other, *args, **kwargs):
+        if other.data.columns.shape[0] == 1:
+            other_column = other.data.columns[0]
+        else:
+            txt = 'please make sure the timeseries has only one collumn'
+            raise ValueError(txt)
+        # other_column = 'Bs_G_Dry_1um_Neph3W_1'
+        other = other.align_to(self.data)
+        other = other.data[other_column]
+        corr_res = super().corr(other, *args, **kwargs)
+        corr_res_ts = TimeSeries(_pd.DataFrame(corr_res))
+        corr_res_ts._data_period = self.data._data_period
+        return corr_res_ts
+
+    def corr_timelag(self, other, dt=(5, 'm'), no_of_steps=10, center=0, normalize=True, **kwargs):
+        """dt: tuple
+                first arg of tuple can be int or array-like of dtype int. Second arg is unit. if array-like no_of... is ignored"""
+        if other.data.columns.shape[0] == 1:
+            other_column = other.data.columns[0]
+        else:
+            txt = 'please make sure the timeseries has only one collumn'
+            raise ValueError(txt)
+        # other =  acsm.copy()
+        #         dt = (5, 'm')
+        #         no_of_seps = 10
+        #         center = 0
+
+
+        if hasattr(dt[0], '__len__'):
+            if type(dt[0]).__name__ == 'list':
+                dt_array = _np.array(dt[0])
+            else:
+                dt_array = dt[0]
+            no_of_steps = len(dt_array)
+            center = 0
+        else:
+            dt_array = _np.arange(0, dt[0] * no_of_steps, dt[0]) - int(no_of_steps * dt[0] / 2)
+
+        if center:
+            dt_array += int(center)
+        out = False
+        for dtt in dt_array:
+            tst = other.copy()
+            tst.data.index += _np.timedelta64(int(dtt), dt[1])
+            corr = self.corr(tst)
+            if not out:
+                out = corr
+                out.data.columns = [dtt]
+            else:
+                out.data[dtt] = corr.data  # [self._data_column]
+
+        if normalize:
+            out = TimeSeries_2D(out.data.apply(lambda line: line / line.max(), axis=1))
+        else:
+            out = TimeSeries_2D(out.data)
+
+        def aaa(line):
+            if (_np.isnan(line)).sum() > ((~_np.isnan(line)).sum() * 0.3):
+                return _np.nan
+            col_t = cols.copy()
+            lt = line[~ _np.isnan(line)]
+
+            col_t = col_t[~ _np.isnan(line)]
+            argmax = lt.argmax()
+            realMax = col_t[argmax]
+            return realMax
+
+        cols = out.data.columns
+        dt_max = _np.apply_along_axis(aaa, 1, out.data.values)
+
+
+
+        # cols = out.data.columns
+        # dt_max = _np.apply_along_axis(lambda arr: cols[arr.argmax()], 1, out.data.values)
+        dt_max = TimeSeries(_pd.DataFrame(dt_max, index=out.data.index))
+        if dt[1] == 'm':
+            ylt = 'min.'
+        else:
+            ylt = dt[1]
+        dt_max._y_label = 'Time lag (%s)' % ylt
+        return out, dt_max
+
+
+class Rolling_old(object):
     # def __init__(self, data):
     #     self.data = data
 
@@ -571,6 +679,7 @@ class Rolling(object):
             return out_ts, time_lapse_corr_ts
         else:
             return out_ts
+
 
 class WrappedPlot(list):
     def __init__(self, axes_list):
@@ -1027,10 +1136,15 @@ class TimeSeries(object):
 
     # rollingR = Rolling
 
-    def rolling(self, correlant, window, data_column=False,
+    def rolling(self, window, data_column=False,
                  correlant_column=False, min_good_ratio=0.67, verbose=True):
-        return Rolling(self, correlant, window, data_column=data_column,
+        return Rolling(self, window, data_column=data_column,
                  correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+
+    def rolling_old(self, correlant, window, data_column=False,
+                correlant_column=False, min_good_ratio=0.67, verbose=True):
+        return Rolling_old(self, correlant, window, data_column=data_column,
+               correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
 
     def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, **kwargs):
         """Plot each parameter separately versus time
