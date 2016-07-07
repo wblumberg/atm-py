@@ -687,11 +687,15 @@ class WrappedPlot(list):
             self.append(a)
 
 
-def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ax = None, **plot_kwargs):
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ylim = None, ax = None, **plot_kwargs):
     """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
 
-    if ax is set, all other parameters will be ignored"""
-
+    if ax is set, all other parameters will be ignored
+    ylim: set to False if you don't want """
+    if 'cb_kwargs' in plot_kwargs.keys():
+        cb_kwargs = plot_kwargs.pop('cb_kwargs')
+    else:
+        cb_kwargs = False
 
     if ax:
         periods = ax._periods
@@ -738,20 +742,35 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     # periods_no = maxp
     if periods_no > max_wraps:
         raise ValueError("To many wraps (%i). Change frequency or max_wraps."%periods_no)
+    print('periods_no', periods_no)
     if ax:
         a = ax
-        # f = a[0].get_figure()
+        f = a[0].get_figure()
     else:
-        f,a = _plt.subplots(periods_no, sharex=True, gridspec_kw={'hspace': 0})
+        height_ratios = [1] * periods_no
+        # if cb_kwargs:
+        #     no_of_ax = periods_no + 1
+        #     height_ratios = [0.08] + height_ratios
+        # else:
+        no_of_ax = periods_no
+        f,a = _plt.subplots(no_of_ax, sharex=True, gridspec_kw={'hspace': 0,
+                                                                'height_ratios': height_ratios})
+
+        # if cb_kwargs:
+        #     a_cb = a[0]
+        #     a = a[1:]
+
         f.set_figheight(3*periods_no)
         col_no = 0
     bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
-    ylim = [ts.data.min().min(), ts.data.max().max()]
-    if ax:
-        if ylim_old[0] < ylim[0]:
-            ylim[0] = ylim_old[0]
-        if ylim_old[1] > ylim[1]:
-            ylim[1] = ylim_old[1]
+
+    if not ylim:
+        ylim = [ts.data.min().min(), ts.data.max().max()]
+        if ax:
+            if ylim_old[0] < ylim[0]:
+                ylim[0] = ylim_old[0]
+            if ylim_old[1] > ylim[1]:
+                ylim[1] = ylim_old[1]
 
     for i in range(int(periods_no)):
         end_t = start_t + _np.timedelta64(periods, frequency)
@@ -763,7 +782,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
 
 
         at = a[i]
-        at.set_ylim(ylim)
+
         txtpos = (0.05,0.8)
 
         text = str(start_t).split(' ')
@@ -793,9 +812,22 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         if tst:
             tst.data.index  = tst.data.index - start_t
             tst.data.index += _np.datetime64('1900')
+            if type(tst).__name__ == 'TimeSeries':
+                plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
+            if type(tst).__name__ == 'TimeSeries_2D':
+                # if 'cb_kwargs' in plot_kwargs.keys():
+                #     cb_kwargs = plot_kwargs['cb_kwargs']
+                # else:
+                #     cb_kwargs = False
+                # if i == len(a) - 1:
+                #     cb_kwargs_t = cb_kwargs
+                # else:
+                #     cb_kwargs_t = False
+                plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], cb_kwargs = False, **plot_kwargs)
+                plt_out[2].set_clim(ylim)
 
-            tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
-
+        if type(tst).__name__ == 'TimeSeries':
+            at.set_ylim(ylim)
         # formatter = FuncFormatter(timeTicks)
         # at.xaxis.set_major_formatter(formatter)
 
@@ -814,7 +846,17 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
             # print('did the break')
             break
 
-
+    if cb_kwargs:
+        if 'shrink' not in cb_kwargs.keys():
+            cb_kwargs['shrink'] = 0.5
+        if 'anchor' not in cb_kwargs.keys():
+            cb_kwargs['anchor'] = (0, 1)
+        if 'pad' not in cb_kwargs.keys():
+            cb_kwargs['pad'] = 0.01
+            
+        cb = f.colorbar(plt_out[2], ax=a.ravel().tolist(),
+                        # shrink=cb_kwargs['shrink'], anchor=cb_kwargs['anchor'],
+                        **cb_kwargs)
 
     # at.set_xlim(left=0, right = _np.timedelta64(periods,frequency)/_np.timedelta64(1,'ns'))
     # at.set_xlim(left=0, right=_np.timedelta64(periods, frequency) / _np.timedelta64(1, 'ns'))
@@ -1300,8 +1342,15 @@ class TimeSeries_2D(TimeSeries):
     def __init__(self, *args):
         super(TimeSeries_2D,self).__init__(*args)
 
-    def plot(self, xaxis = 0, ax = None, cb_kwargs = {}):
-        return _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis = xaxis, ax = ax, cb_kwargs = cb_kwargs)
+    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
+        if 'cb_kwargs' in kwargs.keys():
+            cb_kwargs = kwargs['cb_kwargs']
+        if 'pc_kwargs' in kwargs.keys():
+            pc_kwargs = pc_kwargs
+        f, a, pc, cb = _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis=xaxis, ax=ax, pc_kwargs=pc_kwargs, cb_kwargs=cb_kwargs)
+        if autofmt_xdate:
+            f.autofmt_xdate()
+        return f, a, pc, cb
 
 
 class TimeSeries_3D(TimeSeries):
