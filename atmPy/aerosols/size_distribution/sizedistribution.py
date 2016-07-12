@@ -214,6 +214,30 @@ class SizeDist(object):
         if fixGaps:
             self.fillGaps()
 
+    def __mul__(self, other):
+        self.data *= other
+        self.particle_number_concentration_outside_range *= other
+        self._update()
+        return self
+
+    def __truediv__(self, other):
+        self.data /= other
+        self.particle_number_concentration_outside_range /= other
+        self._update()
+        return self
+
+    def __add__(self, other):
+        self.data += other
+        self.particle_number_concentration_outside_range += other
+        self._update()
+        return self
+
+    def __sub__(self, other):
+        self.data -= other
+        self.particle_number_concentration_outside_range -= other
+        self._update()
+        return self
+
     @property
     def physical_property_density(self):
         """setter: if type _timeseries or vertical profile alignment is taken care of"""
