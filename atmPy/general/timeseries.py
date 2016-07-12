@@ -915,27 +915,33 @@ class TimeSeries(object):
         return self.data.__repr__()
 
     def __truediv__(self,other):
-        self = self.copy()
-        other = other.copy()
-        if self._data_period > other._data_period:
-            other = other.align_to(self)
-            # other._data_period = self._data_period
-        else:
-            self = self.align_to(other)
-            # self._data_period = other._data_period
-        # return self,other
-        if other.data.shape[1] == 1:
-            out = self.data.divide(other.data.iloc[:,0], axis = 0)
-        elif self.data.shape[1] == 1:
-            out = other.data.divide(self.data.iloc[:,0], axis = 0)
-            out = 1/out
-        else:
-            txt = 'at least one of the dataframes have to have one column only'
-            raise ValueError(txt)
+        self_t = self.copy()
 
-        ts = TimeSeries(out)
-        ts._data_period = self._data_period
-        return ts
+        if type(other).__name__ in ['int', 'float']:
+            self_t.data /= other
+            return self_t
+
+        else:
+            other = other.copy()
+            if self_t._data_period > other._data_period:
+                other = other.align_to(self_t)
+                # other._data_period = self_t._data_period
+            else:
+                self_t = self_t.align_to(other)
+                # self_t._data_period = other._data_period
+            # return self_t,other
+            if other.data.shape[1] == 1:
+                out = self_t.data.divide(other.data.iloc[:,0], axis = 0)
+            elif self_t.data.shape[1] == 1:
+                out = other.data.divide(self_t.data.iloc[:,0], axis = 0)
+                out = 1/out
+            else:
+                txt = 'at least one of the dataframes have to have one column only'
+                raise ValueError(txt)
+
+            ts = TimeSeries(out)
+            ts._data_period = self_t._data_period
+            return ts
 
     def __add__(self,other):
         self = self.copy()
