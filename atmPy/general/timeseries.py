@@ -687,7 +687,7 @@ class WrappedPlot(list):
             self.append(a)
 
 
-def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ylim = None, ax = None, **plot_kwargs):
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ylim = None, ax = None, twin_x = None, **plot_kwargs):
     """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
 
     if ax is set, all other parameters will be ignored
@@ -738,11 +738,8 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         xlabel = 'Time'
 
     start_t = start
-    # maxp = 2
-    # periods_no = maxp
     if periods_no > max_wraps:
         raise ValueError("To many wraps (%i). Change frequency or max_wraps."%periods_no)
-    print('periods_no', periods_no)
     if ax:
         a = ax
         f = a[0].get_figure()
@@ -755,7 +752,9 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         no_of_ax = periods_no
         f,a = _plt.subplots(no_of_ax, sharex=True, gridspec_kw={'hspace': 0,
                                                                 'height_ratios': height_ratios})
-
+        # twins_x = []
+        # for at in a:
+        #     twins_x.append(at.twinx())
         # if cb_kwargs:
         #     a_cb = a[0]
         #     a = a[1:]
@@ -763,6 +762,14 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         f.set_figheight(3*periods_no)
         col_no = 0
     bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
+
+    if twin_x:
+        if not hasattr(a,'twins_x'):
+            twins_x = []
+            for at in a:
+                twins_x.append(at.twinx())
+        else:
+            twins_x = a.twins_x
 
     if not ylim:
         ylim = [ts.data.min().min(), ts.data.max().max()]
@@ -780,40 +787,46 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
             # print('voll der index error')
             tst = False
 
-
-        at = a[i]
-
-        txtpos = (0.05,0.8)
-
-        text = str(start_t).split(' ')
-        if frequency == 'h':
-            text = text[1]
-        elif frequency == 'M':
-            def day_formatter(x, pos):
-                dt = _np.datetime64('0') + _np.timedelta64(int(x), 'D')
-                dt = _pd.Timestamp(dt)
-                out = dt.day
-                return out
-            text = start_t
-
-            df = _FuncFormatter(day_formatter)
-            at.xaxis.set_major_formatter(df)
-            at.xaxis.set_major_locator(_DayLocator(interval=4))
-
-        elif frequency == 'Y':
-            text = text[0].split('-')[0]
-        elif frequency == 'D':
-            text = start_t
+        if twin_x:
+            at = twins_x[i]
         else:
-            text = 'not set'
-        at.text(txtpos[0], txtpos[1], text, transform=at.transAxes, bbox=bbox_props)
+            at = a[i]
+        if 1:
+            txtpos = (0.05,0.8)
+
+            text = str(start_t).split(' ')
+            if frequency == 'h':
+                text = text[1]
+            elif frequency == 'M':
+                def day_formatter(x, pos):
+                    dt = _np.datetime64('0') + _np.timedelta64(int(x), 'D')
+                    dt = _pd.Timestamp(dt)
+                    out = dt.day
+                    return out
+                text = start_t
+
+                df = _FuncFormatter(day_formatter)
+                at.xaxis.set_major_formatter(df)
+                at.xaxis.set_major_locator(_DayLocator(interval=4))
+
+            elif frequency == 'Y':
+                text = text[0].split('-')[0]
+            elif frequency == 'D':
+                text = start_t
+            else:
+                text = 'not set'
+            at.text(txtpos[0], txtpos[1], text, transform=at.transAxes, bbox=bbox_props)
 
 
         if tst:
             tst.data.index  = tst.data.index - start_t
             tst.data.index += _np.datetime64('1900')
             if type(tst).__name__ == 'TimeSeries':
-                plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
+                if twin_x:
+                    # plt_out = tst.plot(ax=at, color=_plt_tools.color_cycle[col_no])
+                    plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], **plot_kwargs)
+                else:
+                    plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
             if type(tst).__name__ == 'TimeSeries_2D':
                 # if 'cb_kwargs' in plot_kwargs.keys():
                 #     cb_kwargs = plot_kwargs['cb_kwargs']
@@ -827,7 +840,8 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
                 plt_out[2].set_clim(ylim)
 
         if type(tst).__name__ == 'TimeSeries':
-            at.set_ylim(ylim)
+            if not twin_x:
+                at.set_ylim(ylim)
         # formatter = FuncFormatter(timeTicks)
         # at.xaxis.set_major_formatter(formatter)
 
@@ -870,6 +884,12 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     out._ylabel = ylabel
     out._max_wraps = max_wraps
     out._ylim = ylim
+    if cb_kwargs:
+        out.cb = cb
+    if twin_x:
+        if not hasattr(a,'twins_x'):
+            out.twins_x = twins_x
+
     return out
 
 
