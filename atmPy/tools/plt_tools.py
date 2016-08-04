@@ -1,6 +1,8 @@
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import FuncFormatter
 from matplotlib import ticker
+from matplotlib import dates as _dates
+
 import numpy as np
 ###
 
@@ -152,6 +154,57 @@ def get_colorMap_heat():
     hag_cmap  = LinearSegmentedColormap('hag_cmap',cdict)
     hag_cmap.set_bad('black')
     return hag_cmap
+
+
+######
+## Tick labels
+
+
+def tick_labels_format_time(a, axis='x', style='auto', format='auto', rotation=30, horizontal_align='right'):
+    # tick_labels_format_time(a, style=('minute', range(0, 60, 5)))
+    # tick_labels_format_time(a, style=('minute', 5))
+    if type(style).__name__ in ['tuple', 'list']:
+        #         bywhatever = style[1]
+        interval = 1
+        if type(style[1]).__name__ in ['list', 'tuple', 'ndarray', 'range']:
+            bywhatever = style[1]
+        else:
+            bywhatever = None
+            interval = style[1]
+        style = style[0]
+    else:
+        bywhatever = None
+        interval = 1
+    if style == 'second':
+        loc = _dates.SecondLocator(bywhatever, interval)
+        if format == 'auto':
+            form = _dates.DateFormatter('%H:%M:%S')
+    elif style == 'minute':
+        loc = _dates.MinuteLocator(bywhatever, interval)
+        if format == 'auto':
+            form = _dates.DateFormatter('%H:%M:%S')
+    elif style == 'day':
+        loc = _dates.DayLocator(bywhatever, interval)
+        if format == 'auto':
+            pass
+            #             form = dates.DateFormatter('')
+    elif style == 'month':
+        loc = _dates.MonthLocator(bywhatever, interval)
+    elif style == 'auto':
+        form = _dates.DateFormatter('%H:%M:%S')
+
+    if axis == 'x' or axis == 'both':
+        if style != 'auto':
+            a.xaxis.set_major_locator(loc)
+        a.xaxis.set_major_formatter(form)
+    if axis == 'y' or axis == 'both':
+        if style != 'auto':
+            a.yaxis.set_major_locator(loc)
+        a.yaxis.set_major_formatter(form)
+
+    for tl in a.get_xticklabels():
+        tl.set_rotation(rotation)
+        tl.set_ha('right')
 
 def remove_tick_labels(ax, remove_list, axis = 'x', which = 'major'):
     """Removes all tick labels from an axes instance which are equal to entries in remove_list.
