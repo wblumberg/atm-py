@@ -5,5 +5,5 @@ setup(name='atmPy',
       description='Python Distribution Utilities',
       author='Hagen Telg and Matt Richardson',
       author_email='matt.richardson@msrconsults.com',
-      packages=['atmPy'], requires=['numpy', 'pandas', 'matplotlib']
+      packages=['atmPy'], requires=['numpy', 'pandas', 'matplotlib', 'scipy']
       )
