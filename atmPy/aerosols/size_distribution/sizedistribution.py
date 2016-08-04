@@ -994,6 +994,9 @@ sizedistribution.align to align the index of the new array."""
 
 
     def _update(self):
+        """
+        Resets properties so they are recalculated. This is usually necessary once you perform an operation on data.
+        """
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
