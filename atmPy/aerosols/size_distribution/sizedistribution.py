@@ -209,16 +209,23 @@ class SizeDist(object):
         #     self.bincenters = (bins[1:] + bins[:-1]) / 2.
         # self.binwidth = (bins[1:] - bins[:-1])
         self.distributionType = distType
+        self.__optical_properties = None
+        self._sup_opt_wl = None
+        self.__sup_opt_aod = False
+        self.particle_number_concentration_outside_range = None
         self._update()
 
         if fixGaps:
             self.fillGaps()
 
     def __mul__(self, other):
-        self.data *= other
-        self.particle_number_concentration_outside_range *= other
-        self._update()
-        return self
+        dist  = self.copy()
+        dist.data *= other
+        if dist.particle_number_concentration_outside_range:
+            dist.particle_number_concentration_outside_range *= other
+
+        dist._update()
+        return dist
 
     def __truediv__(self, other):
         self.data /= other
@@ -237,6 +244,24 @@ class SizeDist(object):
         self.particle_number_concentration_outside_range -= other
         self._update()
         return self
+
+    @property
+    def optical_properties(self):
+        if not self.__optical_properties:
+            if not _np.any(self.index_of_refraction):
+                txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+                raise ValueError(txt)
+            if not self.sup_optical_properties_wavelength:
+                txt = 'Please provied wavelength by setting the attribute sup_optical_properties_wavelength (in nm).'
+                raise AttributeError(txt)
+            self.__optical_properties = optical_properties.size_dist2optical_properties(self, self.sup_optical_properties_wavelength,
+                                                                                        self.index_of_refraction, aod = self.__sup_opt_aod, noOfAngles=100)
+            # opt_properties = optical_properties.OpticalProperties(out, parent = self)
+            # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
+            # opt_properties.index_of_refractio = n
+            #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+            # opt_properties.parent_dist = self
+        return self.__optical_properties
 
     @property
     def physical_property_density(self):
@@ -291,6 +316,15 @@ class SizeDist(object):
         return self.__binwidth
 
     @property
+    def sup_optical_properties_wavelength(self):
+        return self._sup_opt_wl
+
+    @sup_optical_properties_wavelength.setter
+    def sup_optical_properties_wavelength(self, data):
+        self.__optical_properties = None
+        self._sup_opt_wl = data
+
+    @property
     def index_of_refraction(self):
         """In case of setting the value and value is TimeSeries it will be aligned to the time series of the
         size distribution.
@@ -299,6 +333,7 @@ class SizeDist(object):
 
     @index_of_refraction.setter
     def index_of_refraction(self,n):
+        self.__optical_properties = None
         if type(n).__name__ in ('int','float'):
             pass
         elif type(n).__name__  in ('TimeSeries'):
@@ -390,7 +425,13 @@ sizedistribution.align to align the index of the new array."""
                 txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
                 It is %s'''%(type(RH).__name__)
                 raise TypeError(txt)
-
+        # return gf
+        # import pdb
+        # pdb.set_trace()
+        # gf = pd.
+        # print(type(self))
+        if type(self).__name__ == 'SizeDist_LS':
+            gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
         dist_g = dist_g.apply_growth(gf, how = how)
 
         # out_I['growth_factor'] = gf
@@ -452,21 +493,24 @@ sizedistribution.align to align the index of the new array."""
         elif how == 'shift_data':
             if isinstance(growth_factor, (float, int)):
                 pass
-            elif type(growth_factor).__name__ == 'ndarray':
-                growth_factor = _timeseries.TimeSeries(growth_factor)
+            # elif type(growth_factor).__name__ == 'ndarray':
+            #     growth_factor = _timeseries.TimeSeries(growth_factor)
 
-            elif type(growth_factor).__name__ == 'Series':
-                growth_factor = _timeseries.TimeSeries(pd.DataFrame(growth_factor))
+            # elif type(growth_factor).__name__ == 'Series':
+            #     growth_factor = _timeseries.TimeSeries(pd.DataFrame(growth_factor))
+            #
+            # elif type(growth_factor).__name__ == 'DataFrame':
+            #     growth_factor = _timeseries.TimeSeries(growth_factor)
 
-            elif type(growth_factor).__name__ == 'DataFrame':
-                growth_factor = _timeseries.TimeSeries(growth_factor)
+            elif type(growth_factor).__name__ == 'VerticalProfile':
+                pass
 
-            if type(growth_factor).__name__ == 'TimeSeries':
+            elif type(growth_factor).__name__ == 'TimeSeries':
                 if growth_factor._data_period == None:
                     growth_factor._data_period = self._data_period
                 growth_factor = growth_factor.align_to(dist_g)
             else:
-                txt = 'Make sure type of growthfactor is int,float,TimeSeries, Series or ndarray. It currently is: %s.'%(type(growth_factor).__name__)
+                txt = 'Make sure type of growthfactor is int,float,TimeSeries, or Series. It currently is: %s.'%(type(growth_factor).__name__)
                 raise TypeError(txt)
 
             test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, float(_np.nanmax(growth_factor.data)), ignore_data_nan = True)
@@ -483,9 +527,11 @@ sizedistribution.align to align the index of the new array."""
                 data_new[e] = dt
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
-            dp = dist_g._data_period
+
             dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-            dist_g._data_period = dp
+            if type(growth_factor).__name__ == 'TimeSeries':
+                dp = dist_g._data_period
+                dist_g._data_period = dp
 
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
@@ -1030,6 +1076,7 @@ class SizeDist_TS(SizeDist):
         self.__particle_mass_concentration = None
         self.__particle_mass_mixing_ratio = None
         self.__particle_number_mixing_ratio = None
+        self.__correct4ambient_LFE_tmp_difference = None
         self._update()
         if not self.data.index.name:
             self.data.index.name = 'Time'
@@ -1043,6 +1090,22 @@ class SizeDist_TS(SizeDist):
         self._uptodate_particle_number_mixing_ratio = False
         self._uptodate_particle_surface_concentration = False
         self._uptodate_particle_volume_concentration = False
+
+
+    def correct4ambient_LFE_tmp_difference(self):
+        """corrects for temperature differences between ambient and instrument.
+        The Problem is that the instrument samples at a constant flow at the temperature of
+        the laminar flow element not the ambient temperatrue ... this corrects for it
+        Make sure your housekeeping has a column named Temperature and one named Temperature_instrument"""
+        if not _np.any(self.__correct4ambient_LFE_tmp_difference):
+            tcorr = (self.housekeeping.data.Temperature_instrument + 273.15) / (self.housekeeping.data.Temperature + 273.15)
+            self.data = self.data.apply(lambda x: x * tcorr, axis=0)
+            self._update()
+            self.__correct4ambient_LFE_tmp_difference = tcorr
+        else:
+            txt = "You can't apply this correction twice!"
+            # raise ValueError(txt)
+            _warnings.warn(txt)
 
     # todo: declared deprecated on 2016-04-29
     def convert2layerseries(self, hk, layer_thickness=10, force=False):
@@ -1521,6 +1584,9 @@ class SizeDist_LS(SizeDist):
         self.__particle_mass_concentration = None
         self.__particle_mass_mixing_ratio = None
         self.__particle_number_mixing_ratio = None
+        # self.__optical_properties = None
+        # self.sup_optical_properties_wavelength = None
+        self._SizeDist__sup_opt_aod = True
         self._update()
 
     def _update(self):
@@ -1529,6 +1595,15 @@ class SizeDist_LS(SizeDist):
         self._uptodate_particle_mass_mixing_ratio = False
         self._uptodate_particle_number_mixing_ratio = False
 
+
+
+    @property
+    def housekeeping(self):
+        return self.__housekeeping
+
+    @housekeeping.setter
+    def housekeeping(self, value):
+        self.__housekeeping = value #had to overwrite the setter since there is no align programmed yet for verticle profiles ... do it!
 
     @property
     def layercenters(self):
@@ -1602,6 +1677,23 @@ class SizeDist_LS(SizeDist):
         # pdb.set_trace()
         return self.__particle_number_mixing_ratio
 
+    # @property
+    # def optical_properties(self):
+    #     if not self.__optical_properties:
+    #         if not _np.any(self.index_of_refraction):
+    #             txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+    #             raise ValueError(txt)
+    #         if not self.sup_optical_properties_wavelength:
+    #             txt = 'Please provied wavelength by setting the attribute sup_optical_properties_wavelength (in nm).'
+    #             raise AttributeError(txt)
+    #         self.__optical_properties = optical_properties.size_dist2optical_properties(self, self.sup_optical_properties_wavelength, self.index_of_refraction, aod = True, noOfAngles=100)
+    #         # opt_properties = optical_properties.OpticalProperties(out, parent = self)
+    #         # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
+    #         # opt_properties.index_of_refractio = n
+    #         #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+    #         # opt_properties.parent_dist = self
+    #     return self.__optical_properties
+
     def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
@@ -1617,7 +1709,9 @@ class SizeDist_LS(SizeDist):
         sd = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
-        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
+        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies,
+                            # fixGaps=False
+                            )
         sd_LS.index_of_refraction = sd.index_of_refraction
         sd_LS._SizeDist__growth_factor = sd.growth_factor
         # out['size_distribution'] = sd_LS
@@ -1634,7 +1728,9 @@ class SizeDist_LS(SizeDist):
         sd = super(SizeDist_LS,self).apply_growth(growth_factor,how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
-        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies, fixGaps=False)
+        sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies,
+                            # fixGaps=False
+                            )
         sd_LS.index_of_refraction = sd.index_of_refraction
         sd_LS._SizeDist__growth_factor = sd.growth_factor
         # out['size_distribution'] = sd_LS

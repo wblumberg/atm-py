@@ -11,11 +11,12 @@ from atmPy.tools import pandas_tools as _pandas_tools
 from atmPy.tools import time_tools as _time_tools
 from atmPy.tools import array_tools as _array_tools
 from atmPy.tools import plt_tools as _plt_tools
-from netCDF4 import Dataset as _Dataset
-from netCDF4 import num2date as _num2date
-from netCDF4 import date2num as _date2num
-
 from atmPy.tools import git as _git_tools
+
+
+from netCDF4 import Dataset as _Dataset
+# from netCDF4 import num2date as _num2date
+from netCDF4 import date2num as _date2num
 
 import warnings as _warnings
 import datetime
@@ -23,9 +24,7 @@ from matplotlib.ticker import FuncFormatter as _FuncFormatter
 from matplotlib.dates import DayLocator as _DayLocator
 import os as _os
 
-unit_time = 'days since 1900-01-01'
-
-
+_unit_time = 'days since 1900-01-01'
 
 def load_csv(fname):
     """Loads the dat of a saved timesereis instance and creates a new TimeSeries instance
@@ -66,7 +65,7 @@ def save_netCDF(ts,fname, leave_open = False):
     time_dim = ni.createDimension('time', ts.data.shape[0])
     dim_data_col = ni.createDimension('data_columns', ts.data.shape[1])
 
-    ts_time_num = _date2num(ts.data.index.to_pydatetime(), unit_time)#.astype(float)
+    ts_time_num = _date2num(ts.data.index.to_pydatetime(), _unit_time)#.astype(float)
     time_var = ni.createVariable('time', ts_time_num.dtype, 'time')
     time_var[:] = ts_time_num
     time_var.units = 'days since 1900-01-01'
@@ -78,7 +77,7 @@ def save_netCDF(ts,fname, leave_open = False):
     var_data_collumns = ni.createVariable('data_columns', ts_columns.dtype, 'data_columns')
     var_data_collumns[:] = ts_columns
 
-    ni._ts_type = type(ts).__name__
+    ni._type = type(ts).__name__
     ni._data_period = none2nan(ts._data_period)
     ni._x_label = none2nan(ts._x_label)
     ni._y_label =  none2nan(ts._y_label)
@@ -89,58 +88,6 @@ def save_netCDF(ts,fname, leave_open = False):
         return ni
     else:
         ni.close()
-
-def load_netCDF(fname):
-
-    ni = _Dataset(fname, 'r')
-
-    # load time
-    time_var = ni.variables['time']
-    time_var.units
-    ts_time = _num2date(time_var[:], time_var.units)
-    timestamp = _pd.DatetimeIndex(ts_time)
-
-    # load  data
-    var_data = ni.variables['data']
-    ts_data = _pd.DataFrame(var_data[:], index=timestamp)
-
-    # load column names
-    var_data_col = ni.variables['data_columns']
-    ts_data = _pd.DataFrame(var_data[:], index=timestamp,
-                           columns=var_data_col[:])
-
-    # test which type of timeseries (1D, 2D, 3D)
-    try:
-        ts_type = ni.getncattr('_ts_type')
-    except AttributeError:
-        ts_type = 'TimeSeries'
-    # create time series
-    if ts_type == 'TimeSeries':
-        ts_out = TimeSeries(ts_data)
-    elif ts_type == 'TimeSeries_2D':
-        ts_out = TimeSeries_2D(ts_data)
-    elif ts_type == 'TimeSeries_3D':
-        ts_out = TimeSeries_3D(ts_data)
-
-    # load attributes and attach to time series
-    for atr in ni.ncattrs():
-        value = ni.getncattr(atr)
-        # there is a bug in pandas where it does not like numpy types ->
-        if type(value).__name__ == 'str':
-            pass
-        elif 'float' in value.dtype.name:
-            value = float(value)
-        elif 'int' in value.dtype.name:
-            value = int(value)
-        # netcdf did not like NoneType so i converted it to np.nan. Here i am converting back.
-        elif _np.isnan(value):
-            value = None
-
-        setattr(ts_out, atr, value)
-
-    ni.close()
-    return ts_out
-
 
 #### Tools
 def close_gaps(ts, verbose = False):
@@ -316,16 +263,19 @@ def align_to_old(ts, ts_other, verbose= False):
     return tsrm
 
 
-def merge(ts, ts_other, verbose = False):
+def merge(ts, ts_other, recognize_gaps = True, verbose = False):
     """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
     one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
 
     Argument
     --------
-    ts_orig: the other time series will be merged to this, therefore this timeseries
-    will define the time stamps.
-    ts: timeseries or one of its subclasses.
+    ts: the other time series will be merged to this, therefore this timeseries
+        will define the time stamps.
+    ts_other: timeseries or one of its subclasses.
         List of TimeSeries objects.
+    recognize_gaps: bool
+        If ts_other has data gaps (missing) setting recognize_gaps to True will result in an attempt to detect the gaps and fill them with nans.
+        False will lead to a linear interpolation of any type of gap (this includs streches of nan)
 
     Returns
     -------
@@ -344,24 +294,27 @@ def merge(ts, ts_other, verbose = False):
 
     else:
         ts_data_list = [ts_this.data, ts_other.data]
-        # catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
-        # merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
-        # ts_this.data = merged
+        if not recognize_gaps:
+            catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
+            merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+            ts_this.data = merged
 
-        # ts_data_list = [data.data, correlant_nocol]
-        catsort = _pd.concat(ts_data_list).sort_index()  # .interpolate(method='index')
+            # ts_data_list = [data.data, correlant_nocol]
 
-        mask = catsort.copy()
-        grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
-        grp['ones'] = 1
-        for i in catsort.columns:
-            mask[i] = (grp.groupby(i)['ones'].transform('count') < 3) | catsort[i].notnull()
+        else:
+            catsort = _pd.concat(ts_data_list).sort_index()  # .interpolate(method='index')
 
-        catsortinterp = catsort.interpolate(method='index')
-        catsortinterpmasked = catsortinterp[mask]
+            mask = catsort.copy()
+            grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
+            grp['ones'] = 1
+            for i in catsort.columns:
+                mask[i] = (grp.groupby(i)['ones'].transform('count') < 3) | catsort[i].notnull()
 
-        merged = catsortinterpmasked.groupby(catsortinterpmasked.index).mean().reindex(ts_data_list[0].index)
-        ts_this.data = merged
+            catsortinterp = catsort.interpolate(method='index')
+            catsortinterpmasked = catsortinterp[mask]
+
+            merged = catsortinterpmasked.groupby(catsortinterpmasked.index).mean().reindex(ts_data_list[0].index)
+            ts_this.data = merged
 
     if verbose:
         print('=====  merge done ========')
@@ -953,8 +906,11 @@ class TimeSeries(object):
             if other.data.shape[1] == 1:
                 out = self_t.data.divide(other.data.iloc[:,0], axis = 0)
             elif self_t.data.shape[1] == 1:
-                out = other.data.divide(self_t.data.iloc[:,0], axis = 0)
+                out = other.data.truediv(self_t.data.iloc[:,0], axis = 0)
                 out = 1/out
+
+            elif _np.all(self.data.columns == other.data.columns):
+                out = self.data.divide(other.data)
             else:
                 txt = 'at least one of the dataframes have to have one column only'
                 raise ValueError(txt)
@@ -977,6 +933,8 @@ class TimeSeries(object):
             out = self.data.add(other.data.iloc[:,0], axis = 0)
         elif self.data.shape[1] == 1:
             out = other.data.add(self.data.iloc[:,0], axis = 0)
+        elif _np.all(self.data.columns == other.data.columns):
+            out = self.data.add(other.data)
         else:
             txt = 'at least one of the dataframes have to have one column only'
             raise ValueError(txt)
@@ -1000,6 +958,10 @@ class TimeSeries(object):
         elif self.data.shape[1] == 1:
             out = other.data.sub(self.data.iloc[:,0], axis = 0)
             out = - out
+
+        elif _np.all(self.data.columns == other.data.columns):
+            out = self.data.subtract(other.data)
+
         else:
             txt = 'at least one of the dataframes have to have one column only'
             raise ValueError(txt)
@@ -1011,17 +973,21 @@ class TimeSeries(object):
     def __mul__(self,other):
         self = self.copy()
         other = other.copy()
-        if self._data_period > other._data_period:
-            other = other.align_to(self)
-            other._data_period = self._data_period
-        else:
-            self = self.align_to(other)
-            self._data_period = other._data_period
+
+        if not _np.array_equal(self.data.index, other.data.index):
+            if self._data_period > other._data_period:
+                other = other.align_to(self)
+                other._data_period = self._data_period
+            else:
+                self = self.align_to(other)
+                self._data_period = other._data_period
 
         if other.data.shape[1] == 1:
             out = self.data.multiply(other.data.iloc[:,0], axis = 0)
         elif self.data.shape[1] == 1:
             out = other.data.multiply(self.data.iloc[:,0], axis = 0)
+        elif _np.all(self.data.columns == other.data.columns):
+            out = self.data.multiply(other.data)
         else:
             txt = 'at least one of the dataframes have to have one column only'
             raise ValueError(txt)
@@ -1042,7 +1008,7 @@ class TimeSeries(object):
 
 
 
-    def convert2verticalprofile(self, alt_label = None, alt_timeseries = None):
+    def convert2verticalprofile(self, alt_timeseries = None, alt_label = None):
         ts_tmp = self.copy()
     #     hk_tmp.data['Time'] = hk_tmp.data.index
     #     if alt_label:
@@ -1254,8 +1220,9 @@ class TimeSeries(object):
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
-        if len(self.data.keys()) > 1:
-            ax.legend()
+        if legend:
+            if len(self.data.keys()) > 1:
+                ax.legend()
 
         if did_plot:
             if autofmt_xdate:

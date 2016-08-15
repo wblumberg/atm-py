@@ -1,14 +1,15 @@
-import pandas as pd
+import pandas as _pd
 # from atmPy.tools import thermodynamics
-from atmPy.general import timeseries
-import numpy as np
-from atmPy.aerosols.physics import sampling_efficiency as sampeff
-from atmPy.tools import pandas_tools
+from atmPy.general import timeseries as _timeseries
+import numpy as _np
+from atmPy.aerosols.physics import sampling_efficiency as _sampeff
+from atmPy.tools import pandas_tools as _pandas_tools
 
 _date_time_alts = ['uas_datetime']
 _pressure_alt = ['StaticP', 'PRESS']
 _temp_alt = ['AT_cont', 'AT']
 _RH_alt = ['RH_cont', 'RH']
+_temp_payload_alt = ['CONDT']
 
 def read_csv(fname, temperature_limits=(-20, -0.5)):
     """
@@ -16,22 +17,24 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
     ---------
     temerature_limits: tuple.
         The temperature reading has false readings in it which can cause porblems later"""
-    df = pd.read_csv(fname, sep='\t')
+    df = _pd.read_csv(fname, sep='\t')
 
 
 
-    pandas_tools.ensure_column_exists(df,'DateTime', _date_time_alts)
-    pandas_tools.ensure_column_exists(df,'Pressure_Pa', _pressure_alt)
-    pandas_tools.ensure_column_exists(df,'Temperature', _temp_alt)
-    pandas_tools.ensure_column_exists(df,'Relative_humidity', _RH_alt)
+    _pandas_tools.ensure_column_exists(df, 'DateTime', _date_time_alts)
+    _pandas_tools.ensure_column_exists(df, 'Pressure_Pa', _pressure_alt)
+    _pandas_tools.ensure_column_exists(df, 'Temperature', _temp_alt)
+    _pandas_tools.ensure_column_exists(df, 'Relative_humidity', _RH_alt)
+    _pandas_tools.ensure_column_exists(df, 'Temperature_instrument', _temp_payload_alt, raise_error=False)
+    try:
+        df.Temperature_instrument = _pd.to_numeric(df.Temperature_instrument, errors='coerce')
+    except AttributeError:
+        pass
+
     # return df
-    df.index = pd.Series(pd.to_datetime(df.DateTime, format='%Y-%m-%d %H:%M:%S'))
-    # df['Pressure_Pa'] = df.PRESS
-    # df['Temperature'] = df.AT
-    # df['Relative_humidity'] = df.RH
-    # df = df.drop('PRESS', axis=1)
-    # df = df.drop('AT', axis=1)
-    # df = df.drop('RH', axis=1)
+    df.index = _pd.Series(_pd.to_datetime(df.DateTime, format='%Y-%m-%d %H:%M:%S'))
+
+
     df = df.drop('DateTime', axis=1)
 
     df = df.sort_index()
@@ -40,12 +43,14 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
         df = df[df.Temperature > temperature_limits[0]]
         df = df[temperature_limits[1] > df.Temperature]
 
-    hk = timeseries.TimeSeries(df)
+    # df.Temperature_payload = df.Temperature_payload.astype(float)
+    hk = _timeseries.TimeSeries(df)
+    hk._data_period = 2
     return hk
 
 # class MantaPayload(timeseries.TimeSeries):
 
-def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(2.5),100),
+def sample_efficiency(particle_diameters = _np.logspace(_np.log10(0.14), _np.log10(2.5),100),
                             manta_speed = 30, # m/s
                             pressure = 67., #kPa
                             main_inlet_diameter = 4.65 * 1e-3,
@@ -73,20 +78,20 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
 
 
 
-    main_inlet_bent = sampeff.loss_in_a_bent_section_of_circular_tubing(pressure = pressure,         # kPa
+    main_inlet_bent = _sampeff.loss_in_a_bent_section_of_circular_tubing(pressure = pressure,  # kPa
                                                   particle_diameter = particle_diameters,  # µm
-                                                  tube_air_velocity = manta_speed, # m/s
-                                                  tube_diameter = main_inlet_diameter,   # m
-                                                  angle_of_bend = 90,       # degrees
+                                                  tube_air_velocity = manta_speed,  # m/s
+                                                  tube_diameter = main_inlet_diameter,  # m
+                                                  angle_of_bend = 90,  # degrees
                                                   flow_type = 'auto',
-                                                  verbose = False)
+                                                                         verbose = False)
 
-    t_pick_of = sampeff.loss_in_a_T_junction(particle_diameter=particle_diameters,
-                                       particle_velocity=30,
-                                       pick_of_tube_diameter=pick_off_diameter,
-                                       verbose=False)
+    t_pick_of = _sampeff.loss_in_a_T_junction(particle_diameter=particle_diameters,
+                                              particle_velocity=30,
+                                              pick_of_tube_diameter=pick_off_diameter,
+                                              verbose=False)
 
-    laminar_flow_element = sampeff.loss_at_an_abrupt_contraction_in_circular_tubing(pressure=pressure,  # kPa
+    laminar_flow_element = _sampeff.loss_at_an_abrupt_contraction_in_circular_tubing(pressure=pressure,  # kPa
                                                          particle_diameter=particle_diameters,  # µm
                                                          tube_air_velocity=False,  # m/s
                                                          flow_rate_in_inlet=pick_off_flow_rate,  # cc/s
@@ -94,9 +99,9 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
                                                          contraction_diameter=lfe_diameter,  # m
                                                          contraction_angle=90,  # degrees
                                                          verbose=False,
-                                                         )
+                                                                                     )
 
-    bent_before_pops = sampeff.loss_in_a_bent_section_of_circular_tubing(
+    bent_before_pops = _sampeff.loss_in_a_bent_section_of_circular_tubing(
                                                   pressure = pressure,         # kPa
                                                   particle_diameter = particle_diameters,  # µm
                                                   tube_air_velocity = False, # m/s
@@ -106,7 +111,7 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
                                                   flow_type = 'auto',
                                                   verbose = False)
 
-    gravitational_loss = sampeff.gravitational_loss_in_circular_tube(pressure=101.3,  # kPa
+    gravitational_loss = _sampeff.gravitational_loss_in_circular_tube(pressure=101.3,  # kPa
                                             particle_diameter=particle_diameters,  # µm
                                             tube_diameter=pick_off_diameter,  # m
                                             tube_length=0.25,  # m
@@ -114,7 +119,7 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
                                             flow_rate=3,  # cc/s
                                             mean_flow_velocity=False,  # 0.1061    # m/s)
                                             flow_type='auto',
-                                            verbose=False)
+                                                                      verbose=False)
 
 
     loss_list = [main_inlet_bent, t_pick_of, laminar_flow_element, bent_before_pops, gravitational_loss]
@@ -128,6 +133,6 @@ def sample_efficiency(particle_diameters = np.logspace(np.log10(0.14), np.log10(
 
 
 
-    df = pd.DataFrame(np.array(loss_list).transpose(), columns = names, index = particle_diameters*1e3)
+    df = _pd.DataFrame(_np.array(loss_list).transpose(), columns = names, index =particle_diameters * 1e3)
     df.index.name = 'diameters_nm'
     return df

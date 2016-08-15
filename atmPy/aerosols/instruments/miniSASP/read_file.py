@@ -1,9 +1,10 @@
-import numpy as np
-import pandas as pd
-import os
-import warnings
-from scipy import stats
+import numpy as _np
+import pandas as _pd
+import os as _os
+import warnings as _warnings
+from scipy import stats as _stats
 from atmPy.aerosols.instruments.miniSASP import _miniSASP
+import datetime as _datetime
 
 
 def _simplefill(series):
@@ -31,16 +32,16 @@ def _extrapolate(x, y):
     returns: nothing. everthing happens inplace
     """
 
-    xAtYnotNan = x.values[~np.isnan(y.values)][:2]
-    YnotNan = y.values[~np.isnan(y.values)][:2]
-    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan, YnotNan)
+    xAtYnotNan = x.values[~_np.isnan(y.values)][:2]
+    YnotNan = y.values[~_np.isnan(y.values)][:2]
+    slope, intercept, r_value, p_value, slope_std_error = _stats.linregress(xAtYnotNan, YnotNan)
 
     fkt = lambda x: intercept + (slope * x)
     y.values[0] = fkt(x.values[0])
 
-    xAtYnotNan = x.values[~np.isnan(y.values)][-2:]
-    YnotNan = y.values[~np.isnan(y.values)][-2:]
-    slope, intercept, r_value, p_value, slope_std_error = stats.linregress(xAtYnotNan, YnotNan)
+    xAtYnotNan = x.values[~_np.isnan(y.values)][-2:]
+    YnotNan = y.values[~_np.isnan(y.values)][-2:]
+    slope, intercept, r_value, p_value, slope_std_error = _stats.linregress(xAtYnotNan, YnotNan)
 
     fkt = lambda x: intercept + (slope * x)
     y.values[-1] = fkt(x.values[-1])
@@ -60,7 +61,7 @@ def read_csv(fname, version = 'current', year = 2015, verbose=False):
     if type(fname).__name__ == 'list':
         first = True
         for file in fname:
-            if os.path.split(file)[-1][0] != 'r':
+            if _os.path.split(file)[-1][0] != 'r':
                 continue
             if verbose:
                 print(file)
@@ -70,7 +71,7 @@ def read_csv(fname, version = 'current', year = 2015, verbose=False):
                 ulr = ulrt
                 first = False
             else:
-                ulr.data = pd.concat((ulr.data, ulrt.data))
+                ulr.data = _pd.concat((ulr.data, ulrt.data))
     else:
         # ulr = miniSASP(fname, verbose=verbose)
         ulr = _process(fname, version=version, year = year, verbose=verbose)
@@ -129,7 +130,7 @@ def _create_timestamp(df, version= 'current', year = 2015, millisscale = 10, ver
     df.Seconds *= (millisscale/1000.)
     df.index = df.Seconds
 
-    df.YearMonth = np.floor(df.MonthDay/100.)
+    df.YearMonth = _np.floor(df.MonthDay / 100.)
     _simplefill(df.YearMonth)
 
     df.Day = df.MonthDay - df.YearMonth*100
@@ -150,37 +151,48 @@ def _create_timestamp(df, version= 'current', year = 2015, millisscale = 10, ver
 
     GPSunique = df.GPSHr.dropna().unique()
     for e,i in enumerate(GPSunique):
-        where = np.where(df.GPSHr == i)[0][1:]
-        df.GPSHr.values[where] = np.nan
+        where = _np.where(df.GPSHr == i)[0][1:]
+        df.GPSHr.values[where] = _np.nan
 
     # GPSHr_P_1 = df.GPSHr.copy()
 
     # extrapolate and interpolate the time
     _extrapolate(df.index, df.GPSHr)
-    df.GPSHr.interpolate(method='index', inplace= True)
+    df['GPSHr_p'] = df.GPSHr.copy()
+    df.GPSHr.interpolate(method='index', inplace=True)
+    # return df
     df.GPSHr.dropna(inplace=True)
     # GPSHr_P_2 = df.GPSHr.copy()
+    # def GPSHr2timestr(x):
+    #     h = x
+    #     m = 60 * (x % 1)
+    #     s = round(60 * ((60 * (x % 1)) % 1))
+    #     if s >= 60.:
+    #         s = 0.
+    #         m += 1.
+    #     if m >= 60.:
+    #         m = 0.
+    #         h += 1
+    #     time_str = '%02i:%02i:%09.6f' % (h, m, s)
+    #     return time_str
     def GPSHr2timestr(x):
-        h = x
-        m = 60 * (x % 1)
-        s = round(60 * ((60 * (x % 1)) % 1))
-        if s >= 60.:
-            s = 0.
-            m += 1.
-        if m >= 60.:
-            m = 0.
-            h += 1
-        time_str = '%02i:%02i:%09.6f' % (h, m, s)
-        return time_str
-
+        # looks complicated ... the only way I could make it work though
+        pdt = _pd.Timedelta(x, 'h')
+        pdt = pdt.to_pytimedelta()
+        pdt = pdt + _datetime.datetime(2000, 1, 1)
+        pdt_str = '{0:%H:%M:%S.%f}'.format(pdt)
+        return pdt_str
+    # return df
     df.GPSHr = df.GPSHr.apply(GPSHr2timestr)
-
+    # return df
     ###### DateTime!!
     dateTime = year_tmp + '-' +  df.Month + '-' + df.Day +' ' + df.GPSHr
     # return df
-    df.index = pd.Series(pd.to_datetime(dateTime, format="%Y-%m-%d %H:%M:%S.%f"), name='Time_UTC')
+    df['Time_new'] = _pd.to_datetime(dateTime, format="%Y-%m-%d %H:%M:%S.%f")
+    # return df
+    df.index = _pd.Series(_pd.to_datetime(dateTime, format="%Y-%m-%d %H:%M:%S.%f"), name='Time_UTC')
 
-    df = df[pd.notnull(df.index)]  # gets rid of NaT
+    df = df[_pd.notnull(df.index)]  # gets rid of NaT
     return df
 
 def _norm2integration_time(df):
@@ -198,27 +210,27 @@ def _recover_negative_values(df):
     for col in columns:
         # print(col)
         series = col.values
-        where = np.where(series > 2 ** 16)
+        where = _np.where(series > 2 ** 16)
         series[where] = (series[where] * 2 ** 16) / 2 ** 16
         if where[0].shape[0] > 0:
             do_warn = where[0].shape[0]
             # print(do_warn)
 
-    if np.any(do_warn):
+    if _np.any(do_warn):
         #     print(do_warn)
-        warnings.warn("""This has to be checked!!! Dont know if i implemented it correctly! Arduino negatives become very large positive (unsigned longs)
+        _warnings.warn("""This has to be checked!!! Dont know if i implemented it correctly! Arduino negatives become very large positive (unsigned longs)
        ;  recover using deliberate overflow""")
 
     return df
 
 def _read_file(fname):
-    df = pd.read_csv(fname,
-                     encoding="ISO-8859-1",
-                     skiprows=16,
-                     header=None,
-                     error_bad_lines=False,
-                     warn_bad_lines=False
-                     )
+    df = _pd.read_csv(fname,
+                      encoding="ISO-8859-1",
+                      skiprows=16,
+                      header=None,
+                      error_bad_lines=False,
+                      warn_bad_lines=False
+                      )
 
     #### set column labels
     collabels = ['PhotoAsh',
@@ -247,64 +259,64 @@ def _read_file(fname):
     # return
 
     #### add extra columns
-    df['time'] = np.nan
-    df['azimuth'] = np.nan
-    df['homep'] = np.nan
-    df['MicroUsed'] = np.nan
-    df['lat'] = np.nan
-    df['lon'] = np.nan
-    df['Te'] = np.nan
-    df['GPSHr'] = np.nan
-    df['MonthDay'] = np.nan
-    df['YearMonth'] = np.nan
-    df['Year'] = np.nan
-    df['Month'] = np.nan
-    df['Day'] = np.nan
-    df['GPSReadSeconds'] = np.nan
-    df['HKSeconds'] = np.nan
-    df['Yaw'] = np.nan
-    df['Pitch'] = np.nan
-    df['Roll'] = np.nan
-    df['BaromPr'] = np.nan
-    df['BaromTe'] = np.nan
-    df['Modeflag'] = np.nan
-    df['GateLgArr'] = np.nan
-    df['GateShArr'] = np.nan
-    df['PhotoOffArr'] = np.nan
+    df['time'] = _np.nan
+    df['azimuth'] = _np.nan
+    df['homep'] = _np.nan
+    df['MicroUsed'] = _np.nan
+    df['lat'] = _np.nan
+    df['lon'] = _np.nan
+    df['Te'] = _np.nan
+    df['GPSHr'] = _np.nan
+    df['MonthDay'] = _np.nan
+    df['YearMonth'] = _np.nan
+    df['Year'] = _np.nan
+    df['Month'] = _np.nan
+    df['Day'] = _np.nan
+    df['GPSReadSeconds'] = _np.nan
+    df['HKSeconds'] = _np.nan
+    df['Yaw'] = _np.nan
+    df['Pitch'] = _np.nan
+    df['Roll'] = _np.nan
+    df['BaromPr'] = _np.nan
+    df['BaromTe'] = _np.nan
+    df['Modeflag'] = _np.nan
+    df['GateLgArr'] = _np.nan
+    df['GateShArr'] = _np.nan
+    df['PhotoOffArr'] = _np.nan
 
     ##### Case 0
-    case = np.where(df.caseflag.values == 0)
+    case = _np.where(df.caseflag.values == 0)
     df.azimuth.values[case] = df.var1.values[case]
     df.homep.values[case] = df.var2.values[case]
     df.MicroUsed.values[case] = df.var3.values[case]
 
     ##### Case 1
-    case = np.where(df.caseflag.values == 1)
+    case = _np.where(df.caseflag.values == 1)
     df.lat.values[case] = df.var1.values[case]
     df.lon.values[case] = df.var2.values[case]
     df.Te.values[case] = df.var3.values[case]
 
     ##### Case 2
-    case = np.where(df.caseflag.values == 2)
+    case = _np.where(df.caseflag.values == 2)
     df.GPSHr.values[case] = df.var1.values[case]
     df.MonthDay.values[case] = df.var2.values[case]
     df.GPSReadSeconds.values[case] = df.var3.values[case].astype(float) / 100.
     df.HKSeconds.values[case] = df.Seconds.values[case]
 
     ##### Case 3
-    case = np.where(df.caseflag.values == 3)
+    case = _np.where(df.caseflag.values == 3)
     df.Yaw.values[case] = df.var1.values[case]
     df.Pitch.values[case] = df.var2.values[case]
     df.Roll.values[case] = df.var3.values[case]
 
     ##### Case 4
-    case = np.where(df.caseflag.values == 4)
+    case = _np.where(df.caseflag.values == 4)
     df.BaromPr.values[case] = df.var1.values[case]
     df.BaromTe.values[case] = df.var2.values[case]
     df.Modeflag.values[case] = df.var3.values[case].astype(float) + 0.5
 
     ##### Case 5
-    case = np.where(df.caseflag.values == 5)
+    case = _np.where(df.caseflag.values == 5)
     df.GateLgArr.values[case] = df.var1.values[case]
     df.GateShArr.values[case] = df.var2.values[case]
     df.PhotoOffArr.values[case] = df.var3.values[case]

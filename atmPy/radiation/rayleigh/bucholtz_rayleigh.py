@@ -112,6 +112,12 @@ def rayleigh_optical_depth(alt, P, T, wl):
     P in mbar
     T in K
     wl in nm"""
+
+    # when alt has two identical values after another sims will return nan... this checks for it
+    dist = alt[1:] - alt[:-1]
+    if (dist == 0).sum():
+        txt = 'The altitude value has two neiboring elements with the same value, this will case the integration to be nan ... '
+        raise ValueError(txt)
     rvsc = rayleigh_volume_scattering_coeff(P, T, wl)
     return integrate.simps(rvsc, alt)
 

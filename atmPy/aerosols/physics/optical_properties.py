@@ -1,14 +1,13 @@
 from copy import deepcopy as _deepcopy
 
-import numpy as np
-import pandas as pd
-from scipy import integrate
+import numpy as _np
+import pandas as _pd
+from scipy import integrate as _integrate
 
-from atmPy.aerosols.size_distribution import \
-    sizedist_moment_conversion as _sizedist_moment_conversion
-from atmPy.general import timeseries
-from atmPy.general import vertical_profile
-from atmPy.radiation.mie_scattering import bhmie
+from atmPy.aerosols.size_distribution import sizedist_moment_conversion as _sizedist_moment_conversion
+from atmPy.general import timeseries as _timeseries
+from atmPy.general import vertical_profile as _vertical_profile
+from atmPy.radiation.mie_scattering import bhmie as _bhmie
 import warnings as _warnings
 
 
@@ -42,32 +41,33 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     index = sdls.data.index
     dist_class = type(sdls).__name__
 
-    if dist_class not in ['SizeDist','SizeDist_TS']:
+    if dist_class not in ['SizeDist','SizeDist_TS','SizeDist_LS']:
         raise TypeError('this distribution class (%s) can not be converted into optical property yet!'%dist_class)
 
     # determin if index of refraction changes or if it is constant
-    if isinstance(n, pd.DataFrame):
+    if isinstance(n, _pd.DataFrame):
         n_multi = True
     else:
         n_multi = False
     if not n_multi:
-        mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
-                                                       noOfAngles=noOfAngles)
+        mie, angular_scatt_func = _perform_Miecalculations(_np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+                                                           noOfAngles=noOfAngles)
 
     if aod:
         #todo: use function that does a the interpolation instead of the sum?!? I guess this can lead to errors when layers are very thick, since centers are used instea dof edges?
-        AOD_layer = np.zeros((len(sdls.layercenters)))
+        AOD_layer = _np.zeros((len(sdls.layercenters)))
 
-    extCoeffPerLayer = np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
-    angular_scatt_func_effective = pd.DataFrame()
-    asymmetry_parameter_LS = np.zeros((len(sdls.data.index.values)))
+    extCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
+    angular_scatt_func_effective = _pd.DataFrame()
+    asymmetry_parameter_LS = _np.zeros((len(sdls.data.index.values)))
 
+    #calculate optical properties for each line in the dataFrame
     for i, lc in enumerate(sdls.data.index.values):
         laydata = sdls.data.iloc[i].values # picking a size distribution (either a layer or a point in time)
 
         if n_multi:
-            mie, angular_scatt_func = _perform_Miecalculations(np.array(sdls.bincenters / 1000.), wavelength / 1000., n.iloc[i].values[0],
-                                                       noOfAngles=noOfAngles)
+            mie, angular_scatt_func = _perform_Miecalculations(_np.array(sdls.bincenters / 1000.), wavelength / 1000., n.iloc[i].values[0],
+                                                               noOfAngles=noOfAngles)
         extinction_coefficient = _get_coefficients(mie.extinction_crossection, laydata)
 
         if aod:
@@ -85,25 +85,25 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
         y_2p = pfe.values
 
         # limit to [0,pi]
-        y_1p = y_2p[x_2p < np.pi]
-        x_1p = x_2p[x_2p < np.pi]
+        y_1p = y_2p[x_2p < _np.pi]
+        x_1p = x_2p[x_2p < _np.pi]
 
-        y_phase_func = y_1p * 4 * np.pi / scattering_cross_eff.sum()
-        asymmetry_parameter_LS[i] = .5 * integrate.simps(np.cos(x_1p) * y_phase_func * np.sin(x_1p), x_1p)
+        y_phase_func = y_1p * 4 * _np.pi / scattering_cross_eff.sum()
+        asymmetry_parameter_LS[i] = .5 * _integrate.simps(_np.cos(x_1p) * y_phase_func * _np.sin(x_1p), x_1p)
         angular_scatt_func_effective[
             lc] = pfe * 1e-12 * 1e6  # equivalent to extCoeffPerLayer # similar to  _get_coefficients (converts everthing to meter)
 
     if aod:
-        out['AOD'] = AOD_layer[~ np.isnan(AOD_layer)].sum()
-        out['AOD_layer'] = pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
+        out['AOD'] = AOD_layer[~ _np.isnan(AOD_layer)].sum()
+        out['AOD_layer'] = _pd.DataFrame(AOD_layer, index=sdls.layercenters, columns=['AOD per Layer'])
         out['AOD_cum'] = out['AOD_layer'].iloc[::-1].cumsum().iloc[::-1]
 
-    extCoeff_perrow_perbin = pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
+    extCoeff_perrow_perbin = _pd.DataFrame(extCoeffPerLayer, index=index, columns=sdls.data.columns)
 
     # if dist_class == 'SizeDist_TS':
     #     out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
     if dist_class == 'SizeDist':
-        out['extCoeff_perrow_perbin'] = timeseries.TimeSeries(extCoeff_perrow_perbin)
+        out['extCoeff_perrow_perbin'] = _timeseries.TimeSeries(extCoeff_perrow_perbin)
     else:
         out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
     # extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
@@ -113,8 +113,8 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     #     out['extCoeff_perrow'] = extCoeff_perrow
 
     out['parent_type'] = dist_class
-    out['asymmetry_param'] = pd.DataFrame(asymmetry_parameter_LS, index=index,
-                                          columns=['asymmetry_param'])
+    out['asymmetry_param'] = _pd.DataFrame(asymmetry_parameter_LS, index=index,
+                                           columns=['asymmetry_param'])
     # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
     # out['OptPropInstance']= OpticalProperties(out, self.bins)
     out['wavelength'] = wavelength
@@ -130,9 +130,9 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     # opt_properties.angular_scatt_func = angular_scatt_func_effective  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
     # opt_properties.parent_dist_LS = self
     if dist_class == 'SizeDist_TS':
-        return OpticalProperties_TS(out,parent = sd)
-
-
+        return OpticalProperties_TS(out, parent = sd)
+    elif dist_class == 'SizeDist_LS':
+        return OpticalProperties_VP(out, parent= sd)
     return out
 
 
@@ -154,20 +154,20 @@ def hemispheric_backscattering(osf_df):
         x = index
         f = ol
         # my phase function goes all the way to two py
-        f = f[ x < np.pi]
-        x = x[ x < np.pi]
-        f_b = f[x >= np.pi/2.]
-        x_b = x[x >= np.pi/2.]
+        f = f[x < _np.pi]
+        x = x[x < _np.pi]
+        f_b = f[x >= _np.pi / 2.]
+        x_b = x[x >= _np.pi / 2.]
 
-        res_b = 2* np.pi * integrate.simps(f_b * np.sin(x_b),x_b)
+        res_b = 2 * _np.pi * _integrate.simps(f_b * _np.sin(x_b), x_b)
         return res_b
 
-    bs = np.zeros(osf_df.shape[0])
+    bs = _np.zeros(osf_df.shape[0])
     index = osf_df.columns
     for i in range(osf_df.shape[0]):
         ol = osf_df.iloc[i,:].values
         bs[i] = ang_scat_funk2bs(index,ol)
-    bs = pd.DataFrame(bs, index = osf_df.index)
+    bs = _pd.DataFrame(bs, index = osf_df.index)
     return bs
 
 def hemispheric_forwardscattering(osf_df):
@@ -189,20 +189,20 @@ def hemispheric_forwardscattering(osf_df):
         f = ol
 
         # my phase function goes all the way to two py
-        f = f[ x < np.pi]
-        x = x[ x < np.pi]
-        f_f = f[x < np.pi/2.]
-        x_f = x[x < np.pi/2.]
+        f = f[x < _np.pi]
+        x = x[x < _np.pi]
+        f_f = f[x < _np.pi / 2.]
+        x_f = x[x < _np.pi / 2.]
 
-        res_f = 2* np.pi * integrate.simps(f_f * np.sin(x_f),x_f)
+        res_f = 2 * _np.pi * _integrate.simps(f_f * _np.sin(x_f), x_f)
         return res_f
 
-    fs = np.zeros(osf_df.shape[0])
+    fs = _np.zeros(osf_df.shape[0])
     index = osf_df.columns
     for i in range(osf_df.shape[0]):
         ol = osf_df.iloc[i,:].values
         fs[i] = ang_scat_funk2fs(index,ol)
-    fs = pd.DataFrame(fs, index = osf_df.index)
+    fs = _pd.DataFrame(fs, index = osf_df.index)
     return fs
 
 
@@ -237,7 +237,7 @@ class OpticalProperties(object):
         self.bins = data['bins']
         self.binwidth = data['binwidth']
         self.distributionType = data['distType']
-        self._data_period = self.parent_sizedist._data_period
+        # self._data_period = self.parent_sizedist._data_period
 
 
     # @property
@@ -249,12 +249,12 @@ class OpticalProperties(object):
     @property
     def extinction_coeff_sum_along_d(self):
         _warnings.warn('extinction_coeff_sum_along_d is deprecated and will be removed in future versions. Use extingction_coeff instead')
-        if not np.any(self.__extinction_coeff_sum_along_d):
+        if not _np.any(self.__extinction_coeff_sum_along_d):
             data = self.extinction_coeff_per_bin.data.sum(axis = 1)
-            df = pd.DataFrame()
+            df = _pd.DataFrame()
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
-                self.__extinction_coeff_sum_along_d = timeseries.TimeSeries(df)
+                self.__extinction_coeff_sum_along_d = _timeseries.TimeSeries(df)
             elif self._parent_type == 'SizeDist':
                 self.__extinction_coeff_sum_along_d = df
             else:
@@ -269,12 +269,12 @@ class OpticalProperties(object):
 
     @property
     def extinction_coeff(self):
-        if not np.any(self.__extinction_coeff_sum_along_d):
+        if not _np.any(self.__extinction_coeff_sum_along_d):
             data = self.extinction_coeff_per_bin.data.sum(axis=1)
-            df = pd.DataFrame()
+            df = _pd.DataFrame()
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
-                self.__extinction_coeff_sum_along_d = timeseries.TimeSeries(df)
+                self.__extinction_coeff_sum_along_d = _timeseries.TimeSeries(df)
             elif self._parent_type == 'SizeDist':
                 self.__extinction_coeff_sum_along_d = df
             else:
@@ -321,23 +321,25 @@ class OpticalProperties(object):
 class OpticalProperties_TS(OpticalProperties):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.extinction_coeff_per_bin = timeseries.TimeSeries_2D(self.extinction_coeff_per_bin)
+        self.extinction_coeff_per_bin = _timeseries.TimeSeries_2D(self.extinction_coeff_per_bin)
         self.extinction_coeff_per_bin._data_period = self.parent_sizedist._data_period
 
-        self.angular_scatt_func = timeseries.TimeSeries_2D(self.angular_scatt_func.transpose())
+        self.angular_scatt_func = _timeseries.TimeSeries_2D(self.angular_scatt_func.transpose())
         self.angular_scatt_func._data_period = self.parent_sizedist._data_period
 
         self.__hemispheric_forwardscattering = None
         self.__hemispheric_backscattering = None
         self.__hemispheric_backscattering_ratio = None
         self.__hemispheric_forwardscattering_ratio = None
+        self._data_period = self.parent_sizedist._data_period
+
 
 
     @property
     def hemispheric_backscattering(self):
         if not self.__hemispheric_backscattering:
             out = hemispheric_backscattering(self.angular_scatt_func.data)
-            out = timeseries.TimeSeries(out)
+            out = _timeseries.TimeSeries(out)
             out._data_period = self.angular_scatt_func._data_period
             self.__hemispheric_backscattering = out
         return self.__hemispheric_backscattering
@@ -350,7 +352,7 @@ class OpticalProperties_TS(OpticalProperties):
     def hemispheric_forwardscattering(self):
         if not self.__hemispheric_forwardscattering:
             out = hemispheric_forwardscattering(self.angular_scatt_func.data)
-            out = timeseries.TimeSeries(out)
+            out = _timeseries.TimeSeries(out)
             out._data_period = self.angular_scatt_func._data_period
             self.__hemispheric_forwardscattering = out
         return self.__hemispheric_forwardscattering
@@ -373,6 +375,14 @@ class OpticalProperties_TS(OpticalProperties):
         if not self.__hemispheric_forwardscattering_ratio:
             self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.extinction_coeff
         return self.__hemispheric_forwardscattering_ratio
+
+class OpticalProperties_VP(OpticalProperties):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extinction_coeff_per_bin = _vertical_profile.VerticalProfile_2D(self.extinction_coeff_per_bin)
+        self.aerosol_optical_depth_cumulative_VP = _vertical_profile.VerticalProfile(self.data_orig['AOD_cum'])
+        self.aerosol_optical_depth_cumulative = self.data_orig['AOD']
+
 
 
 
@@ -401,7 +411,7 @@ class Old_OpticalProperties(object):
         Creates a verticle profile of the extinction coefficient.
         """
         ext = self.data.sum(axis=1)
-        ext = pd.DataFrame(ext, columns=['ext. coeff.'])
+        ext = _pd.DataFrame(ext, columns=['ext. coeff.'])
         ext.index.name = 'Altitude'
         out = ExtinctionCoeffVerticlProfile(ext, self, self.wavelength, self.index_of_refractio)
         # out.wavelength = self.wavelength
@@ -458,7 +468,7 @@ class Old_OpticalProperties(object):
 
         return f, a, pc, cb
 
-class ExtinctionCoeffVerticlProfile(vertical_profile.VerticalProfile):
+class ExtinctionCoeffVerticlProfile(_vertical_profile.VerticalProfile):
     def __init__(self, ext, parent, wavelength, index_of_refraction):
         super(ExtinctionCoeffVerticlProfile, self).__init__(ext)
         self.parent = parent
@@ -492,18 +502,18 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
     """
 
 
-    diam = np.asarray(diam)
+    diam = _np.asarray(diam)
 
-    extinction_efficiency = np.zeros(diam.shape)
-    scattering_efficiency = np.zeros(diam.shape)
-    absorption_efficiency = np.zeros(diam.shape)
+    extinction_efficiency = _np.zeros(diam.shape)
+    scattering_efficiency = _np.zeros(diam.shape)
+    absorption_efficiency = _np.zeros(diam.shape)
 
-    extinction_crossection = np.zeros(diam.shape)
-    scattering_crossection = np.zeros(diam.shape)
-    absorption_crossection = np.zeros(diam.shape)
+    extinction_crossection = _np.zeros(diam.shape)
+    scattering_crossection = _np.zeros(diam.shape)
+    absorption_crossection = _np.zeros(diam.shape)
 
     # phase_function_natural = pd.DataFrame()
-    angular_scattering_natural = pd.DataFrame()
+    angular_scattering_natural = _pd.DataFrame()
     # extinction_coefficient = np.zeros(diam.shape)
     # scattering_coefficient = np.zeros(diam.shape)
     # absorption_coefficient = np.zeros(diam.shape)
@@ -511,7 +521,7 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
 
 
     # Function for calculating the size parameter for wavelength l and radius r
-    sp = lambda r, l: 2. * np.pi * r / l
+    sp = lambda r, l: 2. * _np.pi * r / l
     for e, d in enumerate(diam):
         radius = d / 2.
 
@@ -519,7 +529,7 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
         # print('n', n)
         # print('d', d)
 
-        mie = bhmie.bhmie_hagen(sp(radius, wavelength), n, noOfAngles, diameter=d)
+        mie = _bhmie.bhmie_hagen(sp(radius, wavelength), n, noOfAngles, diameter=d)
         values = mie.return_Values_as_dict()
         extinction_efficiency[e] = values['extinction_efficiency']
 
@@ -541,14 +551,14 @@ def _perform_Miecalculations(diam, wavelength, n, noOfAngles=100.):
     # phase_function_natural.index = values['phaseFct_natural'].index
     angular_scattering_natural.index = mie.get_angular_scatt_func().index
 
-    out = pd.DataFrame(index=diam)
-    out['extinction_efficiency'] = pd.Series(extinction_efficiency, index=diam)
-    out['scattering_efficiency'] = pd.Series(scattering_efficiency, index=diam)
-    out['absorption_efficiency'] = pd.Series(absorption_efficiency, index=diam)
+    out = _pd.DataFrame(index=diam)
+    out['extinction_efficiency'] = _pd.Series(extinction_efficiency, index=diam)
+    out['scattering_efficiency'] = _pd.Series(scattering_efficiency, index=diam)
+    out['absorption_efficiency'] = _pd.Series(absorption_efficiency, index=diam)
 
-    out['extinction_crossection'] = pd.Series(extinction_crossection, index=diam)
-    out['scattering_crossection'] = pd.Series(scattering_crossection, index=diam)
-    out['absorption_crossection'] = pd.Series(absorption_crossection, index=diam)
+    out['extinction_crossection'] = _pd.Series(extinction_crossection, index=diam)
+    out['scattering_crossection'] = _pd.Series(scattering_crossection, index=diam)
+    out['absorption_crossection'] = _pd.Series(absorption_crossection, index=diam)
     return out, angular_scattering_natural
 
 
@@ -583,7 +593,7 @@ def _get_coefficients(crossection, cn):
 def vertical_profile2accumulative_AOD(timeseries):
     data = timeseries.data.copy()
     data.dropna(inplace = True)
-    accu_aod = np.zeros(data.shape)
+    accu_aod = _np.zeros(data.shape)
     for col,k in enumerate(data.keys()):
         series = data[k]
         # series.dropna(inplace = True)
@@ -598,10 +608,10 @@ def vertical_profile2accumulative_AOD(timeseries):
         # for e,i in enumerate(x):
         for e in range(x.shape[0]):
             end = e+1
-            accu_aod[e][col] = -integrate.simps(y[st:end],x[st:end])
+            accu_aod[e][col] = -_integrate.simps(y[st:end], x[st:end])
 
-    accu_aod = pd.DataFrame(accu_aod, index = x, columns=data.keys())
-    accu_aod = vertical_profile.VerticalProfile(accu_aod)
+    accu_aod = _pd.DataFrame(accu_aod, index = x, columns=data.keys())
+    accu_aod = _vertical_profile.VerticalProfile(accu_aod)
 
     accu_aod._x_label = 'AOD$_{abs}$'
     return accu_aod

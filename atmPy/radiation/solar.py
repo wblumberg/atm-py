@@ -86,7 +86,7 @@ class solar(object):
 
 
 def get_sun_position(lat, lon, datetime_UTC, elevation=0):
-    """returns elevation and azimuth angle of the sun
+    """returns elevation and azimuth angle of the sun, tested against http://www.esrl.noaa.gov/gmd/grad/solcalc/azel.html
     Arguments:
     ----------
     lat, lon: float

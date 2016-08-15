@@ -82,7 +82,7 @@ def read_csv(fname):
 
     else:
         picco = _read_file(fname)
-
+    picco._data_period = 1
     return picco
 #
 # class AutoPilot(object):

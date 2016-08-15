@@ -1,9 +1,63 @@
-import pandas as pd
-import pylab as plt
+import pandas as _pd
+import numpy as _np
+import matplotlib.pylab as _plt
 from copy import deepcopy as _deepcopy
-
+from netCDF4 import Dataset as _Dataset
+# from netCDF4 import date2num as _date2num
 import atmPy.general.timeseries
-from atmPy.tools import plt_tools
+from atmPy.tools import plt_tools as _plt_tools
+from atmPy.tools import pandas_tools as _pandas_tools
+import os as _os
+from atmPy.tools import git as _git_tools
+
+
+# _unit_time = 'days since 1900-01-01'
+
+def none2nan(var):
+    if type(var).__name__ == 'NoneType':
+        var = _np.nan
+    return var
+
+def save_netCDF(vp, fname, leave_open = False):
+
+    # if ts._time_format == 'timedelta':
+    #     ts.timed
+
+    file_mode = 'w'
+    try:
+        ni = _Dataset(fname, file_mode)
+    except RuntimeError:
+        if _os.path.isfile(fname):
+            _os.remove(fname)
+            ni = _Dataset(fname, file_mode)
+
+    time_dim = ni.createDimension('altitude', vp.data.shape[0])
+    dim_data_col = ni.createDimension('data_columns', vp.data.shape[1])
+
+    # ts_time_num = _date2num(ts.data.index.to_pydatetime(), _unit_time)#.astype(float)
+    altitude = vp.data.index
+    altitude_var = ni.createVariable('altitude', altitude.dtype, 'altitude')
+    altitude_var[:] = altitude.values
+    altitude_var.units = 'meters'
+
+    var_data = ni.createVariable('data', vp.data.values.dtype, ('altitude', 'data_columns'))
+    var_data[:] = vp.data.values
+
+    vp_columns = vp.data.columns.values.astype(str)
+    var_data_collumns = ni.createVariable('data_columns', vp_columns.dtype, 'data_columns')
+    var_data_collumns[:] = vp_columns
+
+    ni._type = type(vp).__name__
+    # ni._data_period = none2nan(vp._data_period)
+    ni._x_label = none2nan(vp._x_label)
+    ni._y_label =  none2nan(vp._y_label)
+    # ni.info = none2nan(vp.info)
+    ni._atm_py_commit = _git_tools.current_commit()
+
+    if leave_open:
+        return ni
+    else:
+        ni.close()
 
 
 class VerticalProfile(object):
@@ -22,12 +76,12 @@ class VerticalProfile(object):
 
     def plot(self, ax=False, color=None):
         if not ax:
-            f, a = plt.subplots()
+            f, a = _plt.subplots()
         else:
             a = ax
 
         for e,k in enumerate(self.data.keys()):
-            color = plt_tools.color_cycle[e]
+            color = _plt_tools.color_cycle[e]
             a.plot(self.data[k].values, self.data.index, color=color, linewidth=2, label = k)
 
         if len(self.data.keys()) > 1:
@@ -36,6 +90,8 @@ class VerticalProfile(object):
         a.set_xlabel(self._x_label)
         a.set_ylim((self.data.index.min(), self.data.index.max()))
         return a
+
+    save_netCDF = save_netCDF
 
     def save(self, fname):
         self.data.to_csv(fname)
@@ -53,11 +109,22 @@ class VerticalProfile(object):
         ts: timeseries"""
         hk_tmp = ts.convert2verticalprofile()
         data = hk_tmp.data[['TimeUTC']]
-        cat_sort_int = pd.concat([data, self.data]).sort_index().interpolate()
+        cat_sort_int = _pd.concat([data, self.data]).sort_index().interpolate()
         cat_sort_int = cat_sort_int.dropna()
         cat_sort_int.index = cat_sort_int.TimeUTC
         cat_sort_int = cat_sort_int.drop('TimeUTC', axis=1)
         return atmPy.general.timeseries.TimeSeries(cat_sort_int)
+
+class VerticalProfile_2D(VerticalProfile):
+    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
+        if 'cb_kwargs' in kwargs.keys():
+            cb_kwargs = kwargs['cb_kwargs']
+        if 'pc_kwargs' in kwargs.keys():
+            pc_kwargs = pc_kwargs
+        f, a, pc, cb = _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis=xaxis, ax=ax, pc_kwargs=pc_kwargs, cb_kwargs=cb_kwargs)
+        if autofmt_xdate:
+            f.autofmt_xdate()
+        return f, a, pc, cb
 
 #### Tools
 def merge(ts, ts_other):
@@ -78,7 +145,7 @@ def merge(ts, ts_other):
     """
     ts_this = ts.copy()
     ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = pd.concat(ts_data_list).sort_index().interpolate()
+    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
