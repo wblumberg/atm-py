@@ -433,9 +433,17 @@ class Rolling(_pd.core.window.Rolling):
         corr_res_ts._data_period = self.data._data_period
         return corr_res_ts
 
-    def corr_timelag(self, other, dt=(5, 'm'), no_of_steps=10, center=0, normalize=True, **kwargs):
-        """dt: tuple
-                first arg of tuple can be int or array-like of dtype int. Second arg is unit. if array-like no_of... is ignored"""
+    def corr_timelag(self, other, dt=(5, 'm'), no_of_steps=10, center=0, direction = None, normalize=True, **kwargs):
+        """
+        Parameters
+        ----------
+        dt: tuple
+            first arg of tuple can be int or array-like of dtype int. Second arg is unit. if array-like no_of... is ignored
+        direction: bool or string
+            if direction is set the center parameter will be ignored
+            p for positive, n for negative"""
+
+
         if other.data.columns.shape[0] == 1:
             other_column = other.data.columns[0]
         else:
@@ -455,10 +463,22 @@ class Rolling(_pd.core.window.Rolling):
             no_of_steps = len(dt_array)
             center = 0
         else:
-            dt_array = _np.arange(0, dt[0] * no_of_steps, dt[0]) - int(no_of_steps * dt[0] / 2)
+            dt_array = _np.arange(0, dt[0] * no_of_steps, dt[0])
 
-        if center:
-            dt_array += int(center)
+            if direction:
+                if direction == 'p':
+                    pass
+                elif direction == 'n':
+                    dt_array *= -1
+                else:
+                    txt = 'Direction has to be None, "p", or "n" ... it is %s'%direction
+                    raise ValueError(txt)
+
+            else:
+                dt_array += int(center) - int(no_of_steps * dt[0] / 2)
+
+        # if center:
+        #     dt_array += int(center)
         out = False
         for dtt in dt_array:
             tst = other.copy()
@@ -829,7 +849,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     # at.set_xlim(left=0, right=_np.timedelta64(periods, frequency) / _np.timedelta64(1, 'ns'))
     if ylabel == 'auto':
         ylabel = ts._y_label
-    _plt_tools.set_shared_ylabel(a,ylabel)
+    _plt_tools.set_shared_label(a,ylabel, axis = 'y')
     at.set_xlabel(xlabel)
     out = WrappedPlot(a)
     out._periods = periods
