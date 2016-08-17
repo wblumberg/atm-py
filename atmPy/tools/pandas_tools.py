@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pylab as plt
-
+import pandas as _pd
 
 def ensure_column_exists(df, col_name, col_alt = False, raise_error = True):
     """Checks if a particular name is among the column names of a dataframe. Alternative names can be given, which when
@@ -115,3 +115,36 @@ def plot_panel_meshgrid(panel, xaxis = 0, yaxis = 1, sub_set = 0, ax = None, kwa
     cb.set_label(panel.minor_axis[sub_set])
     pc.set_clim(z[~ np.isnan(z)].min(), z[~ np.isnan(z)].max())
     return f,a,pc,cb
+
+
+def find_contour(df, value, xaxis = 0):
+    """find a contour (line of equal values in a 2D array)"""
+    axes_list = [df.index, df.columns]
+    x_index = axes_list[xaxis]
+
+    if xaxis !=0:
+        df = df.swapaxes(0,1)
+        y_index = axes_list[0]
+    else:
+        y_index = axes_list[1]
+
+    z = df.values.transpose()
+    x = np.repeat(np.array([x_index]), y_index.shape[0], axis = 0)
+    y = np.repeat(np.array([y_index]), x_index.shape[0], axis = 0).transpose()
+
+
+    timestamp = np.zeros(z.shape[1])
+    timestamp.dtype = x.dtype
+    idx = np.zeros(z.shape[1])
+    dt = np.zeros(z.shape[1])
+    for e, zt in enumerate(z.transpose()):
+        temp = abs(zt[~np.isnan(zt)] - value)
+        if temp.shape[0] == 0:
+            dt[e] = np.nan
+        else:
+            idx[e] = temp.argmin()
+            dt[e] = float(y[idx[e],e])
+        timestamp[e] = x[0,e]
+
+    contour = _pd.DataFrame(dt, index = timestamp, columns = ['%s_contour'%value])
+    return contour
