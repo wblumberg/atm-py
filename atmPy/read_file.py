@@ -5,6 +5,7 @@ import pandas as _pd
 from atmPy.general import timeseries as _timeseries
 from atmPy.aerosols.instruments.miniSASP import _miniSASP
 from atmPy.general import vertical_profile as _vertical_profile
+import warnings as _warnings
 
 importable_types = {#########
                     ### Time series
@@ -16,7 +17,7 @@ importable_types = {#########
                     ### Vertical profiles
                     'VerticalProfile':      {'call': _vertical_profile.VerticalProfile, 'category': 'verticalprofile'}
                     }
-def netCDF(fname, data_type = None):
+def netCDF(fname, data_type = None, error_unknown_type = True,verbose = False):
     """
 
     Parameters
@@ -37,14 +38,23 @@ def netCDF(fname, data_type = None):
         try:
             data_type = ni.getncattr('_type')
         except AttributeError:
-            print('no _type')
-            data_type = 'TimeSeries'
+            try:
+                data_type = ni.getncattr('_ts_type')
+            except AttributeError:
+                txt = 'File has no attribute "_type". You can set kwarg data_type if you know what the type is supposed to be. E.g. data_type = TimeSeries'
+                if error_unknown_type:
+                    raise TypeError(txt)
+                # _warnings.warn(txt)
+                # data_type = 'TimeSeries'
+                # print('Warning do not seam to be working ... hier a printout of the warning: %s'%txt)
 
         # also for older file types
         if not data_type:
             data_type = ni.getncattr('_ts_type')
+            print('pos3', data_type)
 
-
+    if verbose:
+        print('Type is %s.'%data_type)
     # test if type among known types
     if data_type in importable_types.keys():
         category = importable_types[data_type]['category']
