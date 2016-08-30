@@ -794,13 +794,17 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         if tst:
             tst.data.index  = tst.data.index - start_t
             tst.data.index += _np.datetime64('1900')
-            if type(tst).__name__ == 'TimeSeries':
+            # if type(tst).__name__ == 'TimeSeries':
+            if 'TimeSeries' in (tst.__class__.__bases__[0].__name__ , type(tst).__name__):
                 if twin_x:
                     # plt_out = tst.plot(ax=at, color=_plt_tools.color_cycle[col_no])
                     plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], **plot_kwargs)
                 else:
+                    # import pdb
+                    # pdb.set_trace()
                     plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
-            if type(tst).__name__ == 'TimeSeries_2D':
+            # elif type(tst).__name__ == 'TimeSeries_2D':
+            elif 'TimeSeries_2D' in (tst.__class__.__bases__[0].__name__, type(tst).__name__):
                 # if 'cb_kwargs' in plot_kwargs.keys():
                 #     cb_kwargs = plot_kwargs['cb_kwargs']
                 # else:
@@ -811,6 +815,9 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
                 #     cb_kwargs_t = False
                 plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], cb_kwargs = False, **plot_kwargs)
                 plt_out[2].set_clim(ylim)
+            else:
+                txt = 'Time series or parent of Time series must be of type "TimeSeries" or "TimeSeries_2D. It is %s and %s ,respectively.'%(tst.__class__.__bases__[0].__name__, type(tst).__name__)
+                raise TypeError(txt)
 
         if type(tst).__name__ == 'TimeSeries':
             if not twin_x:
@@ -1083,7 +1090,7 @@ class TimeSeries(object):
         ts._time_format = 'datetime'
         return ts
 
-    def average_time(self, window, std = False, envelope = False):
+    def average_time(self, window, std = False, envelope = False, verbose = False):
         """Massive change: time stamp at beginning! returns a copy of the sizedistribution_TS with reduced size by averaging over a given window.
         The difference to panda's resample is that it takes a time window instead of a point window.
 
@@ -1111,6 +1118,8 @@ class TimeSeries(object):
 
         ts._data_period = _np.timedelta64(window[0], window[1]) / _np.timedelta64(1, 's')
 
+        if window[1] == 'm':
+            window = (window[0],'min')
         resample = ts.data.resample(window,
                             label = 'left',
                             # loffset = toff,
