@@ -1,8 +1,13 @@
 import numpy as _np
 from scipy.optimize import fsolve as _fsolve
+from scipy.optimize import curve_fit as _curve_fit
 import pandas as _pd
 import atmPy.general.timeseries as _timeseries
 import warnings as _warnings
+
+
+
+
 
 def kappa_simple(k, RH, refractive_index = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
@@ -170,3 +175,158 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
     ts_kappa._data_period = f_of_RH_aligned._data_period
     ts_gf._y_label = 'growth factor$'
     return ts_kappa, ts_gf
+
+#########################
+##### f of RH
+
+def f_RH_kappa(RH, k, RH0 = 0):
+    f_RH = (1 + (k * (RH/(100 - RH)))) / (1 + (k * (RH0/(100 - RH0))))
+    return f_RH
+
+def f_RH_gamma(RH, g, RH0 = 0):
+    f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
+    return f_RH
+
+
+def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_period = 60, return_fits = False):
+    """
+    This function was originally written for ARM's AOS dry wet nephelometer proceedure. Programming will likely be needed to make it work for something else.
+    Parameters
+    ----------
+    scatt_dry:  TimeSeries
+    scatt_wet:  TimeSeries
+    RH_dry:     TimeSeries
+    RH_wet:     TimeSeries
+    data_period: int,float
+        measurement frequency. Might only be needed if return_fits = True ... double check
+    return_fits: bool
+        If the not just the fit results but also the corresponding curves are going to be returned
+
+    Returns
+    -------
+    pandas.DataFrame containing the fit results
+    pandas.DataFrame containing the fit curves (only if retun_fits == True)
+
+    """
+
+    # some modification to the kappa function so it can be used in the fit routine later
+    f_RH_kappa_RH0 = lambda RH0: (lambda RH, k: f_RH_kappa(RH, k, RH0))
+    f_RH_gamma_RH0 = lambda RH0: (lambda RH, g: f_RH_gamma(RH, g, RH0))
+    # crate the f(RH)/f(RH0)
+
+    #     scatt_dry = _timeseries._timeseries(_pd.DataFrame(scatt_dry))
+    #     scatt_dry._data_period = data_period
+    #     scatt_wet = _timeseries._timeseries(_pd.DataFrame(scatt_wet))
+    #     scatt_wet._data_period = data_period
+
+    f_RH = scatt_wet / scatt_dry
+    f_RH.data.columns = ['f_RH']
+    #     f_RH = _timeseries._timeseries(_pd.DataFrame(f_RH, columns=['f_RH']))
+    #     f_RH._data_period = data_period
+
+    # get start time for next RH-ramp (it always start a few minutes after the full hour)
+    start, end = f_RH.get_timespan()
+    start_section = _np.datetime64('{:d}-{:02d}-{:02d} {:02d}:00:00'.format(start.year, start.month, start.day, start.hour))
+
+    if (start.minute + start.second + start.microsecond) > 0:
+        start_section += _np.timedelta64(1, 'h')
+
+    # select one hour starting with time defined above. Also align/merge dry and wet RH to it
+    i = -1
+    fit_res_list = []
+    results = _pd.DataFrame(columns=['kappa',
+                                     'kappa_std',
+                                     'f_RH_85_kappa',
+                                     'f_RH_85_kappa_std',
+                                     #                                   'f_RH_85_kappa_errp',
+                                     #                                   'f_RH_85_kappa_errm',
+                                     'gamma',
+                                     'gamma_std',
+                                     'f_RH_85_gamma',
+                                     'f_RH_85_gamma_std',
+                                     'wet_neph_max',
+                                     'dry_neph_mean',
+                                     'dry_neph_std',
+                                     'wet_neph_min'])
+    while i < 30:
+        i += 1
+
+        # stop if section end is later than end of file
+        section_end = start_section + _np.timedelta64(i, 'h') + _np.timedelta64(45, 'm')
+        if (end - section_end) < _np.timedelta64(0, 's'):
+            break
+        section = f_RH.zoom_time(start_section + _np.timedelta64(i, 'h'), section_end)
+        df = section.data.copy().dropna()
+
+        #         section = section.merge(out.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'))
+        #         section = section.merge(out.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry')).data
+
+        section = section.merge(RH_wet)
+        section = section.merge(RH_dry).data
+
+        # this is needed to get the best parameterization
+        dry_neph_mean = section.RH_NephVol_Dry.mean()
+        dry_neph_std = section.RH_NephVol_Dry.std()
+        wet_neph_min = section.RH_NephVol_Wet.min()
+        wet_neph_max = section.RH_NephVol_Wet.max()
+        # clean up
+        section.dropna(inplace=True)
+
+        timestamps = section.index.copy()
+        section.index = section.RH_NephVol_Wet
+        section.drop('RH_NephVol_Wet', axis=1, inplace=True)
+        section.drop('RH_NephVol_Dry', axis=1, inplace=True)
+
+        # fitting!!
+        kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+        # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
+        gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+
+        frame_this = {'kappa': kappa[0],
+                      'kappa_std': _np.sqrt(k_varience[0]),
+                      'f_RH_85_kappa': f_RH_kappa(85, kappa[0]),
+                      'f_RH_85_kappa_std': - f_RH_kappa(85, kappa[0]) + f_RH_kappa(85, kappa[0] + _np.sqrt(k_varience[0])),
+                      #         'f_RH_85_kappa_errp': f_RH_kappa(85, kappa[0] + _np.sqrt(k_varience[0])),
+                      #         'f_RH_85_kappa_errm': f_RH_kappa(85, kappa[0] - _np.sqrt(k_varience[0])),
+                      'gamma': gamma[0],
+                      'gamma_std': _np.sqrt(varience[0]),
+                      'f_RH_85_gamma': f_RH_gamma(85, gamma[0]),
+                      'f_RH_85_gamma_std': - f_RH_gamma(85, gamma[0]) + f_RH_gamma(85, gamma[0] + _np.sqrt(varience[0])),
+                      'dry_neph_mean': dry_neph_mean,
+                      'dry_neph_std': dry_neph_std,
+                      'wet_neph_min': wet_neph_min,
+                      'wet_neph_max': wet_neph_max}
+
+        results.loc[start_section + _np.timedelta64(i, 'h')] = frame_this
+
+        if return_fits:
+            # plotting preparation
+            RH = section.index.values
+            #     RH = _np.linspace(0,100,20)
+            fit = f_RH_gamma_RH0(dry_neph_mean)(RH, gamma)
+            fit_std_p = f_RH_gamma_RH0(dry_neph_mean)(RH, gamma + _np.sqrt(varience))
+            fit_std_m = f_RH_gamma_RH0(dry_neph_mean)(RH, gamma - _np.sqrt(varience))
+
+            fit_k = f_RH_kappa_RH0(dry_neph_mean)(RH, kappa)
+            fit_k_std_p = f_RH_kappa_RH0(dry_neph_mean)(RH, kappa + _np.sqrt(k_varience))
+            fit_k_std_m = f_RH_kappa_RH0(dry_neph_mean)(RH, kappa - _np.sqrt(k_varience))
+
+            df['fit_gamma'] = _pd.Series(fit, index=df.index)
+            df['fit_gamma_stdp'] = _pd.Series(fit_std_p, index=df.index)
+            df['fit_gamma_stdm'] = _pd.Series(fit_std_m, index=df.index)
+
+            df['fit_kappa'] = _pd.Series(fit_k, index=df.index)
+            df['fit_kappa_stdp'] = _pd.Series(fit_k_std_p, index=df.index)
+            df['fit_kappa_stdm'] = _pd.Series(fit_k_std_m, index=df.index)
+            fit_res_list.append(df)
+
+    results = _timeseries.TimeSeries(results)
+    if return_fits:
+        fit_res = _pd.concat(fit_res_list).sort_index()
+        ts = _timeseries.TimeSeries(fit_res)
+        ts._data_period = data_period
+        fit_res = ts.close_gaps()
+        return results, fit_res
+    else:
+
+        return results

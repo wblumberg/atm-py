@@ -5,8 +5,9 @@ from atmPy.data_archives.arm._netCDF import ArmDataset as _ArmDataset
 import numpy as _np
 from atmPy.tools import decorators
 from atmPy.aerosols.physics import hygroscopic_growth as hygrow
+from atmPy.aerosols.physics import hygroscopic_growth
 
-import pdb as _pdb
+# import pdb as _pdb
 
 
 def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
@@ -93,6 +94,7 @@ class ArmDatasetSub(_ArmDataset):
         self.__sup_fofRH_which = None
         self.__sup_kappa_sizedist = None
         self.__sup_kappa_wavelength = None
+        self.__hygroscopicity = None
 
 
 
@@ -256,32 +258,44 @@ class ArmDatasetSub(_ArmDataset):
         self.__growthfactor = None
         self.__sup_kappa_sizedist = value
 
-    @property
-    def sup_fofRH_which(self):
-        return self.__sup_fofRH_which
-
-    @sup_fofRH_which.setter
-    def sup_fofRH_which(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_which = value
 
     @property
-    def sup_fofRH_RH_center(self):
-        return self.__sup_fofRH_RH_center
+    def hygroscopicity(self):
+        if not self.__hygroscopicity:
+            self.__hygroscopicity = hygroscopic_growth.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_10um_Neph3W_1'),
+                                                             self.scatt_coeff._del_all_columns_but('Bs_G_Wet_10um_Neph3W_2'),
+                                                             self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                             self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                             return_fits = False)
+        return self.__hygroscopicity
 
-    @sup_fofRH_RH_center.setter
-    def sup_fofRH_RH_center(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_RH_center = value
 
-    @property
-    def sup_fofRH_RH_tolerance(self):
-        return self.__sup_fofRH_RH_tolerance
-
-    @sup_fofRH_RH_tolerance.setter
-    def sup_fofRH_RH_tolerance(self, value):
-        self.__f_of_RH = None
-        self.__sup_fofRH_RH_tolerance = value
+    # @property
+    # def sup_fofRH_which(self):
+    #     return self.__sup_fofRH_which
+    #
+    # @sup_fofRH_which.setter
+    # def sup_fofRH_which(self, value):
+    #     self.__f_of_RH = None
+    #     self.__sup_fofRH_which = value
+    #
+    # @property
+    # def sup_fofRH_RH_center(self):
+    #     return self.__sup_fofRH_RH_center
+    #
+    # @sup_fofRH_RH_center.setter
+    # def sup_fofRH_RH_center(self, value):
+    #     self.__f_of_RH = None
+    #     self.__sup_fofRH_RH_center = value
+    #
+    # @property
+    # def sup_fofRH_RH_tolerance(self):
+    #     return self.__sup_fofRH_RH_tolerance
+    #
+    # @sup_fofRH_RH_tolerance.setter
+    # def sup_fofRH_RH_tolerance(self, value):
+    #     self.__f_of_RH = None
+    #     self.__sup_fofRH_RH_tolerance = value
 
 
 def _concat_rules(arm_data_objs):
