@@ -1374,6 +1374,12 @@ class TimeSeries_2D(TimeSeries):
             f.autofmt_xdate()
         return f, a, pc, cb
 
+    def _del_all_columns_but(self, keep, inplace = False):
+        deled = super()._del_all_columns_but(keep, inplace = inplace)
+        out = TimeSeries(deled.data)
+        out._data_period = deled._data_period
+        return out
+
 
 class TimeSeries_3D(TimeSeries):
     """

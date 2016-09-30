@@ -188,9 +188,18 @@ def f_RH_gamma(RH, g, RH0 = 0):
     return f_RH
 
 
-def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_period = 60, return_fits = False):
+def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_period = 60, return_fits = False, verbose = False):
     """
     This function was originally written for ARM's AOS dry wet nephelometer proceedure. Programming will likely be needed to make it work for something else.
+
+    Notes
+    -----
+    For each RH scan in the wet nephelometer an experimental f_RH curve is created by deviding
+    scatt_wet by scatt_dry. This curve is then fit by a gamma as well as a kappa parametrizaton.
+    Here the dry nephelometer is NOT considered as RH = 0 but its actuall RH (averaged over the
+    time of the scann) is considered. I was hoping that this will eliminated a correlation between
+    "the ratio" and the dry nephelometer's RH ... it didn't :-(
+
     Parameters
     ----------
     scatt_dry:  TimeSeries
@@ -226,10 +235,10 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
 
     # get start time for next RH-ramp (it always start a few minutes after the full hour)
     start, end = f_RH.get_timespan()
-    start_section = _np.datetime64('{:d}-{:02d}-{:02d} {:02d}:00:00'.format(start.year, start.month, start.day, start.hour))
+    start_first_section = _np.datetime64('{:d}-{:02d}-{:02d} {:02d}:00:00'.format(start.year, start.month, start.day, start.hour))
 
     if (start.minute + start.second + start.microsecond) > 0:
-        start_section += _np.timedelta64(1, 'h')
+        start_first_section += _np.timedelta64(1, 'h')
 
     # select one hour starting with time defined above. Also align/merge dry and wet RH to it
     i = -1
@@ -247,16 +256,38 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
                                      'wet_neph_max',
                                      'dry_neph_mean',
                                      'dry_neph_std',
-                                     'wet_neph_min'])
+                                     'wet_neph_min'], dtype = _np.float64)
     while i < 30:
         i += 1
-
         # stop if section end is later than end of file
-        section_end = start_section + _np.timedelta64(i, 'h') + _np.timedelta64(45, 'm')
+        section_start = start_first_section + _np.timedelta64(i, 'h')
+        section_end = start_first_section + _np.timedelta64(i, 'h') + _np.timedelta64(45, 'm')
+
         if (end - section_end) < _np.timedelta64(0, 's'):
             break
-        section = f_RH.zoom_time(start_section + _np.timedelta64(i, 'h'), section_end)
+
+        if verbose:
+            print('================')
+            print('start of section: ', section_start)
+            print('end of section: ', section_end)
+
+
+        try:
+            section = f_RH.zoom_time(section_start, section_end)
+        except IndexError:
+            if verbose:
+                print('section has no data in it!')
+            results.loc[section_start] = _np.nan
+            continue
+
+
+
         df = section.data.copy().dropna()
+        if df.shape[0] < 2:
+            if verbose:
+                print('no data in section.dropna()!')
+            results.loc[section_start] = _np.nan
+            continue
 
         #         section = section.merge(out.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'))
         #         section = section.merge(out.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry')).data
@@ -271,16 +302,27 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
         wet_neph_max = section.RH_NephVol_Wet.max()
         # clean up
         section.dropna(inplace=True)
-
+        section = section[section.f_RH != _np.inf]
+        section = section[section.f_RH != -_np.inf]
         timestamps = section.index.copy()
         section.index = section.RH_NephVol_Wet
         section.drop('RH_NephVol_Wet', axis=1, inplace=True)
         section.drop('RH_NephVol_Dry', axis=1, inplace=True)
 
         # fitting!!
-        kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
-        # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
-        gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+        if dry_neph_mean > wet_neph_max:
+            if verbose:
+                print('dry_neph_mean > wet_neph_max!!! something wrong with dry neph!!')
+            results.loc[section_start] = _np.nan
+            continue
+
+        try:
+            kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+            # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
+            gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+        except:
+            import pdb
+            pdb.set_trace()
 
         frame_this = {'kappa': kappa[0],
                       'kappa_std': _np.sqrt(k_varience[0]),
@@ -297,7 +339,7 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
                       'wet_neph_min': wet_neph_min,
                       'wet_neph_max': wet_neph_max}
 
-        results.loc[start_section + _np.timedelta64(i, 'h')] = frame_this
+        results.loc[section_start] = frame_this
 
         if return_fits:
             # plotting preparation
@@ -320,7 +362,11 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
             df['fit_kappa_stdm'] = _pd.Series(fit_k_std_m, index=df.index)
             fit_res_list.append(df)
 
+    if results.shape[0] == 0:
+        results.loc[start] = _np.nan
     results = _timeseries.TimeSeries(results)
+    results._data_period = 3600
+
     if return_fits:
         fit_res = _pd.concat(fit_res_list).sort_index()
         ts = _timeseries.TimeSeries(fit_res)

@@ -164,24 +164,25 @@ class ArmDatasetSub(_ArmDataset):
         self.scatt_coeff.plot()
         self.RH_nephelometer.plot()
 
-
-    @property
-    @decorators.change_doc(calculate_f_RH)
-    def f_of_RH(self):
-        """
-        Parameter names are changed to self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, and self.sup_fofRH_which
-        """
-        if not self.__f_of_RH:
-            if not self.sup_fofRH_RH_center or not self.sup_fofRH_RH_tolerance or not self.sup_fofRH_which:
-                txt = "Make sure you define the following attributes first: \nself.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which"
-                raise ValueError(txt)
-            self.__f_of_RH = calculate_f_RH(self,self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which)
-            self.__f_of_RH._data_period = self._data_period
-        return self.__f_of_RH
-
-    @f_of_RH.setter
-    def f_of_RH(self, value):
-        self.__f_of_RH = value
+    #########
+    ### OLD - use hygroscopicity
+    # @property
+    # @decorators.change_doc(calculate_f_RH)
+    # def f_of_RH(self):
+    #     """
+    #     Parameter names are changed to self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, and self.sup_fofRH_which
+    #     """
+    #     if not self.__f_of_RH:
+    #         if not self.sup_fofRH_RH_center or not self.sup_fofRH_RH_tolerance or not self.sup_fofRH_which:
+    #             txt = "Make sure you define the following attributes first: \nself.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which"
+    #             raise ValueError(txt)
+    #         self.__f_of_RH = calculate_f_RH(self,self.sup_fofRH_RH_center, self.sup_fofRH_RH_tolerance, self.sup_fofRH_which)
+    #         self.__f_of_RH._data_period = self._data_period
+    #     return self.__f_of_RH
+    #
+    # @f_of_RH.setter
+    # def f_of_RH(self, value):
+    #     self.__f_of_RH = value
 
 
     @property
@@ -260,13 +261,23 @@ class ArmDatasetSub(_ArmDataset):
 
 
     @property
-    def hygroscopicity(self):
+    def hygroscopicity_10um(self):
         if not self.__hygroscopicity:
             self.__hygroscopicity = hygroscopic_growth.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_10um_Neph3W_1'),
                                                              self.scatt_coeff._del_all_columns_but('Bs_G_Wet_10um_Neph3W_2'),
                                                              self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
                                                              self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
                                                              return_fits = False)
+        return self.__hygroscopicity
+
+    @property
+    def hygroscopicity_1um(self):
+        if not self.__hygroscopicity:
+            self.__hygroscopicity = hygroscopic_growth.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_1um_Neph3W_1'),
+                                                                                     self.scatt_coeff._del_all_columns_but('Bs_G_Wet_1um_Neph3W_2'),
+                                                                                     self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                     self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                     return_fits=False)
         return self.__hygroscopicity
 
 

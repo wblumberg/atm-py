@@ -93,7 +93,7 @@ def get_colorMap_intensity():
     hag_cmap  = LinearSegmentedColormap('hag_cmap',cdict)
     hag_cmap.set_bad('black')
     return hag_cmap
-    
+
 def get_colorMap_intensity_r():
     """ according to the colorweel intensity II"""
     color5 = [0.0, 4./255, 76./255]

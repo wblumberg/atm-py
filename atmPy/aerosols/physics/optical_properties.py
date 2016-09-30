@@ -14,7 +14,7 @@ import warnings as _warnings
 # Todo: Docstring is wrong
 # todo: This function can be sped up by breaking it apart. Then have OpticalProperties
 #       have properties that call the subfunction on demand
-def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
+def size_dist2optical_properties(sd, aod=False, noOfAngles=100):
     """
     !!!Tis Docstring need fixn
     Calculates the extinction crossection, AOD, phase function, and asymmetry Parameter for each layer.
@@ -36,6 +36,17 @@ def size_dist2optical_properties(sd, wavelength, n, aod=False, noOfAngles=100):
     OpticalProperty instance
 
     """
+
+    # if not _np.any(sd.index_of_refraction):
+    #     txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+    #     raise ValueError(txt)
+    # if not sd.sup_optical_properties_wavelength:
+    #     txt = 'Please provied wavelength by setting the attribute sup_optical_properties_wavelength (in nm).'
+    #     raise AttributeError(txt)
+
+    sd.optical_properties_settings.check()
+    wavelength = sd.optical_properties_settings.wavelength
+    n = sd.optical_properties_settings.refractive_index
     out = {}
     sdls = sd.convert2numberconcentration()
     index = sdls.data.index
@@ -242,10 +253,6 @@ class OpticalProperties(object):
 
         # self.asymmetry_param = data['asymmetry_param']
 
-        # self.angular_scatt_function = data['angular_scatt_func']
-
-        # self.bin_centers = data['bin_centers']
-
         self.__extinction_coeff_sum_along_d = None
         self.__scattering_coeff_sum_along_d = None
         self.__absorption_coeff_sum_along_d = None
@@ -294,11 +301,13 @@ class OpticalProperties(object):
             df['ext_coeff_m^1'] = data
             if self._parent_type == 'SizeDist_TS':
                 self.__extinction_coeff_sum_along_d = _timeseries.TimeSeries(df)
+                self.__extinction_coeff_sum_along_d._data_period = self._data_period
+            elif self._parent_type == 'SizeDist_LS':
+                self.__extinction_coeff_sum_along_d = _vertical_profile.VerticalProfile(df)
             elif self._parent_type == 'SizeDist':
                 self.__extinction_coeff_sum_along_d = df
             else:
                 raise TypeError('not possible for this distribution type')
-            self.__extinction_coeff_sum_along_d._data_period = self._data_period
         return self.__extinction_coeff_sum_along_d
 
     @extinction_coeff.setter
@@ -361,13 +370,13 @@ class OpticalProperties(object):
     @property
     def hemispheric_backscattering_ratio(self):
         if not self.__hemispheric_backscattering_ratio:
-            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.extinction_coeff
+            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.scattering_coeff
         return self.__hemispheric_backscattering_ratio
 
     @property
     def hemispheric_forwardscattering_ratio(self):
         if not self.hemispheric_forwardscattering_ratio:
-            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.extinction_coeff
+            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.scattering_coeff
         return self.__hemispheric_forwardscattering_ratio
 
     def convert_between_moments(self, moment, verbose = False):
@@ -432,14 +441,15 @@ class OpticalProperties_TS(OpticalProperties):
     def hemispheric_backscattering_ratio(self):
         """ratio between backscattering and overall scattering"""
         if not self.__hemispheric_backscattering_ratio:
-            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.extinction_coeff
+            # self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.extinction_coeff
+            self.__hemispheric_backscattering_ratio = self.hemispheric_backscattering / self.scattering_coeff
         return self.__hemispheric_backscattering_ratio
 
     @property
     def hemispheric_forwardscattering_ratio(self):
         """ratio between forwardscattering and over scattering"""
         if not self.__hemispheric_forwardscattering_ratio:
-            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.extinction_coeff
+            self.__hemispheric_forwardscattering_ratio = self.hemispheric_forwardscattering / self.scattering_coeff
         return self.__hemispheric_forwardscattering_ratio
 
 class OpticalProperties_VP(OpticalProperties):
@@ -447,6 +457,7 @@ class OpticalProperties_VP(OpticalProperties):
         super().__init__(*args, **kwargs)
         self.extinction_coeff_per_bin = _vertical_profile.VerticalProfile_2D(self.extinction_coeff_per_bin)
         self.aerosol_optical_depth_cumulative_VP = _vertical_profile.VerticalProfile(self.data_orig['AOD_cum'])
+        self.asymmetry_param_VP = _vertical_profile.VerticalProfile(self.data_orig['asymmetry_param'])
         self.aerosol_optical_depth_cumulative = self.data_orig['AOD']
 
 

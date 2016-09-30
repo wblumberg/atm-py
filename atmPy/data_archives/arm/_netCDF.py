@@ -5,15 +5,24 @@ from atmPy.general import timeseries as _timeseries
 from atmPy.tools import array_tools as _arry_tools
 from atmPy.aerosols.instruments.AMS import AMS as _AMS
 from atmPy.aerosols.size_distribution import sizedistribution as _sizedistribution
+import warnings as _warnings
 
 class ArmDataset(object):
-    def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None):
+    def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None, error_bad_file = True):
         # self._data_period = None
+        self._error_bad_file = error_bad_file
         if fname:
             self.netCDF = Dataset(fname)
             self.data_quality_flag_max = data_quality_flag_max
             self.data_quality = data_quality
-            self._parse_netCDF()
+            # import pdb
+            # pdb.set_trace()
+            if type(self.time_stamps).__name__ != 'OverflowError':
+                self._parsing_error = False
+                self._parse_netCDF()
+            else:
+                self._parsing_error = True
+
 
 
     def _concat(self, arm_data_objs, close_gaps = True):
@@ -54,7 +63,17 @@ class ArmDataset(object):
         else:
             bt = self.netCDF.variables['base_time']
             toff = self.netCDF.variables['time_offset']
-            self.__time_stamps = _pd.to_datetime(0) + _pd.to_timedelta(bt[:].flatten()[0], unit ='s') + _pd.to_timedelta(toff[:], unit ='s')
+            # import pdb
+            # pdb.set_trace()
+            try:
+                self.__time_stamps = _pd.to_datetime(0) + _pd.to_timedelta(bt[:].flatten()[0], unit ='s') + _pd.to_timedelta(toff[:], unit ='s')
+            except OverflowError as e:
+                txt = str(e) + ' This probably means the netcdf file is badly shaped.'
+                if self._error_bad_file:
+                    raise OverflowError(txt + ' Consider setting the kwarg error_bad_file to False.')
+                else:
+                    _warnings.warn(txt)
+                return e
             self.__time_stamps.name = 'Time'
             # self._time_offset = (60, 'm')
             if self._time_offset:

@@ -90,6 +90,7 @@ def read_cdf(fname,
              ignore_unknown = False,
              leave_cdf_open = False,
              verbose = False,
+             error_bad_file = True,
              ):
     """
     Reads ARM NetCDF file(s) and returns a containers with the results.
@@ -162,13 +163,23 @@ def read_cdf(fname,
             products[product_id] = []
 
 
-        arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f, data_quality = data_quality, data_quality_flag_max = data_quality_flag_max)
+        arm_file_object = arm_products[product_id]['module'].ArmDatasetSub(f,
+                                                                           data_quality = data_quality,
+                                                                           data_quality_flag_max = data_quality_flag_max,
+                                                                           error_bad_file = error_bad_file)
 
         if not leave_cdf_open:
             arm_file_object._close()
 
-        products[product_id].append(arm_file_object)
+        # if there was an error in reading the time stamp, the file will be discarded
+        # import pdb
+        # pdb.set_trace()
+
         no_valid += 1
+        if arm_file_object._parsing_error:
+            continue
+
+        products[product_id].append(arm_file_object)
 
     if len(fname) == 1:
         if not no_valid:

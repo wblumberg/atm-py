@@ -98,7 +98,6 @@ def read_hdf(f_name, keep_open = False, populate_namespace = False):
     content = hdf.keys()
     out = []
     for i in content:
-#         print(i)
         storer = hdf.get_storer(i)
         attrs = storer.attrs.atmPy_attrs
         if not attrs:
@@ -152,6 +151,50 @@ def get_label(distType):
         raise ValueError('%s is not really an option!?!' % distType)
     return label
 
+
+settings = {'wavelength':       _np.nan,
+            'refractive_index': _np.nan}
+
+
+class _SettingOpticalProperty(object):
+    def check(self, raise_error = True):
+        dependence = ['wavelength', 'refractive_index']
+        passed = True
+        for dep in dependence:
+            if not _np.all(~_np.isnan(settings[dep])):
+                if raise_error:
+                    txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(dep)
+                    raise ValueError(txt)
+                else:
+                    passed = False
+        return passed
+
+    @property
+    def refractive_index(self):
+        return settings['refractive_index']
+
+    @refractive_index.setter
+    def refractive_index(self, value):
+        settings['refractive_index'] = value
+
+    @property
+    def wavelength(self):
+        return settings['wavelength']
+
+    @wavelength.setter
+    def wavelength(self, value):
+        settings['wavelength'] = value
+
+
+class _SettingHygroscopicGrowth(object):
+    @property
+    def refractive_index(self):
+        return settings['refractive_index']
+
+    @refractive_index.setter
+    def refractive_index(self, value):
+        settings['refractive_index'] = value
+
 class SizeDist(object):
     """
     Object defining a log normal aerosol size distribution
@@ -193,6 +236,9 @@ class SizeDist(object):
             self.data = pd.DataFrame()
         else:
             self.data = data
+
+        self.optical_properties_settings = _SettingOpticalProperty()
+        self.hygroscopic_growth_settings = _SettingHygroscopicGrowth()
 
         self.bins = bins
         self.__index_of_refraction = None
@@ -248,19 +294,7 @@ class SizeDist(object):
     @property
     def optical_properties(self):
         if not self.__optical_properties:
-            if not _np.any(self.index_of_refraction):
-                txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
-                raise ValueError(txt)
-            if not self.sup_optical_properties_wavelength:
-                txt = 'Please provied wavelength by setting the attribute sup_optical_properties_wavelength (in nm).'
-                raise AttributeError(txt)
-            self.__optical_properties = optical_properties.size_dist2optical_properties(self, self.sup_optical_properties_wavelength,
-                                                                                        self.index_of_refraction, aod = self.__sup_opt_aod, noOfAngles=100)
-            # opt_properties = optical_properties.OpticalProperties(out, parent = self)
-            # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
-            # opt_properties.index_of_refractio = n
-            #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
-            # opt_properties.parent_dist = self
+            self.__optical_properties = optical_properties.size_dist2optical_properties(self, aod = self.__sup_opt_aod, noOfAngles=100)
         return self.__optical_properties
 
     @property
@@ -409,7 +443,8 @@ sizedistribution.align to align the index of the new array."""
             'shift_data'
         """
 
-        if type(self.index_of_refraction).__name__ == 'NoneType':
+        # if type(self.index_of_refraction).__name__ == 'NoneType':
+        if _np.isnan(self.hygroscopic_growth_settings.refractive_index):
             txt = '''The index_of_refraction attribute of this sizedistribution has not been set yet, please do so first!'''
             raise ValueError(txt)
 
@@ -417,61 +452,39 @@ sizedistribution.align to align the index of the new array."""
         # out_I = {}
         dist_g = self.convert2numberconcentration()
 
+        if type(kappa).__name__ == 'TimeSeries':
+            kappa = kappa.data.iloc[:, 0].values
+        # gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
+        gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.hygroscopic_growth_settings.refractive_index)
 
-        gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
 
         if how == 'shift_bins':
             if not isinstance(gf, (float,int)):
                 txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
                 It is %s'''%(type(RH).__name__)
                 raise TypeError(txt)
-        # return gf
-        # import pdb
-        # pdb.set_trace()
-        # gf = pd.
-        # print(type(self))
         if type(self).__name__ == 'SizeDist_LS':
             gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
+
+        elif type(self).__name__ == 'SizeDist_TS':
+            gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
+            gf._data_period = self._data_period
         dist_g = dist_g.apply_growth(gf, how = how)
 
-        # out_I['growth_factor'] = gf
         if how == 'shift_bins':
             dist_g.__index_of_refraction = n_mix
         elif how == 'shift_data':
-        #     test = dist_g._hygro_growht_shift_data(dist_g.data.values[0],dist_g.bins,gf.max())
-        #     bin_num = test['data'].shape[0]
-        #     data_new = _np.zeros((dist_g.data.shape[0],bin_num))
-        #     for e,i in enumerate(dist_g.data.values):
-        #         out = dist_g._hygro_growht_shift_data(i,dist_g.bins,gf[e])
-        #         dt = out['data']
-        #         diff = bin_num - dt.shape[0]
-        #         dt = _np.append(dt, _np.zeros(diff))
-        #         data_new[e] = dt
-        #     df = pd.DataFrame(data_new)
-        #     df.index = dist_g.data.index
-        #     # return df
-        #     dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-        #     import pdb
-        #     pdb.set_trace()
             if adjust_refractive_index:
-                # print('n_mix.shape', n_mix.shape)
                 df = pd.DataFrame(n_mix)
                 df.columns = ['index_of_refraction']
-                # print('df.shape', df.shape)
-                # import pdb
-                # pdb.set_trace()
                 df.index = dist_g.data.index
-                dist_g.index_of_refraction = df
+                dist_g.hygroscopic_growth_settings.refractive_index = df
             else:
-                dist_g.index_of_refraction = self.index_of_refraction
-
-        # else:
-        #     txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
-        #     raise ValueError(txt)
+                dist_g.hygroscopic_growth_settings.refractive_index = self.hygroscopic_growth_settings.refractive_index
 
         dist_g.__growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
-        # out_I['size_distribution'] = dist_g
         return dist_g
+
 
     def apply_growth(self, growth_factor, how ='auto'):
         """Note this does not adjust the refractive index according to the dilution!!!!!!!"""
@@ -480,9 +493,7 @@ sizedistribution.align to align the index of the new array."""
                 how = 'shift_bins'
             else:
                 how = 'shift_data'
-
         dist_g = self.convert2numberconcentration()
-
         if how == 'shift_bins':
             if not isinstance(growth_factor, (float, int)):
                 txt = '''If how is equal to 'shift_bins' the growth factor has to be of type int or float.
@@ -528,10 +539,11 @@ sizedistribution.align to align the index of the new array."""
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
 
+            # if type(dist_g)
             dist_g = SizeDist(df, test['bins'], dist_g.distributionType)
-            if type(growth_factor).__name__ == 'TimeSeries':
-                dp = dist_g._data_period
-                dist_g._data_period = dp
+            # if type(growth_factor).__name__ == 'TimeSeries':
+            #     dp = dist_g._data_period
+            #     dist_g._data_period = dp
 
         else:
             txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
@@ -1546,6 +1558,7 @@ class SizeDist_TS(SizeDist):
         # pdb.set_trace()
         return self.__particle_number_mixing_ratio
 
+
 class SizeDist_LS(SizeDist):
     """
     Parameters
@@ -1818,9 +1831,10 @@ class SizeDist_LS(SizeDist):
     #     opt_properties.parent_dist_LS = self
     #     return opt_properties
 
-    def calculate_optical_properties(self, wavelength, n = None, AOD = True, noOfAngles=100):
-        opt = super(SizeDist_LS,self).calculate_optical_properties(wavelength, n = None, AOD = True, noOfAngles=100)
-        return opt
+    # def calculate_optical_properties(self, wavelength, n = None, AOD = True, noOfAngles=100):
+    #     opt = super(SizeDist_LS,self).calculate_optical_properties(wavelength, n = None, AOD = True, noOfAngles=100)
+    #     return opt
+
 
     def add_layer(self, sd, layerboundery):
         """
@@ -2213,6 +2227,8 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
     for e, i in enumerate(rng):
         sdtmp = simulate_sizedistribution(diameter=diameter,
                                           numberOfDiameters=numberOfDiameters,
+                                          widthOfAerosolMode= widthOfAerosolMode,
+                                          numberOfParticsInMode = numberOfParticsInMode,
                                           centerOfAerosolMode=centerOfAerosolMode + (ampOfOsz * _np.sin(oszi[e])))
         sdArray[e] = sdtmp.data
     sdts = pd.DataFrame(sdArray, index=rng, columns=sdtmp.data.columns)
