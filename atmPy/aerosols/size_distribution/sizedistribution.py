@@ -18,6 +18,7 @@ from atmPy.tools import pandas_tools
 from atmPy.aerosols.physics import optical_properties
 from atmPy.aerosols.size_distribution import sizedist_moment_conversion
 from atmPy.gases import physics as _gas_physics
+from atmPy import atmosphere
 
 import pdb as _pdb
 
@@ -152,16 +153,114 @@ def get_label(distType):
     return label
 
 
-settings = {'wavelength':       _np.nan,
-            'refractive_index': _np.nan}
+settings = {'wavelength':       {'value': 550,
+                                 'default': 550.,
+                                 'unit': 'nm'},
+            'refractive_index': {'value': 1.5,
+                                 'default': 1.5,},
+            'particle_density': {'value': 1.8,
+                                 'default': 1.8,
+                                 'unit': 'g/cc',
+                                 'doc': ('Suggested values:\n'
+                                         '\tTroposphere: 1.8 g/cc \n'
+                                         '\tStratosphere: 2 g/cc')},
+            'normalize': {'value': 'None',
+                         'default':'None',
+                         'unit': 'no unit',
+                         'options': ['None', 'STP', 'ambient']},
+            }
 
+
+class _Parameter(object):
+    def __init__(self, parent, what):
+        self._parent = parent
+        self._what = what
+        self._dict = self._parent._parent._settings[what]
+
+        if 'doc' in self._dict.keys():
+            self.__doc__ = self._dict['doc']
+
+    def info(self):
+        if 'doc' in self._dict.keys():
+            out = self._dict['doc']
+        else:
+            out = None
+        return out
+
+    def __repr__(self):
+        return str(self._dict['value'])
+
+    def __bool__(self):
+        return self._dict['value'].__bool__()
+
+    def __len__(self):
+        return self._dict['value'].__len__()
+
+    def reset2default(self):
+        self._dict['value'] = self._dict['default']
+
+
+    def _set_value(self, value):
+        if 'options' in self._dict.keys():
+            if value not in self._dict['options']:
+                txt = '{} is not an option for parameter {}. Choose one from {}'.format(value, self.what, self._dict['options'])
+                raise ValueError(txt)
+
+    ###############
+
+    def __add__(self, other):
+        return self._dict['value'] + other
+
+    def __radd__(self, other):
+        return self._dict['value'] + other
+
+    def __sub__(self, other):
+        return self._dict['value'] - other
+
+    def __rsub__(self, other):
+        return other - self._dict['value']
+
+    def __mul__(self, other):
+        return self._dict['value'] * other
+
+    def __rmul__(self, other):
+        return self._dict['value'] * other
+
+    def __truediv__(self, other):
+        return self._dict['value'] / other
+
+    def __rtruediv__(self, other):
+        return other / self._dict['value']
+
+    ###############
+    def copy(self):
+        return deepcopy(self)
+
+    @property
+    def default_value(self):
+        return self._dict['value_default']
+
+    @property
+    def description(self):
+        return self._dict['description']
 
 class _SettingOpticalProperty(object):
-    def check(self, raise_error = True):
+    def __init__(self, parent):
+        self._parent = parent
+        self._reset()
+
+    def __repr__(self):
+        out = _all_attributes2string(self)
+        return out
+
+    def _reset(self):
+        self._parent.optical_properties = None
+
+    def _check(self, raise_error = True):
         dependence = ['wavelength', 'refractive_index']
         passed = True
         for dep in dependence:
-            if not _np.all(~_np.isnan(settings[dep])):
+            if not _np.all(~_np.isnan(self._parent._settings[dep]['value'])):
                 if raise_error:
                     txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(dep)
                     raise ValueError(txt)
@@ -169,31 +268,110 @@ class _SettingOpticalProperty(object):
                     passed = False
         return passed
 
+    # @property
+    # def refractive_index(self):
+    #     return settings['refractive_index']
+    #
+    # @refractive_index.setter
+    # def refractive_index(self, value):
+    #     settings['refractive_index'] = value
+
     @property
     def refractive_index(self):
-        return settings['refractive_index']
+        return _Parameter(self, 'refractive_index')
 
     @refractive_index.setter
-    def refractive_index(self, value):
-        settings['refractive_index'] = value
+    def refractive_index(self, n):
+        if type(n).__name__ in ('int','float'):
+            pass
+        elif type(n).__name__  in ('TimeSeries'):
+            if not _np.array_equal(self._parent.data.index, n.data.index):
+                n = n.align_to(self)
+            n = n.data
+
+        if type(n).__name__ in ('DataFrame', 'ndarray'):
+            if n.shape[0] != self.data.shape[0]:
+                txt = """\
+Length of new array has to be the same as that of the size distribution. Use
+sizedistribution.align to align the new array to the appropriate length"""
+                raise ValueError(txt)
+
+            if not _np.array_equal(self.data.index, n.index):
+                txt = """\
+The index of the new DataFrame has to the same as that of the size distribution. Use
+sizedistribution.align to align the index of the new array."""
+                raise ValueError(txt)
+
+        self._reset()
+        self._parent._settings['refractive_index']['value'] = n
 
     @property
     def wavelength(self):
-        return settings['wavelength']
+        # return settings['wavelength']
+        return _Parameter(self, 'wavelength')
 
     @wavelength.setter
     def wavelength(self, value):
-        settings['wavelength'] = value
+        self._reset()
+        self._parent._settings['wavelength']['value'] = value
 
 
 class _SettingHygroscopicGrowth(object):
     @property
     def refractive_index(self):
-        return settings['refractive_index']
+        return _Parameter(self, 'refractive_index')
 
     @refractive_index.setter
     def refractive_index(self, value):
-        settings['refractive_index'] = value
+        self._parent._settings['refractive_index'] = value
+
+def _all_attributes2string(obj):
+    att_list = []
+    max_len = 0
+    for i in dir(obj):
+        if i[0] == '_':
+            continue
+        if len(i) > max_len:
+            max_len = len(i)
+
+    for i in dir(obj):
+        if i[0] == '_':
+            continue
+        att_list.append('{i:<{max_len}}:  {value}'.format(i=i, max_len=max_len + 1, value=getattr(obj, i)))
+    out = '\n'.join(att_list)
+    return out
+
+class _Properties(object):
+    def __init__(self, parent):
+        self._parent = parent
+
+    def __repr__(self):
+        out = _all_attributes2string(self)
+        return out
+
+    @property
+    def particle_density(self):
+        return _Parameter(self, 'particle_density')
+
+    @particle_density.setter
+    def particle_density(self, value):
+        """if type timeseries or vertical profile alignment is taken care of"""
+        if type(value).__name__ in ['TimeSeries','VerticalProfile']:
+            if not _np.array_equal(self._parent.data.index.values, value.data.index.values):
+                value = value.align_to(self)
+        elif type(value).__name__ not in ['int', 'float']:
+            raise ValueError('%s is not an excepted type'%(type(value).__name__))
+
+        self._parent._uptodate_particle_mass_concentration = False
+        self._parent._settings['particle_density']['value'] = value
+
+    # @property
+    # def normalize(self):
+    #     return _Parameter('normalize')
+    #
+    # @normalize.setter
+    # def normalize(self, value):
+    #     settings['normalize'] = value
 
 class SizeDist(object):
     """
@@ -237,8 +415,12 @@ class SizeDist(object):
         else:
             self.data = data
 
-        self.optical_properties_settings = _SettingOpticalProperty()
+        self._settings = settings.copy()
+        self.__optical_properties = None
+
+        self.optical_properties_settings = _SettingOpticalProperty(self)
         self.hygroscopic_growth_settings = _SettingHygroscopicGrowth()
+        self.properties = _Properties(self)
 
         self.bins = bins
         self.__index_of_refraction = None
@@ -255,11 +437,11 @@ class SizeDist(object):
         #     self.bincenters = (bins[1:] + bins[:-1]) / 2.
         # self.binwidth = (bins[1:] - bins[:-1])
         self.distributionType = distType
-        self.__optical_properties = None
         self._sup_opt_wl = None
         self.__sup_opt_aod = False
         self.particle_number_concentration_outside_range = None
         self._update()
+        self._is_reduced_to_pt = False
 
         if fixGaps:
             self.fillGaps()
@@ -297,20 +479,24 @@ class SizeDist(object):
             self.__optical_properties = optical_properties.size_dist2optical_properties(self, aod = self.__sup_opt_aod, noOfAngles=100)
         return self.__optical_properties
 
-    @property
-    def physical_property_density(self):
-        """setter: if type _timeseries or vertical profile alignment is taken care of"""
-        return self.__physical_property_density
+    @optical_properties.setter
+    def optical_properties(self, value):
+        self.__optical_properties = value
 
-    @physical_property_density.setter
-    def physical_property_density(self, value):
-        """if type timeseries or vertical profile alignment is taken care of"""
-        if type(value).__name__ in ['TimeSeries','VerticalProfile']:
-            if not _np.array_equal(self.data.index.values, value.data.index.values):
-                value = value.align_to(self)
-        elif type(value).__name__ not in ['int', 'float']:
-            raise ValueError('%s is not an excepted type'%(type(value).__name__))
-        self.__physical_property_density = value
+    # @property
+    # def physical_property_density(self):
+    #     """setter: if type _timeseries or vertical profile alignment is taken care of"""
+    #     return self.__physical_property_density
+    #
+    # @physical_property_density.setter
+    # def physical_property_density(self, value):
+    #     """if type timeseries or vertical profile alignment is taken care of"""
+    #     if type(value).__name__ in ['TimeSeries','VerticalProfile']:
+    #         if not _np.array_equal(self.data.index.values, value.data.index.values):
+    #             value = value.align_to(self)
+    #     elif type(value).__name__ not in ['int', 'float']:
+    #         raise ValueError('%s is not an excepted type'%(type(value).__name__))
+    #     self.__physical_property_density = value
 
     @property
     def housekeeping(self):
@@ -358,37 +544,37 @@ class SizeDist(object):
         self.__optical_properties = None
         self._sup_opt_wl = data
 
-    @property
-    def index_of_refraction(self):
-        """In case of setting the value and value is TimeSeries it will be aligned to the time series of the
-        size distribution.
-        """
-        return self.__index_of_refraction
-
-    @index_of_refraction.setter
-    def index_of_refraction(self,n):
-        self.__optical_properties = None
-        if type(n).__name__ in ('int','float'):
-            pass
-        elif type(n).__name__  in ('TimeSeries'):
-            if not _np.array_equal(self.data.index, n.data.index):
-                n = n.align_to(self)
-            n = n.data
-
-        if type(n).__name__ in ('DataFrame', 'ndarray'):
-            if n.shape[0] != self.data.shape[0]:
-                txt = """\
-Length of new array has to be the same as that of the size distribution. Use
-sizedistribution.align to align the new array to the appropriate length"""
-                raise ValueError(txt)
-
-            if not _np.array_equal(self.data.index, n.index):
-                txt = """\
-The index of the new DataFrame has to the same as that of the size distribution. Use
-sizedistribution.align to align the index of the new array."""
-                raise ValueError(txt)
-
-        self.__index_of_refraction = n
+#     @property
+#     def index_of_refraction(self):
+#         """In case of setting the value and value is TimeSeries it will be aligned to the time series of the
+#         size distribution.
+#         """
+#         return self.__index_of_refraction
+#
+#     @index_of_refraction.setter
+#     def index_of_refraction(self,n):
+#         self.__optical_properties = None
+#         if type(n).__name__ in ('int','float'):
+#             pass
+#         elif type(n).__name__  in ('TimeSeries'):
+#             if not _np.array_equal(self.data.index, n.data.index):
+#                 n = n.align_to(self)
+#             n = n.data
+#
+#         if type(n).__name__ in ('DataFrame', 'ndarray'):
+#             if n.shape[0] != self.data.shape[0]:
+#                 txt = """\
+# Length of new array has to be the same as that of the size distribution. Use
+# sizedistribution.align to align the new array to the appropriate length"""
+#                 raise ValueError(txt)
+#
+#             if not _np.array_equal(self.data.index, n.index):
+#                 txt = """\
+# The index of the new DataFrame has to the same as that of the size distribution. Use
+# sizedistribution.align to align the index of the new array."""
+#                 raise ValueError(txt)
+#
+#         self.__index_of_refraction = n
         # elif self.__index_of_refraction:
         #     txt = """Security stop. This is to prevent you from unintentionally changing this value.
         #     The index of refraction is already set to %.2f, either by you or by another function, e.g. apply_hygro_growth.
@@ -412,6 +598,7 @@ sizedistribution.align to align the index of the new array."""
             self._uptodate_particle_mass_concentration = True
         return self.__particle_mass_concentration
 
+
     @property
     def particle_mass_mixing_ratio(self):
         raise AttributeError('sorry does not exist for a single size distribution')
@@ -433,6 +620,51 @@ sizedistribution.align to align the index of the new array."""
             self.__particle_surface_concentration = self._get_surface_concentration()
             self._uptodate_particle_surface_concentration = True
         return self.__particle_surface_concentration
+
+    def reduce2temp_press_ambient(self, tmp_is = 'auto', tmp_is_column = 'Temperature_instrument', press_is_column = 'Pressure_Pa'):
+        """tmp in C
+        press in hPa"""
+        dist = self.copy()
+        if dist._is_reduced_to_pt:
+            raise TypeError('Already is reduced to ambient conditions')
+        data = dist.data
+        press_is = dist.housekeeping.data[press_is_column]
+        if tmp_is == 'auto':
+            tmp_is = dist.housekeeping.data[tmp_is_column] + 273.15
+        else:
+            tmp_is+=273.15
+
+        press_shall = dist.housekeeping.data['Pressure_Pa']
+        tmp_shall = dist.housekeeping.data['Temperature'] + 273.15
+
+        newdata = data.mul(tmp_is, axis=0).truediv(press_is, axis=0).truediv(tmp_shall, axis=0).mul(press_shall, axis=0)
+        dist.data = newdata
+        dist._update()
+        dist._is_reduced_to_pt = True
+        return dist
+
+    def reduce2temp_press_standard(self, tmp_is = 'auto', tmp_is_column = 'Temperature_instrument', press_is_column = 'Pressure_Pa'):
+        """tmp in C
+        press in hPa"""
+        dist = self.copy()
+        if dist._is_reduced_to_pt:
+            raise TypeError('Already is reduced to ambient conditions')
+        data = dist.data
+        press_is = dist.housekeeping.data[press_is_column]
+
+        if tmp_is == 'auto':
+            tmp_is = dist.housekeeping.data[tmp_is_column] + 273.15
+        else:
+            tmp_is+=273.15
+
+        press_shall = 1000
+        tmp_shall = 273.15
+
+        newdata = data.mul(tmp_is, axis=0).truediv(press_is, axis=0).truediv(tmp_shall, axis=0).mul(press_shall, axis=0)
+        dist.data = newdata
+        dist._update()
+        dist._is_reduced_to_pt = True
+        return dist
 
     def apply_hygro_growth(self, kappa, RH, how = 'shift_bins', adjust_refractive_index = True):
         """Note kappa values are !!NOT!! aligned to self in case its timesersies
@@ -832,23 +1064,28 @@ sizedistribution.align to align the index of the new array."""
 
         vlc_all = volume_conc.sum(axis = 1) # nm^3/cm^3
 
-        if not self.physical_property_density:
+        if not self.properties.particle_density:
             raise ValueError('Please set the physical_property_density variable in g/cm^3')
 
-
-
-        if type(self.physical_property_density).__name__ in ['TimeSeries', 'VerticalProfile']:
-            # density = self.physical_property_density.data.values
-            density = self.physical_property_density.copy()
+        if type(self.properties.particle_density._dict['value']).__name__ in ['TimeSeries', 'VerticalProfile']:
+            density = self.properties.particle_density._dict['value'].copy()
             density = density.data['density']
         else:
-            density = self.physical_property_density #1.8 # g/cm^3
+            density = self.properties.particle_density
+            # density = self.physical_property_density #1.8 # g/cm^3
 
         density *= 1e-21 # g/nm^3
         mass_conc = vlc_all * density # g/cm^3
         mass_conc *= 1e6 # g/m^3
         mass_conc *= 1e6 # mug/m^3
+
+        # mass_conc = self._normalize2temp_and_pressure(mass_conc)
         return mass_conc
+
+    # def _normalize2temp_and_pressure(self, data):
+    #     if
+    #     data = atmosphere.normalize2pressure_and_temperature(data,P_is, P_shall, T_is, T_shall)
+    #     return data
 
     def _get_mass_mixing_ratio(self):
         if not _panda_tools.ensure_column_exists(self.housekeeping.data, 'air_density_$g/m^3$', raise_error=False):
@@ -1055,6 +1292,7 @@ sizedistribution.align to align the index of the new array."""
         """
         Resets properties so they are recalculated. This is usually necessary once you perform an operation on data.
         """
+        self.optical_properties = None
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
@@ -1602,13 +1840,12 @@ class SizeDist_LS(SizeDist):
         self._SizeDist__sup_opt_aod = True
         self._update()
 
+    # todo: I have the impression this is redundant. I think the reason I introduced this, was that I did not understand how inheritance of properties work .. uuuuh what a mess :-)
     def _update(self):
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_mass_mixing_ratio = False
         self._uptodate_particle_number_mixing_ratio = False
-
-
 
     @property
     def housekeeping(self):
