@@ -74,15 +74,14 @@ class VerticalProfile(object):
     def merge(self, ts):
         return merge(self,ts)
 
-    def plot(self, ax=False, color=None):
+    def plot(self, ax=False, **kwargs):
         if not ax:
             f, a = _plt.subplots()
         else:
             a = ax
 
         for e,k in enumerate(self.data.keys()):
-            color = _plt_tools.color_cycle[e]
-            a.plot(self.data[k].values, self.data.index, color=color, linewidth=2, label = k)
+            a.plot(self.data[k].values, self.data.index, label = k, **kwargs)
 
         if len(self.data.keys()) > 1:
             a.legend(loc = 'best')
