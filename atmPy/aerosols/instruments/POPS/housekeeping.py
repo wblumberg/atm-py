@@ -8,7 +8,8 @@ import pandas as pd
 # import os
 # import pylab as plt
 # from atmPy.tools import conversion_tools as ct
-from atmPy.general import atmosphere_standards as atm_std, timeseries
+from atmPy.general import timeseries
+from atmPy.atmosphere import standards as atm_std
 
 
 def _read_housekeeping(fname):
