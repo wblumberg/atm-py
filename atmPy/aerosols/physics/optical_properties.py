@@ -44,7 +44,7 @@ def size_dist2optical_properties(sd, aod=False, noOfAngles=100):
     #     txt = 'Please provied wavelength by setting the attribute sup_optical_properties_wavelength (in nm).'
     #     raise AttributeError(txt)
 
-    sd.optical_properties_settings.check()
+    sd.optical_properties_settings._check()
     wavelength = sd.optical_properties_settings.wavelength
     n = sd.optical_properties_settings.refractive_index
     out = {}
