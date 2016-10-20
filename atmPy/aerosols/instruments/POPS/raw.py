@@ -8,7 +8,7 @@ import os
 from struct import unpack, calcsize
 import numpy as np
 
-def load_raw(fname):
+def read(fname):
     ''' load a raw_file and returns a numpy array. 
     Note, these files have no x axes. The axes depends on the sampling rate of the particular POPS daughter board.
     Usually this is 4 MHz, however, better check!'''
