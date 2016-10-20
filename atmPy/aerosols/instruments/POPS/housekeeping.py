@@ -5,16 +5,17 @@
 import datetime
 
 import pandas as pd
-# import os
+import os
 # import pylab as plt
 # from atmPy.tools import conversion_tools as ct
 from atmPy.general import timeseries
 from atmPy.atmosphere import standards as atm_std
 
 
-def _read_housekeeping(fname):
+def _read_housekeeping(fname, verbose = False):
     """Reads housekeeping file (test_data_folder; csv-format) returns a pandas data frame instance."""
-    print('reading %s'%fname)
+    if verbose:
+        print('reading %s'%fname)
     try:
         df = pd.read_csv(fname, error_bad_lines=False)
     except ValueError:
@@ -40,6 +41,7 @@ def read_csv(fname, verbose = False):
     Parameters
     ----------
     fname: string or list of strings.
+        This can either be a file name, a list of filenames or a folder.
 
     Returns
     -------
@@ -51,6 +53,9 @@ def read_csv(fname, verbose = False):
     houseKeeping_file_endings = ['HK.csv', 'HK.txt']
 
     first = True
+
+    if os.path.isdir(fname):
+        fname = os.listdir(fname)
 
     if type(fname).__name__ == 'list':
         for file in fname:
