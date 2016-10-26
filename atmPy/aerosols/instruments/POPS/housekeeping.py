@@ -36,7 +36,9 @@ def _read_housekeeping(fname, verbose = False):
     return POPSHouseKeeping(df)
 
 
-def read_csv(fname, verbose = False):
+def read_csv(fname,
+             ignore_colums = ['Flow_Rate_ccps', 'LED_P_MON', 'AI_4', 'AI_5', 'AI_7', 'AI_8', 'AI_9', 'AI_10', 'AI_11', 'LED_P_Mon_Therm', 'AO_Flow', 'AO_LaserPower', 'No_Pts', 'ValidParts', 'writeTime', 'currMax'],
+             verbose = False):
     """
     Parameters
     ----------
@@ -93,6 +95,8 @@ the required ending (*HK.csv)"""
         hk.data.drop('P_Baro', 1, inplace=True)
         # hk.data['Altitude'] = ct.p2h(hk.data.barometric_pressure)
 
+    if ignore_colums:
+        hk.data = hk.data.drop(ignore_colums, axis=1)
     return hk
 
 
