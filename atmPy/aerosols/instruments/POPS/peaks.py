@@ -25,6 +25,8 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0):
     directory, filename = os.path.split(fname)
     if version == 'current':
         data = _binary2array_labview_clusters(fname)
+        if not np.any(data):
+            return False
         dataFrame = _PeakFileArray2dataFrame(data,filename, time_shift, log = False, since_midnight = False)
     elif version == '01':
         data = _BinaryFile2Array(fname)
@@ -37,7 +39,7 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0):
     return peakInstance
 
 
-def read_binary(fname, time_shift = False ,version = 'current'):
+def read_binary(fname, time_shift = False ,version = 'current', ignore_error = False):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
@@ -52,6 +54,11 @@ def read_binary(fname, time_shift = False ,version = 'current'):
     """
 
     m = None
+
+    if type(fname) == str:
+        if os.path.isdir(fname):
+            fname = os.listdir(fname)
+
     if type(fname).__name__ == 'list':
         first = True
         for file in fname:
@@ -60,6 +67,17 @@ def read_binary(fname, time_shift = False ,version = 'current'):
                 continue
             print('%s ... processed' % file)
             mt = _read_PeakFile_Binary(file, version = version, time_shift=time_shift)
+
+            # skipping if above returned False and ignore_error = True
+            if not mt:
+                if ignore_error:
+                    txt = 'An error accured while trying to read file. File skipped!'
+                    print(txt)
+                    continue
+                else:
+                    txt = 'An error accured while trying to read file. Set ignore_error to True if you want this file tobe ignored.'
+                    raise  ValueError(txt)
+
             if first:
                 m = mt
                 first = False
@@ -268,7 +286,9 @@ def _binary2array_labview_clusters(fname, skip = 20):
             if np.any(np.logical_and(lc != 1, lc != 0)):
                 if skip == 0:
                     txt = "Sorry, this should not happen ... need fixn!!"
-                    raise ValueError(txt)
+                    # raise ValueError(txt)
+                    warnings.warn(txt)
+                    return False
                 wrong_skip = True
                 skip = 0
 
