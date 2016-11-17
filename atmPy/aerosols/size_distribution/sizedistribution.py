@@ -16,9 +16,10 @@ from scipy import stats
 from atmPy.aerosols.physics import hygroscopic_growth as hg, optical_properties
 from atmPy.tools import pandas_tools
 from atmPy.aerosols.physics import optical_properties
-from atmPy.aerosols.size_distribution import sizedist_moment_conversion
+from atmPy.aerosols.size_distribution import moments
 from atmPy.gases import physics as _gas_physics
-from atmPy import atmosphere
+from . import modes
+# from atmPy import atmosphere
 
 import pdb as _pdb
 
@@ -442,6 +443,7 @@ class SizeDist(object):
         self.particle_number_concentration_outside_range = None
         self._update()
         self._is_reduced_to_pt = False
+        self.__mode_analysis = None
 
         if fixGaps:
             self.fillGaps()
@@ -472,6 +474,15 @@ class SizeDist(object):
         self.particle_number_concentration_outside_range -= other
         self._update()
         return self
+
+
+    # mode_analysis = modes.ModeAnalysis
+
+    @property
+    def mode_analysis(self):
+        if not self.__mode_analysis:
+            self.__mode_analysis = modes.ModeAnalysis(self)
+        return self.__mode_analysis
 
     @property
     def optical_properties(self):
@@ -935,7 +946,7 @@ class SizeDist(object):
         else:
             f, a = plt.subplots()
 
-        g, = a.plot(self.bincenters, self.data.loc[0], color=plt_tools.color_cycle[0], linewidth=2, label='exp.')
+        g, = a.plot(self.bincenters, self.data.iloc[0,:], color=plt_tools.color_cycle[0], linewidth=2, label='exp.')
         g.set_drawstyle('steps-mid')
 
         a.set_xlabel('Particle diameter (nm)')
@@ -1055,7 +1066,7 @@ class SizeDist(object):
         return sd
 
     def _convert2otherDistribution(self, distType, verbose=False):
-        return sizedist_moment_conversion.convert(self, distType, verbose = verbose)
+        return moments.convert(self, distType, verbose = verbose)
 
     def _get_mass_concentration(self):
         """'Mass concentration ($\mu g/m^{3}$)'"""
