@@ -4,7 +4,7 @@ import numpy as _np
 import pandas as _pd
 from scipy import integrate as _integrate
 
-from atmPy.aerosols.size_distribution import sizedist_moment_conversion as _sizedist_moment_conversion
+from atmPy.aerosols.size_distribution import moments as _sizedist_moment_conversion
 from atmPy.general import timeseries as _timeseries
 from atmPy.general import vertical_profile as _vertical_profile
 from atmPy.radiation.mie_scattering import bhmie as _bhmie
