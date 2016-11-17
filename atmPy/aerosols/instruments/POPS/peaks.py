@@ -19,12 +19,12 @@ defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 
 #######
 #### Peak file
-def _read_PeakFile_Binary(fname, version = 'current', time_shift=0):
+def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites = 20):
     """returns a peak instance
     test_data_folder: ..."""
     directory, filename = os.path.split(fname)
     if version == 'current':
-        data = _binary2array_labview_clusters(fname)
+        data = _binary2array_labview_clusters(fname, skip = skip_bites)
         if not np.any(data):
             return False
         dataFrame = _PeakFileArray2dataFrame(data,filename, time_shift, log = False, since_midnight = False)
@@ -39,7 +39,7 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0):
     return peakInstance
 
 
-def read_binary(fname, time_shift = False ,version = 'current', ignore_error = False):
+def read_binary(fname, time_shift = False ,version = 'current', ignore_error = False, skip_bites= 20):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
@@ -66,7 +66,7 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)
-            mt = _read_PeakFile_Binary(file, version = version, time_shift=time_shift)
+            mt = _read_PeakFile_Binary(file, version = version, time_shift=time_shift, skip_bites=skip_bites)
 
             # skipping if above returned False and ignore_error = True
             if not mt:
@@ -85,7 +85,7 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
                 m.data = pd.concat((m.data, mt.data))
 
     else:
-        m = _read_PeakFile_Binary(fname, version = version, time_shift=time_shift)
+        m = _read_PeakFile_Binary(fname, version = version, time_shift=time_shift, skip_bites=skip_bites)
 
     return m
 
@@ -266,7 +266,7 @@ def _binary2array_labview_clusters(fname, skip = 20):
     while 1:
         wrong_skip = False
         rein = open(fname, mode='rb')
-        rein.read(skip) # This is some time of header ... no idea what exactly
+        rein.read(skip) # This is some type of header ... no idea what exactly
         array_list = []
         while 1:
             try:
