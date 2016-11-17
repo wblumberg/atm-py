@@ -22,6 +22,7 @@ import warnings as _warnings
 import datetime
 from matplotlib.ticker import FuncFormatter as _FuncFormatter
 from matplotlib.dates import DayLocator as _DayLocator
+from matplotlib.dates import MonthLocator as _MonthLocator
 import os as _os
 
 _unit_time = 'days since 1900-01-01'
@@ -394,6 +395,95 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     return pear_r_ts
 
 
+def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=None, normalize=True, **kwargs):
+    """
+    Parameters
+    ----------
+    dt: tuple
+        first arg of tuple can be int or array-like of dtype int. Second arg is unit. if array-like no_of... is ignored
+    direction: bool or string
+        if direction is set the center parameter will be ignored
+        p for positive, n for negative"""
+
+    if other.data.columns.shape[0] == 1:
+        other_column = other.data.columns[0]
+    else:
+        txt = 'please make sure the timeseries has only one collumn'
+        raise ValueError(txt)
+    # other =  acsm.copy()
+    #         dt = (5, 'm')
+    #         no_of_seps = 10
+    #         center = 0
+
+
+    if hasattr(dt[0], '__len__'):
+        if type(dt[0]).__name__ == 'list':
+            dt_array = _np.array(dt[0])
+        else:
+            dt_array = dt[0]
+        no_of_steps = len(dt_array)
+        center = 0
+    else:
+        dt_array = _np.arange(0, dt[0] * no_of_steps, dt[0])
+
+        if direction:
+            if direction == 'p':
+                pass
+            elif direction == 'n':
+                dt_array *= -1
+            else:
+                txt = 'Direction has to be None, "p", or "n" ... it is %s' % direction
+                raise ValueError(txt)
+
+        else:
+            dt_array += int(center) - int(no_of_steps * dt[0] / 2)
+
+    # if center:
+    #     dt_array += int(center)
+    out = _pd.DataFrame(index = dt_array, columns=['pearson_r'])
+    for dtt in dt_array:
+        tst = other.copy()
+        tst.data.index += _np.timedelta64(int(dtt), dt[1])
+        corr = ts.correlate_to(tst)
+        out.loc[dtt] = corr.pearson_r[0]
+        # if not out:
+        #     out = corr
+        #     import pdb
+        #     pdb.set_trace()
+        #     return out
+        #     out.data.columns = [dtt]
+        # else:
+        #     out.data[dtt] = corr.data  # [self._data_column]
+
+    # if normalize:
+    #     out = TimeSeries_2D(out.data.apply(lambda line: line / line.max(), axis=1))
+    # else:
+    #     out = TimeSeries_2D(out.data)
+
+    # def aaa(line):
+    #     if (_np.isnan(line)).sum() > ((~_np.isnan(line)).sum() * 0.3):
+    #         return _np.nan
+    #     col_t = cols.copy()
+    #     lt = line[~ _np.isnan(line)]
+    #
+    #     col_t = col_t[~ _np.isnan(line)]
+    #     argmax = lt.argmax()
+    #     realMax = col_t[argmax]
+    #     return realMax
+    #
+    # cols = out.data.columns
+    # dt_max = _np.apply_along_axis(aaa, 1, out.data.values)
+
+    # cols = out.data.columns
+    # dt_max = _np.apply_along_axis(lambda arr: cols[arr.argmax()], 1, out.data.values)
+    # dt_max = TimeSeries(_pd.DataFrame(dt_max, index=out.data.index))
+    # if dt[1] == 'm':
+    #     ylt = 'min.'
+    # else:
+    #     ylt = dt[1]
+    # dt_max._y_label = 'Time lag (%s)' % ylt
+    return out
+
 class Rolling(_pd.core.window.Rolling):
     def __init__(self, obj, window, min_good_ratio=0.67,
                  verbose=True,center = True,
@@ -660,7 +750,7 @@ class WrappedPlot(list):
             self.append(a)
 
 
-def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ylim = None, ax = None, twin_x = None, **plot_kwargs):
+def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 10, ylim = None, ax = None, twin_x = None, skip_first = 0,  **plot_kwargs):
     """frequency: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units
 
     if ax is set, all other parameters will be ignored
@@ -687,7 +777,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
         start = _np.datetime64(str(start.year))
         end = _np.datetime64(str(end.year))
         periods_no = int((end - start + 1) / _np.timedelta64(1, 'Y'))
-        autofmt_xdate = False
+        autofmt_xdate = True
         xlabel = 'Month of year'
 
     elif frequency == 'M':
@@ -779,10 +869,20 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
                 text = start_t
 
                 df = _FuncFormatter(day_formatter)
-                at.xaxis.set_major_formatter(df)
                 at.xaxis.set_major_locator(_DayLocator(interval=4))
+                at.xaxis.set_major_formatter(df)
 
             elif frequency == 'Y':
+                def month_formatter(x, pos):
+                    month_str = ['XXX', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    dt = _np.datetime64('0') + _np.timedelta64(int(x), 'D')
+                    dt = _pd.to_datetime(dt)
+                    out = dt.month
+                    return month_str[out]
+
+                df = _FuncFormatter(month_formatter)
+                at.xaxis.set_major_locator(_MonthLocator(interval=1))
+                at.xaxis.set_major_formatter(df)
                 text = text[0].split('-')[0]
             elif frequency == 'D':
                 text = start_t
@@ -792,27 +892,17 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
 
 
         if tst:
-            tst.data.index  = tst.data.index - start_t
-            tst.data.index += _np.datetime64('1900')
-            # if type(tst).__name__ == 'TimeSeries':
+            # import pdb
+            # pdb.set_trace()
+            tst.data.index  = tst.data.index - _pd.to_datetime(start_t)
+            tst.data.index = _pd.to_datetime(tst.data.index + _np.datetime64('1900'))
             if 'TimeSeries' in (tst.__class__.__bases__[0].__name__ , type(tst).__name__):
                 if twin_x:
-                    # plt_out = tst.plot(ax=at, color=_plt_tools.color_cycle[col_no])
                     plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], **plot_kwargs)
                 else:
-                    # import pdb
-                    # pdb.set_trace()
                     plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
-            # elif type(tst).__name__ == 'TimeSeries_2D':
+                    # plt_out = tst.plot(ax=at)
             elif 'TimeSeries_2D' in (tst.__class__.__bases__[0].__name__, type(tst).__name__):
-                # if 'cb_kwargs' in plot_kwargs.keys():
-                #     cb_kwargs = plot_kwargs['cb_kwargs']
-                # else:
-                #     cb_kwargs = False
-                # if i == len(a) - 1:
-                #     cb_kwargs_t = cb_kwargs
-                # else:
-                #     cb_kwargs_t = False
                 plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], cb_kwargs = False, **plot_kwargs)
                 plt_out[2].set_clim(ylim)
             else:
@@ -834,7 +924,6 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
 
         start_t = end_t
         at.set_ylabel('')
-
         # if an existing set of axes was provided the following will prevent an IndexError
         if i == len(a) - 1:
             # print('did the break')
