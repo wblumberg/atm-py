@@ -21,7 +21,6 @@ from atmPy.gases import physics as _gas_physics
 from . import modes
 # from atmPy import atmosphere
 
-import pdb as _pdb
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
 
@@ -366,13 +365,6 @@ class _Properties(object):
         self._parent._uptodate_particle_mass_concentration = False
         self._parent._settings['particle_density']['value'] = value
 
-    # @property
-    # def normalize(self):
-    #     return _Parameter('normalize')
-    #
-    # @normalize.setter
-    # def normalize(self, value):
-    #     settings['normalize'] = value
 
 class SizeDist(object):
     """
@@ -1213,7 +1205,6 @@ class SizeDist(object):
         gf: float"""
 
         if _np.any(gf < 1):
-            # _pdb.set_trace()
             txt = 'Growth facotor smaller than 1 (is %s). Value adjusted to 1!!'%gf
             gf = 1.
             _warnings.warn(txt)
@@ -1284,13 +1275,6 @@ class SizeDist(object):
         data_new = _np.zeros(data.shape[0]+ no_extra_bins)
         data_new[no_extra_bins - 1:-1] += fract_first * data
         data_new[no_extra_bins:] += fract_last * data
-
-        # print('data.shape',data.shape)
-        # print('data_new.shape',data_new.shape)
-
-        # if data_new.shape[0] == 131:
-        # pdb.set_trace()
-    #     data = _np.append(data, _np.zeros(no_extra_bins))
         out = {}
         out['bins'] = bins_new
         out['data'] = data_new
@@ -1777,34 +1761,26 @@ class SizeDist_TS(SizeDist):
     def particle_mass_mixing_ratio(self):
         if not _np.any(self.__particle_mass_mixing_ratio) or not self._uptodate_particle_mass_mixing_ratio:
             mass_mix = self._get_mass_mixing_ratio()
-            # pdb.set_trace()
             ylabel = 'Particle mass mixing ratio'
             mass_mix = pd.DataFrame(mass_mix)
-            # pdb.set_trace()
             self.__particle_mass_mixing_ratio = _timeseries.TimeSeries(mass_mix)
-            # pdb.set_trace()
             self.__particle_mass_mixing_ratio._data_period = self._data_period
             self.__particle_mass_mixing_ratio._y_label = ylabel
             self.__particle_mass_mixing_ratio._x_label = 'Time'
             self._uptodate_particle_mass_mixing_ratio = True
-        # pdb.set_trace()
         return self.__particle_mass_mixing_ratio
 
     @property
     def particle_number_mixing_ratio(self):
         if not _np.any(self.__particle_number_mixing_ratio) or not self._uptodate_particle_number_mixing_ratio:
             number_mix = self._get_number_mixing_ratio()
-            # pdb.set_trace()
             ylabel = 'Particle number mixing ratio'
             number_mix = pd.DataFrame(number_mix)
-            # pdb.set_trace()
             self.__particle_number_mixing_ratio = _timeseries.TimeSeries(number_mix)
             self.__particle_number_mixing_ratio._data_period = self._data_period
-            # pdb.set_trace()
             self.__particle_number_mixing_ratio._y_label = ylabel
             self.__particle_number_mixing_ratio._x_label = 'Time'
             self._uptodate_particle_number_mixing_ratio = True
-        # pdb.set_trace()
         return self.__particle_number_mixing_ratio
 
 
@@ -1907,35 +1883,27 @@ class SizeDist_LS(SizeDist):
     def particle_mass_mixing_ratio(self):
         if not _np.any(self.__particle_mass_mixing_ratio) or not self._uptodate_particle_mass_mixing_ratio:
             mass_mix = self._get_mass_mixing_ratio()
-            # pdb.set_trace()
             ylabel = 'Particle mass mixing ratio'
             mass_mix = pd.DataFrame(mass_mix, columns = [ylabel])
-            # pdb.set_trace()
             self.__particle_mass_mixing_ratio = _vertical_profile.VerticalProfile(mass_mix)
 
             self.__particle_mass_mixing_ratio.data.index.name = 'Altitude'
-            # pdb.set_trace()
             self.__particle_mass_mixing_ratio._x_label = ylabel
             self.__particle_mass_mixing_ratio._y_label = 'Altitude'
             self._uptodate_particle_mass_mixing_ratio = True
-        # pdb.set_trace()
         return self.__particle_mass_mixing_ratio
 
     @property
     def particle_number_mixing_ratio(self):
         if not _np.any(self.__particle_number_mixing_ratio) or not self._uptodate_particle_number_mixing_ratio:
             number_mix = self._get_number_mixing_ratio()
-            # pdb.set_trace()
             ylabel = 'Particle number mixing ratio'
             number_mix = pd.DataFrame(number_mix, columns = [ylabel])
-            # pdb.set_trace()
             self.__particle_number_mixing_ratio = _vertical_profile.VerticalProfile(number_mix)
-            # pdb.set_trace()
             self.__particle_number_mixing_ratio.data.index.name = 'Altitude'
             self.__particle_number_mixing_ratio._x_label = ylabel
             self.__particle_number_mixing_ratio._y_label = 'Altitude'
             self._uptodate_particle_number_mixing_ratio = True
-        # pdb.set_trace()
         return self.__particle_number_mixing_ratio
 
     # @property
