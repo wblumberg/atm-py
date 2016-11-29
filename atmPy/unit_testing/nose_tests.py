@@ -3,10 +3,10 @@ import pandas as pd
 test_data_folder = './test_data/'
 #### data archives
 ######## ARM
-from atmPy.data_archives.arm import read_data
+from atmPy.data_archives.arm import _read_data
 
 def test_1twr10xC1():
-    out = read_data.read_cdf(test_data_folder, data_product='1twr10xC1')
+    out = _read_data.read_cdf(test_data_folder, data_product='1twr10xC1')
     out = out['1twr10xC1']
 
     # rh

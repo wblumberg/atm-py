@@ -2,7 +2,7 @@ from netCDF4 import Dataset as _Dataset
 from netCDF4 import num2date as _num2date
 import numpy as _np
 import pandas as _pd
-from atmPy.general import timeseries as _timeseries
+from .general import timeseries as _timeseries
 from atmPy.aerosols.instruments.miniSASP import _miniSASP
 from atmPy.general import vertical_profile as _vertical_profile
 import warnings as _warnings
