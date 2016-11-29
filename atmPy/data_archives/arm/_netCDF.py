@@ -3,9 +3,172 @@ import numpy as np
 import pandas as _pd
 from atmPy.general import timeseries as _timeseries
 from atmPy.tools import array_tools as _arry_tools
+from atmPy.tools import plt_tools as _plt_tools
+import matplotlib.pylab as _plt
 from atmPy.aerosols.instruments.AMS import AMS as _AMS
 from atmPy.aerosols.size_distribution import sizedistribution as _sizedistribution
 import warnings as _warnings
+
+
+class Data_Quality(object):
+    def __init__(self, parent, availability, availability_type, flag_info = None):
+        self.parent = parent
+        self.availability = availability
+        self.availability_type = availability_type
+        self.flag_info = flag_info
+
+        self.__flag_matrix = None
+        self.__flag_matrix_good_int_bad = None
+        self.__flag_matrix_good_int_bad_either_or = None
+
+    @property
+    def flag_matrix(self):
+        if type(self.__flag_matrix).__name__ == 'NoneType':
+            self.__flag_matrix = self._get_flag_matrix()
+        return self.__flag_matrix
+
+    @flag_matrix.setter
+    def flag_matrix(self, data):
+        self.__flag_matrix = data
+        self.__flag_matrix_good_int_bad = None
+        self.__flag_matrix_good_int_bad_either_or = None
+
+
+    @property
+    def flag_matrix_good_int_bad(self):
+        if type(self.__flag_matrix_good_int_bad).__name__ == 'NoneType':
+            self.__flag_matrix_good_int_bad = self._get_flag_matrix_good_int_bad()
+        return self.__flag_matrix_good_int_bad
+
+    @property
+    def flag_matrix_good_int_bad_either_or(self):
+        if type(self.__flag_matrix_good_int_bad_either_or).__name__ == 'NoneType':
+            self.__flag_matrix_good_int_bad_either_or = self._get_flag_matrix_good_int_bad_either_or()
+        return self.__flag_matrix_good_int_bad_either_or
+
+    def _get_flag_matrix_good_int_bad_either_or(self):
+        flag_matrix_good_int_bad_either_or = self.flag_matrix_good_int_bad.copy()
+        flag_matrix_good_int_bad_either_or['intermediate'][flag_matrix_good_int_bad_either_or['bad'] == True] = False
+        return flag_matrix_good_int_bad_either_or
+
+
+    def _get_flag_matrix_good_int_bad(self):
+        intermediate_flags = self.flag_info[self.flag_info.quality == 'Indeterminate'].index
+        bad_flags = self.flag_info[self.flag_info.quality == 'Bad'].index
+        flag_matrix_good_int_bad = _pd.DataFrame(index=self.availability.index, dtype=bool)
+        flag_matrix_good_int_bad['intermediate'] = _pd.Series(self.flag_matrix.loc[:, intermediate_flags].sum(axis=1).astype(bool), dtype=bool)
+        flag_matrix_good_int_bad['bad'] = _pd.Series(self.flag_matrix.loc[:, bad_flags].sum(axis=1).astype(bool), dtype=bool)
+        flag_matrix_good_int_bad['good'] = ~ (flag_matrix_good_int_bad['intermediate'] | flag_matrix_good_int_bad['bad'])
+        return flag_matrix_good_int_bad
+
+
+    def _get_flag_matrix(self):
+        av = self.availability
+        flag_matrix = np.zeros((av.shape[0], self.flag_info.shape[0]))
+        good = np.zeros(flag_matrix.shape[0])
+        for e,flag in enumerate(av.iloc[:,0]):
+            b_l = list('{:0{}b}'.format(flag, self.flag_info.shape[0]))
+            b_l.reverse()
+            bs = np.array(b_l).astype(bool)
+            flag_matrix[e] = bs
+            if bs.sum() == 0:
+                good[e] = 1
+
+        flag_matrix = _pd.DataFrame(flag_matrix, dtype = bool,
+                                    # index = self.parent.size_distribution.data.index,
+                                    index= av.index,
+                                    columns=self.flag_info.index)
+        flag_matrix[0] = _pd.Series((good != 0), index = av.index)
+        return flag_matrix
+
+    def plot_stacked_bars(self, which='or', ax = None, resample=(6, 'H'), width=0.25, lw=0, show_missing = None, label = 'short', kwargs_leg = {}):
+        """
+        Args:
+            which:
+            ax: mpl axis instance
+            resample:
+            width:
+            lw:
+            show_missing: float
+                This adds a gray background up the show_missing. Therefor show_missing should be the expacted number of points!
+            kwargs_leg: dict
+                kwargs passed to legend, e.g. loc, title
+            label: string
+                if 'short' bits are given in legend
+                if 'long' flag descirption is given
+
+        Returns:
+            figur, axis
+        """
+        if which == 'or':
+            fmrs = self.flag_matrix_good_int_bad_either_or
+        elif which == 'and':
+            fmrs = self.flag_matrix_good_int_bad
+        elif which == 'all':
+            fmrs = self.flag_matrix
+        else:
+            raise ValueError('{} is not an option for which'.format(which))
+
+        if resample:
+            fmrs = self._get_resampled(fmrs, resample)
+
+        if not ax:
+            f, a = _plt.subplots()
+        else:
+            a = ax
+            f = a.get_figure()
+
+
+
+        bars = []
+        labels = []
+
+        if which == 'all':
+            cm = _plt.cm.Accent
+            bottom = np.zeros(fmrs.shape[0])
+            for e,flag in enumerate(fmrs.columns):
+                # b = a.bar(fmrs.index, fmrs[flag], width=width, color=_plt_tools.color_cycle[e % len(_plt_tools.color_cycle)], linewidth=lw, edgecolor='w')
+                b = a.bar(fmrs.index, fmrs[flag], bottom = bottom, width=width, color=cm(e/fmrs.columns.max()), linewidth=lw, edgecolor='w')
+                bottom += fmrs[flag].values
+                bars.append(b)
+                if label == 'short':
+                    labels.append(flag)
+                elif label == 'long':
+                    if flag == 0:
+                        label_st = 'no flag'
+                    else:
+                        label_st = self.flag_info.loc[flag, 'description']
+                    labels.append(label_st)
+                else:
+                    raise ValueError()
+            # if show_missing:
+            # a.legend(bars, labels, title = 'flag')
+        else:
+            b_g = a.bar(fmrs.index, fmrs['good'], width=width, color=_plt_tools.color_cycle[2], linewidth=lw, edgecolor='w')
+            b_i = a.bar(fmrs.index, fmrs['intermediate'], width=width, bottom=fmrs['good'], color=_plt_tools.color_cycle[0], linewidth=lw, edgecolor='w')
+            b_b = a.bar(fmrs.index, fmrs['bad'], width=width, bottom=fmrs['good'] + fmrs['intermediate'], color=_plt_tools.color_cycle[1], linewidth=lw, edgecolor='w')
+            bars = [b_b, b_i, b_g]
+            labels = ['bad', 'intermediate', 'good']
+            # a.legend((b_b, b_i, b_g), ('bad', 'intermediate', 'good'))
+
+        if show_missing:
+            x = self.availability.index
+            y = np.ones(x.shape) * show_missing
+            cg = 0.9
+            fb = a.fill_between(x, y, color=[cg, cg, cg])
+            bars.append(fb)
+            labels.append('missing')
+
+        a.legend(bars, labels, **kwargs_leg)
+        a.set_ylabel('Number of data points')
+        a.set_xlabel('Timestamp')
+        f.autofmt_xdate()
+        return f, a
+
+
+    @staticmethod
+    def _get_resampled(which, period=(6, 'H')):
+        return which.resample(period, label='left').sum()
 
 class ArmDataset(object):
     def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None, error_bad_file = True):
@@ -15,8 +178,6 @@ class ArmDataset(object):
             self.netCDF = Dataset(fname)
             self.data_quality_flag_max = data_quality_flag_max
             self.data_quality = data_quality
-            # import pdb
-            # pdb.set_trace()
             if type(self.time_stamps).__name__ != 'OverflowError':
                 self._parsing_error = False
                 self._parse_netCDF()
@@ -49,6 +210,11 @@ class ArmDataset(object):
                 raise TypeError(
                     '%s is not an allowed type here (TimeSeries_2D, TimeSeries)' % which_type)
 
+            if hasattr(first_object, 'availability'):
+                avail_concat = _pd.concat([getattr(i, att).availability.availability for i in arm_data_objs])
+                avail = Data_Quality(None, avail_concat, None , first_object.flag_info)
+
+                value.availability = avail
             value._data_period = data_period
             if close_gaps:
                 setattr(self, att, value.close_gaps())
@@ -63,8 +229,6 @@ class ArmDataset(object):
         else:
             bt = self.netCDF.variables['base_time']
             toff = self.netCDF.variables['time_offset']
-            # import pdb
-            # pdb.set_trace()
             try:
                 self.__time_stamps = _pd.to_datetime(0) + _pd.to_timedelta(bt[:].flatten()[0], unit ='s') + _pd.to_timedelta(toff[:], unit ='s')
             except OverflowError as e:
@@ -112,11 +276,19 @@ class ArmDataset(object):
         var = self.netCDF.variables[variable]
         data = var[:]
 
-
+        import pdb
+        if variable == 'Bs_B_Dry_10um_Neph3W_1':
+            pdb.set_trace()
         variable_qc = "qc_" + variable
+
+        availability = np.zeros(data.shape)
+        availability_type = None
         if variable_qc in self.netCDF.variables.keys():
             var_qc = self.netCDF.variables["qc_" + variable]
             data_qc = var_qc[:]
+            availability = data_qc.copy()
+            availability_type = 'qc'
+
             if reverse_qc_flag:
                 if type(reverse_qc_flag) != int:
                     raise TypeError('reverse_qc_flag should either be False or of type integer giving the number of bits')
@@ -124,22 +296,35 @@ class ArmDataset(object):
             data_qc[data_qc <= self.data_quality_flag_max] = 0
             data_qc[data_qc > self.data_quality_flag_max] = 1
 
+            # if hasattr(self, 'data_quality_max_intermediat'):
+            #     print('has it!!!!')
+
             if data.shape != data_qc.shape:
                 dt = np.zeros(data.shape)
                 dt[data_qc == 1, : ] = 1
                 data_qc = dt
             data = np.ma.array(data, mask = data_qc, fill_value= -9999)
 
+
         elif 'missing_data' in var.ncattrs():
             fill_value = var.missing_data
             data = np.ma.masked_where(data == fill_value, data)
         # else:
             # print('no quality flag found')
-
+        if variable == 'Bs_B_Dry_10um_Neph3W_1':
+            pdb.set_trace()
         if type(data).__name__ == 'MaskedArray':
             data.data[data.mask] = np.nan
             data = data.data
-        return data
+        if variable == 'Bs_B_Dry_10um_Neph3W_1':
+            pdb.set_trace()
+        # data.availability = availability
+        # data.availability_type = availability_type
+        out = {}
+        out['data'] = data
+        out['availability'] = availability
+        out['availability_type'] = availability_type
+        return out
 
     def _read_variable2timeseries(self, variable, column_name = False, reverse_qc_flag = False):
         """
@@ -165,8 +350,8 @@ class ArmDataset(object):
 
         df = _pd.DataFrame(index = self.time_stamps)
         for var in variable:
-            data = self._read_variable(var, reverse_qc_flag = reverse_qc_flag)
-            df[var] = _pd.Series(data, index = self.time_stamps)
+            variable_out = self._read_variable(var, reverse_qc_flag = reverse_qc_flag)
+            df[var] = _pd.Series(variable_out['data'], index = self.time_stamps)
         if column_name:
             df.columns.name = column_name
         out = _timeseries.TimeSeries(df)
@@ -174,6 +359,8 @@ class ArmDataset(object):
             out._y_label = column_name
 
         out._data_period = self._data_period
+        out.availability = Data_Quality(self, variable_out['availability'], variable_out['availability_type'])
+        # out.availability_type = variable_out['availability_type']
         return out
 
 

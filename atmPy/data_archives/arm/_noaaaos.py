@@ -147,7 +147,7 @@ class ArmDatasetSub(_ArmDataset):
             df = _pd.DataFrame(index = self.time_stamps)
             for var in var_list:
                 data = self._read_variable(var)
-                df[var] = _pd.Series(data, index = self.time_stamps)
+                df[var] = _pd.Series(data['data'], index = self.time_stamps)
             df.columns.name = column_name
             out = _timeseries.TimeSeries(df)
             out._data_period = self._data_period

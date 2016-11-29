@@ -60,14 +60,14 @@ class ArmDatasetSub(_ArmDataset):
         mass_conc_keys = ['total_organics','ammonium','sulfate','nitrate','chloride']
 
         for k in mass_conc_keys:
-            mass_concentrations[k] = _pd.Series(self._read_variable(k, reverse_qc_flag = 4), index = self.time_stamps)
+            mass_concentrations[k] = _pd.Series(self._read_variable(k, reverse_qc_flag = 4)['data'], index = self.time_stamps)
 
         mass_concentrations.columns.name = 'Mass conc. ug/m^3'
         mass_concentrations.index.name = 'Time'
 
-        org_mx = self._read_variable('org_mx')
+        org_mx = self._read_variable('org_mx')['data']
         org_mx = _pd.DataFrame(org_mx, index = self.time_stamps)
-        org_mx.columns = self._read_variable('amus')
+        org_mx.columns = self._read_variable('amus')['data']
         org_mx.columns.name = 'amus (m/z)'
 
         self.mass_concentrations = _AMS.AMS_Timeseries_lev01(mass_concentrations)

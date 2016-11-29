@@ -72,7 +72,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         df_ab = _pd.DataFrame(index=self.time_stamps)
         for key in varies:
             data = self._read_variable(key, reverse_qc_flag=8)
-            dft = _pd.DataFrame(data, index=self.time_stamps)
+            dft = _pd.DataFrame(data['data'], index=self.time_stamps)
             df[key] = dft.apply(ab_2_f_RH_func, axis=1)
             if key == 'fRH_Bs_G_1um_2p':
                 self.f_RH_scatt_2p_ab_G_1um = _timeseries.TimeSeries(_pd.DataFrame(dft))
@@ -102,7 +102,7 @@ class ArmDatasetSub(_netCDF.ArmDataset):
         df = _pd.DataFrame(index=self.time_stamps)
         for key in varies:
             data = self._read_variable(key, reverse_qc_flag=8)
-            dft = _pd.DataFrame(data, index=self.time_stamps)
+            dft = _pd.DataFrame(data['data'], index=self.time_stamps)
             df[key] = dft.apply(abc_2_f_RH_func, axis=1)
         self.f_RH_scatt_funcs_3p = _timeseries.TimeSeries(df)
         self.f_RH_scatt_funcs_3p._data_period = self._data_period

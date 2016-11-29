@@ -27,10 +27,10 @@ class ArmDatasetSub(ArmDataset):
     def _parse_netCDF(self):
         super(ArmDatasetSub,self)._parse_netCDF()
 
-        df = pd.DataFrame(self._read_variable('number_concentration'),
+        df = pd.DataFrame(self._read_variable('number_concentration')['data'],
                           index = self.time_stamps)
 
-        d = self._read_variable('diameter')
+        d = self._read_variable('diameter')['data']
         bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
 
         self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
