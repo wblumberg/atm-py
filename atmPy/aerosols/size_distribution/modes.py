@@ -136,7 +136,7 @@ class FitRes(object):
     def __init__(self, fitres):
         self.fitres = fitres
 
-    def plot(self):
+    def plot(self, ax = None, **kwargs):
         post = self.fitres['pos'].copy()
         post = np.log10(post)
         p_min = post.min()
@@ -144,8 +144,12 @@ class FitRes(object):
         cols = list(((post - p_min) / p_max).values)
         cols = plt.cm.Accent(cols)
 
-        f ,a = plt.subplots()
-        a.scatter(self.fitres['pos'].index, self.fitres['pos'], s = self.fitres['area_rel'] * 2000, color = cols)
+        if not ax:
+            f ,a = plt.subplots()
+        else:
+            a = ax
+            f = a.get_figure()
+        a.scatter(self.fitres['pos'].index, self.fitres['pos'], s = self.fitres['area_rel'] * 2000, color = cols, **kwargs)
         # g = a.get_lines()[-1]
         # g.set_markersize(fit_res_all['area_rel'].values)
         a.set_yscale('log')
