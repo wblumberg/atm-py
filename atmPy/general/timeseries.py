@@ -100,14 +100,12 @@ def close_gaps(ts, verbose = False):
     else:
         data = ts.data.index.values
         index = ts.data.index
-
     index_df = _pd.DataFrame(index = index)
 
     dt = data[1:] - data[:-1]
     dt = dt / _np.timedelta64(1,'s')
 
     median = _np.median(dt)
-
     if median > (1.1 * ts._data_period) or median < (0.9 * ts._data_period):
         _warnings.warn('There is a periode and median missmatch (%0.1f,%0.1f), this is either due to an error in the assumed period or becuase there are too many gaps in the _timeseries.'%(median,ts._data_period))
 
@@ -122,7 +120,6 @@ def close_gaps(ts, verbose = False):
         out = out[1:]
         out = _pd.DataFrame(index = out)
         index_df = _pd.concat([index_df, out])
-
     index_df.sort_index(inplace=True)
     ts.data = ts.data.reindex(index_df.index)
     return ts
@@ -978,12 +975,14 @@ class TimeSeries(object):
     Attributes
     ----------
     data:  pandas DataFrame with index=DateTime and columns = housekeeping parameters
+    sampling_period: int
+        This is the period that the data is roughly sampled at in Seconds. None will cause some operations to fail, e.g. align and merg!
     """
 
-    def __init__(self, data, info=None):
+    def __init__(self, data, sampling_period=None, info=None):
         # if not type(data).__name__ == 'DataFrame':
         #     raise TypeError('Data has to be of type DataFrame. It currently is of type: %s'%(type(data).__name__))
-        self._data_period = None
+        self._data_period = sampling_period
         self.data = data
         self.info = info
         self._y_label = ''
