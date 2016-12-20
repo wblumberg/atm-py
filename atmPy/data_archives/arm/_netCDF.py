@@ -211,10 +211,12 @@ class ArmDataset(object):
                     '%s is not an allowed type here (TimeSeries_2D, TimeSeries)' % which_type)
 
             if hasattr(first_object, 'availability'):
-                avail_concat = _pd.concat([getattr(i, att).availability.availability for i in arm_data_objs])
-                avail = Data_Quality(None, avail_concat, None , first_object.flag_info)
-
-                value.availability = avail
+                try:
+                    avail_concat = _pd.concat([getattr(i, att).availability.availability for i in arm_data_objs])
+                    avail = Data_Quality(None, avail_concat, None , first_object.flag_info)
+                    value.availability = avail
+                except:
+                    _warnings.warn('availability could not be concatinated make sure you converted it to a pandas frame at some point!')
             value._data_period = data_period
             if close_gaps:
                 setattr(self, att, value.close_gaps())
@@ -276,9 +278,6 @@ class ArmDataset(object):
         var = self.netCDF.variables[variable]
         data = var[:]
 
-        import pdb
-        if variable == 'Bs_B_Dry_10um_Neph3W_1':
-            pdb.set_trace()
         variable_qc = "qc_" + variable
 
         availability = np.zeros(data.shape)
@@ -311,13 +310,9 @@ class ArmDataset(object):
             data = np.ma.masked_where(data == fill_value, data)
         # else:
             # print('no quality flag found')
-        if variable == 'Bs_B_Dry_10um_Neph3W_1':
-            pdb.set_trace()
         if type(data).__name__ == 'MaskedArray':
             data.data[data.mask] = np.nan
             data = data.data
-        if variable == 'Bs_B_Dry_10um_Neph3W_1':
-            pdb.set_trace()
         # data.availability = availability
         # data.availability_type = availability_type
         out = {}
@@ -351,6 +346,9 @@ class ArmDataset(object):
         df = _pd.DataFrame(index = self.time_stamps)
         for var in variable:
             variable_out = self._read_variable(var, reverse_qc_flag = reverse_qc_flag)
+            # if var == 'ratio_85by40_Bbs_R_10um_2p':
+            #     import pdb
+            #     pdb.set_trace()
             df[var] = _pd.Series(variable_out['data'], index = self.time_stamps)
         if column_name:
             df.columns.name = column_name
