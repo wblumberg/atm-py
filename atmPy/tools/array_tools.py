@@ -5,6 +5,7 @@ from scipy import stats as _stats
 import matplotlib.pylab as _plt
 from atmPy.tools import plt_tools as _plt_tools
 import scipy.odr as _odr
+import warnings as _warnings
 
 def find_closest(array, value, how = 'closest'):
     """Finds the element of an array which is the closest to a given number and returns its index
@@ -311,6 +312,8 @@ class Correlation(object):
             intersect = self.orthogonla_distance_regression['output'].beta[1]
             std = self.orthogonla_distance_regression['output'].res_var
             a.plot(x_reg_func, y_reg_func, lw=2)
+            a.set_xlim((self._data.min(), self._data.max()))
+            a.set_ylim((self._correlant.min(), self._correlant.max()))
 
         # color = _plt_tools.color_cycle[2]
 
@@ -358,7 +361,7 @@ class Correlation(object):
         -------
 
         """
-        import warnings as _warnings
+
         _warnings.warn('plot_pearson is deprecated, use plot_regression instead')
         if not ax:
             f,a = _plt.subplots()
