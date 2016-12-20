@@ -329,15 +329,36 @@ def concat(ts_list):
     return ts
 
 
-def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True):
+def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True, data_lim = None, correlant_lim = None):
     """Correlates data in correlant to that in data. In the process the data in correlant
-    will be aligned to that in data. Make sure that data has the lower period (less data per period of time)."""
+    will be aligned to that in data. Make sure that data has the lower period (less data per period of time).
+
+    Args:
+        data:
+        correlant:
+        data_column:
+        correlant_column:
+        remove_zeros:
+        data_lim: tuple
+            lower and upper limit of data values
+        correlant_lim:
+            lower and upper limit of correlant values
+
+    Returns:
+
+    """
+    data = data.copy()
+    correlant = correlant.copy()
+
+
+
     if data_column:
         data_values = data.data[data_column].values
     elif data.data.shape[1] > 1:
         raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
     else:
         data_values = data.data.iloc[:,0].values
+
     correlant_aligned = correlant.align_to(data)
     if correlant_column:
         correlant_values = correlant_aligned.data[correlant_column].values
@@ -347,6 +368,21 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
     else:
         correlant_values = correlant_aligned.data.iloc[:,0].values
 
+
+    if data_lim:
+        if data_lim[0]:
+            data_values[data_values < data_lim[0]] = _np.nan
+        if data_lim[1]:
+            data_values[data_values > data_lim[1]] = _np.nan
+
+    if correlant_lim:
+        if correlant_lim[0]:
+            correlant_values[correlant_values < correlant_lim[0]] = _np.nan
+        if correlant_lim[1]:
+            correlant_values[correlant_values > correlant_lim[1]] = _np.nan
+
+    # import pdb
+    # pdb.set_trace()
     out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
     out._x_label_orig = 'DataTime'
     return out
