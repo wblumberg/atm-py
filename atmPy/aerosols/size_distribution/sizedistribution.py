@@ -153,11 +153,11 @@ def get_label(distType):
     return label
 
 
-settings = {'wavelength':       {'value': 550,
-                                 'default': 550.,
+settings = {'wavelength':       {'value': None,
+                                 'default': None,
                                  'unit': 'nm'},
-            'refractive_index': {'value': 1.5,
-                                 'default': 1.5,},
+            'refractive_index': {'value': None,
+                                 'default': None,},
             'particle_density': {'value': 1.8,
                                  'default': 1.8,
                                  'unit': 'g/cc',
