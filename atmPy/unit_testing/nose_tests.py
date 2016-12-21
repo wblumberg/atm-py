@@ -79,7 +79,7 @@ class SizeDistTest(TestCase):
         sd_dVdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
         sd_dVdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
 
-        threshold = 0#1e-10
+        threshold = 1e-10
         msg = '\nthreshold: {}\nisnan: {}\nisnotnan: {}'.format((sd.data.values.max() * threshold),
                                                  np.isnan(sd.data.values - sd_soll.data.values).sum(),
                                                  (~np.isnan(sd.data.values - sd_soll.data.values)).sum())
