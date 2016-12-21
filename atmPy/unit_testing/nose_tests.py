@@ -47,6 +47,18 @@ class ArmDataTests(TestCase):
 
 
 class SizeDistTest(TestCase):
+    def test_concentrations(self):
+        sd = size_distribution.sizedistribution.simulate_sizedistribution(diameter=[15, 3000],
+                                                                          numberOfDiameters=50,
+                                                                          centerOfAerosolMode=222,
+                                                                          widthOfAerosolMode=0.18,
+                                                                          numberOfParticsInMode=888)
+
+        self.assertEqual(sd.particle_number_concentration , 888.0)
+        self.assertEqual(float(sd.particle_surface_concentration.values) , 194.42186363605904)
+        self.assertEqual(float(sd.particle_volume_concentration.values) , 11.068545094055812)
+
+
     def test_moment_conversion(self):
         sd = size_distribution.sizedistribution.simulate_sizedistribution(diameter=[15, 3000],
                                                                           numberOfDiameters=50,
