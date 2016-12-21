@@ -8,6 +8,8 @@ test_data_folder = os.path.join(os.path.dirname(__file__), 'test_data/')
 #### data archives
 ######## ARM
 from atmPy.data_archives.arm import _read_data
+import atmPy
+from atmPy.aerosols import size_distribution
 
 class ArmDataTests(TestCase):
     def test_1twr10xC1(self):
@@ -20,7 +22,7 @@ class ArmDataTests(TestCase):
                            )
 
         ## index
-        self.assertTrue(np.all(out.relative_humidity.data.index == pd.to_datetime(soll.index)))
+        self.assertTrue(np.all(out.relative_humidity.data.index.values == pd.to_datetime(soll.index).values))
 
         ## rest
         soll.columns.name = out.relative_humidity.data.columns.name
@@ -39,3 +41,24 @@ class ArmDataTests(TestCase):
                            )
         soll.columns.name = out.vapor_pressure.data.columns.name
         self.assertTrue(np.all(out.vapor_pressure.data.values == soll.values))
+
+
+class SizeDistTest(TestCase):
+    def test_opt_prop_LS(self):
+        sd = size_distribution.sizedistribution.simulate_sizedistribution_layerseries(diameter=[10, 2500],
+                                                                                      numberOfDiameters=100,
+                                                                                      heightlimits=[0, 6000],
+                                                                                      noOflayers=100,
+                                                                                      layerHeight=[500.0, 4000.0],
+                                                                                      layerThickness=[100.0, 300.0],
+                                                                                      layerDensity=[1000.0, 50.0],
+                                                                                      layerModecenter=[200.0, 800.0],
+                                                                                      widthOfAerosolMode=0.2)
+
+        sd.optical_properties_settings.refractive_index = 1.5
+        sd.optical_properties_settings.wavelength = 550
+
+        fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
+        sdl = atmPy.read_file.netCDF(fname)
+
+        self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data == sdl.data))
