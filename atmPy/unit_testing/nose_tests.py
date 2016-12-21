@@ -28,14 +28,14 @@ class ArmDataTests(TestCase):
         ## rest
         soll.columns.name = out.relative_humidity.data.columns.name
         # self.assertTrue(np.all(out.relative_humidity.data.values == soll.values))
-        self.assertLess(abs((out.relative_humidity.data.values - soll.values).sum()), 1e-10)
+        self.assertLess(abs((out.relative_humidity.data.values - soll.values).sum()), 1e-2)
         # temp
         soll = pd.read_csv(test_data_folder + '1twr10xC1_temp.csv', index_col=0,
                            dtype={'temp_25m': np.float32, 'temp_60m': np.float32}
                            )
         soll.columns.name = out.temperature.data.columns.name
         # self.assertTrue(np.all(out.temperature.data.values == soll.values))
-        self.assertLess(abs((out.temperature.data.values - soll.values).sum()), 1e-10)
+        self.assertLess(abs((out.temperature.data.values - soll.values).sum()), 1e-2)
 
         # vapor pressure
         soll = pd.read_csv(test_data_folder + '1twr10xC1_p_vapor.csv', index_col=0,
@@ -43,7 +43,7 @@ class ArmDataTests(TestCase):
                            )
         soll.columns.name = out.vapor_pressure.data.columns.name
         # self.assertTrue(np.all(out.vapor_pressure.data.values == soll.values))
-        self.assertLess(abs((out.vapor_pressure.data.values - soll.values).sum()), 1e-10)
+        self.assertLess(abs((out.vapor_pressure.data.values - soll.values).sum()), 1e-2)
 
 
 class SizeDistTest(TestCase):
