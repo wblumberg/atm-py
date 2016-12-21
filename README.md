@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/hagne/atm-py.svg?branch=master)](https://travis-ci.org/hagne/atm-py)
+
 ## A few words about this repository...
 
 This repo is currently under heavy revision in preparation for actual publication.  Issues that we will be investigating are:
