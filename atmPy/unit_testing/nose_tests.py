@@ -47,6 +47,47 @@ class ArmDataTests(TestCase):
 
 
 class SizeDistTest(TestCase):
+    def test_moment_conversion(self):
+        sd = size_distribution.sizedistribution.simulate_sizedistribution(diameter=[15, 3000],
+                                                                          numberOfDiameters=50,
+                                                                          centerOfAerosolMode=222,
+                                                                          widthOfAerosolMode=0.18,
+                                                                          numberOfParticsInMode=888)
+
+        sd_dNdDp = sd.convert2dNdDp()
+        sd_dNdlogDp = sd.convert2dNdlogDp()
+        sd_dSdDp = sd.convert2dSdDp()
+        sd_dSdlogDp = sd.convert2dSdlogDp()
+        sd_dVdDp = sd.convert2dVdDp()
+        sd_dVdlogDp = sd.convert2dVdlogDp()
+
+        folder = test_data_folder
+
+        # sd.save_csv(folder + 'aerosols_size_dist_moments_sd.nc')
+        # sd_dNdDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dNdDp.nc')
+        # sd_dNdlogDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dNdlogDp.nc')
+        # sd_dSdDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dSdDp.nc')
+        # sd_dSdlogDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dSdlogDp.nc')
+        # sd_dVdDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
+        # sd_dVdlogDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
+
+        sd_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd.nc')
+        sd_dNdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dNdDp.nc')
+        sd_dNdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dNdlogDp.nc')
+        sd_dSdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dSdDp.nc')
+        sd_dSdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dSdlogDp.nc')
+        sd_dVdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
+        sd_dVdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
+
+        threshold = 1e-10
+        self.assertLess((sd.data - sd_soll.data).values.sum() , (sd.data.values.max() * threshold))
+        self.assertLess((sd_dNdDp.data - sd_dNdDp_soll.data).values.sum() , (sd_dNdDp.data.values.max() * threshold))
+        self.assertLess((sd_dSdDp.data - sd_dSdDp_soll.data).values.sum() , (sd_dSdDp.data.values.max() * threshold))
+        self.assertLess((sd_dVdDp.data - sd_dVdDp_soll.data).values.sum() , (sd_dVdDp.data.values.max() * threshold))
+        self.assertLess((sd_dNdlogDp.data - sd_dNdlogDp_soll.data).values.sum() , (sd_dNdlogDp.data.values.max() * threshold))
+        self.assertLess((sd_dSdlogDp.data - sd_dSdlogDp_soll.data).values.sum() , (sd_dSdlogDp.data.values.max() * threshold))
+        self.assertLess((sd_dVdlogDp.data - sd_dVdlogDp_soll.data).values.sum() , (sd_dVdlogDp.data.values.max() * threshold))
+
     def test_opt_prop_LS(self):
         sd = size_distribution.sizedistribution.simulate_sizedistribution_layerseries(diameter=[10, 2500],
                                                                                       numberOfDiameters=100,
@@ -58,8 +99,8 @@ class SizeDistTest(TestCase):
                                                                                       layerModecenter=[200.0, 800.0],
                                                                                       widthOfAerosolMode=0.2)
 
-        sd.optical_properties_settings.refractive_index = 1.5
-        sd.optical_properties_settings.wavelength = 550
+        sd.optical_properties_settings.refractive_index = 1.56
+        sd.optical_properties_settings.wavelength = 515
 
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
         sdl = atmPy.read_file.netCDF(fname)
