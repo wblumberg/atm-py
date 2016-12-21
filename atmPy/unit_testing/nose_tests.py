@@ -22,26 +22,28 @@ class ArmDataTests(TestCase):
                            )
 
         ## index
-        self.assertLess((out.relative_humidity.data.index.values - pd.to_datetime(soll.index).values).sum() / np.timedelta64(1, 's'), 1)
+        self.assertLess(abs((out.relative_humidity.data.index.values - pd.to_datetime(soll.index).values).sum() / np.timedelta64(1, 's')), 1e-10)
         # self.assertTrue(np.all(out.relative_humidity.data.index.values == pd.to_datetime(soll.index).values))
 
         ## rest
         soll.columns.name = out.relative_humidity.data.columns.name
-        self.assertTrue(np.all(out.relative_humidity.data.values == soll.values))
-
+        # self.assertTrue(np.all(out.relative_humidity.data.values == soll.values))
+        self.assertLess(abs((out.relative_humidity.data.values - soll.values).sum()), 1e-10)
         # temp
         soll = pd.read_csv(test_data_folder + '1twr10xC1_temp.csv', index_col=0,
                            dtype={'temp_25m': np.float32, 'temp_60m': np.float32}
                            )
         soll.columns.name = out.temperature.data.columns.name
-        self.assertTrue(np.all(out.temperature.data.values == soll.values))
+        # self.assertTrue(np.all(out.temperature.data.values == soll.values))
+        self.assertLess(abs((out.temperature.data.values - soll.values).sum()), 1e-10)
 
         # vapor pressure
         soll = pd.read_csv(test_data_folder + '1twr10xC1_p_vapor.csv', index_col=0,
                            dtype={'vap_pres_25m': np.float32, 'vap_pres_60m': np.float32}
                            )
         soll.columns.name = out.vapor_pressure.data.columns.name
-        self.assertTrue(np.all(out.vapor_pressure.data.values == soll.values))
+        # self.assertTrue(np.all(out.vapor_pressure.data.values == soll.values))
+        self.assertLess(abs((out.vapor_pressure.data.values - soll.values).sum()), 1e-10)
 
 
 class SizeDistTest(TestCase):
@@ -62,4 +64,5 @@ class SizeDistTest(TestCase):
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
         sdl = atmPy.read_file.netCDF(fname)
 
-        self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
+        # self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
+        self.assertLess(abs((sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values - sdl.data.values).sum()), 1e-10)
