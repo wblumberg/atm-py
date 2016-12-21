@@ -22,7 +22,8 @@ class ArmDataTests(TestCase):
                            )
 
         ## index
-        self.assertTrue(np.all(out.relative_humidity.data.index.values == pd.to_datetime(soll.index).values))
+        self.assertLess((out.relative_humidity.data.index.values - pd.to_datetime(soll.index).values).sum() / np.timedelta64(1, 's'), 1)
+        # self.assertTrue(np.all(out.relative_humidity.data.index.values == pd.to_datetime(soll.index).values))
 
         ## rest
         soll.columns.name = out.relative_humidity.data.columns.name
@@ -61,4 +62,4 @@ class SizeDistTest(TestCase):
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
         sdl = atmPy.read_file.netCDF(fname)
 
-        self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data == sdl.data))
+        self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
