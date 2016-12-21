@@ -54,9 +54,12 @@ class SizeDistTest(TestCase):
                                                                           widthOfAerosolMode=0.18,
                                                                           numberOfParticsInMode=888)
 
-        self.assertEqual(sd.particle_number_concentration , 888.0)
-        self.assertEqual(float(sd.particle_surface_concentration.values) , 194.42186363605904)
-        self.assertEqual(float(sd.particle_volume_concentration.values) , 11.068545094055812)
+        self.assertEqual(round(sd.particle_number_concentration, 4) , round(888.0, 4))
+        self.assertEqual(round(float(sd.particle_surface_concentration.values), 4) , round(194.42186363605904, 4))
+        self.assertEqual(round(float(sd.particle_volume_concentration.values), 4) , round(11.068545094055812, 4))
+
+        sd.properties.particle_density = 2.2
+        self.assertEqual(round(float(sd.particle_mass_concentration), 4), round(24.350799206922783, 4))
 
 
     def test_moment_conversion(self):
