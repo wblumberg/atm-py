@@ -62,6 +62,24 @@ class SizeDistTest(TestCase):
         self.assertEqual(round(float(sd.particle_mass_concentration), 4), round(24.350799206922783, 4))
 
 
+    def test_mixing_ratios(self):
+        sd = size_distribution.sizedistribution.simulate_sizedistribution_timeseries(diameter=[15, 3000],
+                                                                                     numberOfDiameters=50,
+                                                                                     centerOfAerosolMode=222,
+                                                                                     widthOfAerosolMode=0.18,
+                                                                                     numberOfParticsInMode=888,
+                                                                                     startDate='2015-10-23 16:00:00',
+                                                                                     endDate='2015-10-23 17:00:00',
+                                                                                     frequency=60)
+
+        sd.data = sd.data.iloc[[0], :]
+        sd.housekeeping = atmPy.general.timeseries.TimeSeries(
+            pd.DataFrame(np.array([[250.], [750.]]).transpose(), index=sd.data.index,
+                         columns=['temperature_K', 'pressure_Pa']))
+        sd.properties.particle_density = 2.8
+
+        self.assertEqual(round(float(sd.particle_mass_mixing_ratio.data.values) * 1e6, 4), round(2.96533739732464, 4))
+
     def test_moment_conversion(self):
         sd = size_distribution.sizedistribution.simulate_sizedistribution(diameter=[15, 3000],
                                                                           numberOfDiameters=50,
