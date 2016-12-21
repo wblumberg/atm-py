@@ -79,14 +79,17 @@ class SizeDistTest(TestCase):
         sd_dVdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
         sd_dVdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
 
-        threshold = 1e-10
-        self.assertLess((sd.data - sd_soll.data).values.sum() , (sd.data.values.max() * threshold))
-        self.assertLess((sd_dNdDp.data - sd_dNdDp_soll.data).values.sum() , (sd_dNdDp.data.values.max() * threshold))
-        self.assertLess((sd_dSdDp.data - sd_dSdDp_soll.data).values.sum() , (sd_dSdDp.data.values.max() * threshold))
-        self.assertLess((sd_dVdDp.data - sd_dVdDp_soll.data).values.sum() , (sd_dVdDp.data.values.max() * threshold))
-        self.assertLess((sd_dNdlogDp.data - sd_dNdlogDp_soll.data).values.sum() , (sd_dNdlogDp.data.values.max() * threshold))
-        self.assertLess((sd_dSdlogDp.data - sd_dSdlogDp_soll.data).values.sum() , (sd_dSdlogDp.data.values.max() * threshold))
-        self.assertLess((sd_dVdlogDp.data - sd_dVdlogDp_soll.data).values.sum() , (sd_dVdlogDp.data.values.max() * threshold))
+        threshold = 0#1e-10
+        msg = '\nthreshold: {}\nisnan: {}\nisnotnan: {}'.format((sd.data.values.max() * threshold),
+                                                 np.isnan(sd.data.values - sd_soll.data.values).sum(),
+                                                 (~np.isnan(sd.data.values - sd_soll.data.values)).sum())
+        self.assertLess(abs((sd.data.values - sd_soll.data.values)).sum() , (sd.data.values.max() * threshold), msg = msg)
+        self.assertLess(abs((sd_dNdDp.data.values - sd_dNdDp_soll.data.values)).sum() , (sd_dNdDp.data.values.max() * threshold))
+        self.assertLess(abs((sd_dSdDp.data.values - sd_dSdDp_soll.data.values)).sum() , (sd_dSdDp.data.values.max() * threshold))
+        self.assertLess(abs((sd_dVdDp.data.values - sd_dVdDp_soll.data.values)).sum() , (sd_dVdDp.data.values.max() * threshold))
+        self.assertLess(abs((sd_dNdlogDp.data.values - sd_dNdlogDp_soll.data.values)).sum() , (sd_dNdlogDp.data.values.max() * threshold))
+        self.assertLess(abs((sd_dSdlogDp.data.values - sd_dSdlogDp_soll.data.values)).sum() , (sd_dSdlogDp.data.values.max() * threshold))
+        self.assertLess(abs((sd_dVdlogDp.data.values - sd_dVdlogDp_soll.data.values)).sum() , (sd_dVdlogDp.data.values.max() * threshold))
 
     def test_opt_prop_LS(self):
         sd = size_distribution.sizedistribution.simulate_sizedistribution_layerseries(diameter=[10, 2500],
