@@ -11,3 +11,10 @@ setup.py.old
 .spyderworkspace
 *__pycache__/
 */testresults.log
+/setuptools-32.1.2-py3.5.egg
+atmPy/unit_testing/testresults.log
+atm_py.egg-info/
+examples/instruments_ARM-tdmaapssize.ipynb
+examples/instruments_ARM.ipynb
+mie_py.egg-info/
+setuptools*
