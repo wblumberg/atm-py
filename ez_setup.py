@@ -157,6 +157,8 @@ def use_setuptools(
     Return None. Raise SystemExit if the requested version
     or later cannot be installed.
     """
+    # import pdb
+    # pdb.set_trace()
     version = _resolve_version(version)
     to_dir = os.path.abspath(to_dir)
 

@@ -10,6 +10,8 @@ test_data_folder = os.path.join(os.path.dirname(__file__), 'test_data/')
 from atmPy.data_archives.arm import _read_data
 import atmPy
 from atmPy.aerosols import size_distribution
+from atmPy.data_archives import arm
+from atmPy.aerosols.physics import hygroscopic_growth as hyg
 
 class ArmDataTests(TestCase):
     def test_1twr10xC1(self):
@@ -143,3 +145,26 @@ class SizeDistTest(TestCase):
 
         # self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
         self.assertLess(abs((sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values - sdl.data.values).sum()), 1e-10)
+
+class PhysicsHygroscopicityTest(TestCase):
+    def test_hygroscopic_growth_factor_distributions(self):
+        fname = './test_data/sgptdmahygC1.b1.20120601.004227.cdf'
+        out = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+        hgfd = hyg.HygroscopicGrowthFactorDistributions(out.hyg_distributions.data.loc[:, 200.0, :].transpose())
+        # hgfd.plot()
+
+        fname = './test_data/aerosols_physics_hygroscopicity_growth_mode.csv'
+        growth_mode_soll = pd.read_csv(fname, index_col=0)
+
+        threshold = growth_mode_soll.ratio.sum() * 1e-5
+        self.assertLess(np.abs(hgfd.growth_modes.ratio - growth_mode_soll.ratio).sum(), threshold)
+
+        threshold = growth_mode_soll.gf.sum() * 1e-7
+        self.assertLess(np.abs(hgfd.growth_modes.gf - growth_mode_soll.gf).sum(), threshold)
+
+        #######
+        fname = './test_data/aerosols_physics_hygroscopicity_mixing_state.csv'
+        mixing_state_soll = pd.read_csv(fname, index_col=0)
+
+        threshold = mixing_state_soll.mixing_state.sum() * 1e-6
+        self.assertLess(np.abs(hgfd.mixing_state.mixing_state - mixing_state_soll.mixing_state).sum(), threshold)

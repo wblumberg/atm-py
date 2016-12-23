@@ -1,11 +1,13 @@
 import numpy as _np
 from scipy.optimize import fsolve as _fsolve
 from scipy.optimize import curve_fit as _curve_fit
+from scipy import signal as _signal
 import pandas as _pd
 import atmPy.general.timeseries as _timeseries
 import warnings as _warnings
-
-
+from atmPy.tools import math_functions as _math_functions
+from atmPy.tools import plt_tools as _plt_tools
+import matplotlib.pylab as _plt
 
 
 
@@ -376,3 +378,235 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
     else:
 
         return results
+
+
+##############
+###
+def _fit_normals(sd):
+    """Fits a normal distribution to a """
+    log = True  # was thinking about having the not log fit at some point ... maybe some day?!?
+
+    def find_peak_arg(x, y, start_w=0.2, bounds=None):
+        """
+        Parameters
+        ----------
+        x: nd_array
+            log10 of the diameters
+        y: nd_array
+            intensities (number, volume, surface ...)
+        start_w: float
+            some reasonalble width for a log normal distribution (in log normal)
+        tol: float
+            Tolerance ratio for start_w"""
+
+        med = _np.median(x[1:] - x[:-1])
+        #     print(med)
+        low = _np.floor((bounds[0]) / med)
+        cent = int(start_w / med)
+        top = _np.ceil((bounds[1]) / med)
+
+        widths = _np.arange(low, top)
+        #     print(widths)
+        peakind = _signal.find_peaks_cwt(y, widths)
+        return peakind
+
+    def multi_gauss(x, *params, verbose=False):
+        #     print(params)
+        y = _np.zeros_like(x)
+        for i in range(0, len(params), 3):
+            if verbose:
+                print(len(params), i)
+            amp = params[i]
+            pos = params[i + 1]
+            sig = params[i + 2]
+            y = y + _math_functions.gauss(x, amp, pos, sig)
+        return y
+
+    out = {}
+
+    x = sd.index.values
+    y = sd.values
+    x = x[~ _np.isnan(y)]
+    y = y[~ _np.isnan(y)]
+
+    if len(x) == 0:
+        raise ValueError('noting to fit')
+    # return False
+
+    if log:
+        x_orig = x.copy()  # we have to keep it to avoide rounding errors when doing a back and forth calculation
+        x = _np.log10(x)
+
+    out['as_fitted'] = (x, y)
+
+    # [5.3,0.12,0.03]
+    start_width = 0.02
+    width_ll = 0.01
+    width_ul = 0.035
+    peak_args = find_peak_arg(x, y, start_w=start_width, bounds=(width_ll, width_ul))
+
+    out['peak_args'] = peak_args
+
+    param = []
+    bound_l = []
+    bound_h = []
+    for pa in peak_args:
+        # amp
+        #         print('amp: ', y[pa])
+        param.append(y[pa])
+        #         bound_l.append(-np.inf)
+        bound_l.append(0)
+        bound_h.append(_np.inf)
+
+        # pos
+        #         print('pos: ', 10**x[pa])
+        param.append(x[pa])
+        pllt = x[pa] * (1 - 0.1)
+        pult = x[pa] * (1 + 0.1)
+
+        # swap if upper limit lower than lower limet ... which happens if position is negative
+        if pult < pllt:
+            pult, pllt = [pllt, pult]
+        bound_l.append(pllt)
+        bound_h.append(pult)
+
+        # sig
+        #         ul_ll_ratio = 2
+        #         wllt = 0.1 * 10**(x[pa])
+        #         wult = wllt * ul_ll_ratio
+
+        #         ul_ll_ratio = 2
+        wllt = 0.01
+        wult = wllt * 10 ** (x[pa]) * 1.8
+        param.append((wllt + wult) / 2.)
+        #         print('pos: {}; wllt: {}; wult: {}; diff: {}'.format(10**(x[pa]), wllt, wult, (wult-wllt)))
+        if (wult - wllt) < 0:
+            raise ValueError('upper bound must be higher than lower bound. wul:{}, wll:{}'.format(wult, wllt))
+        if (pult - pllt) < 0:
+            raise ValueError('upper bound must be higher than lower bound. pul:{}, pll:{}'.format(pult, pllt))
+        bound_l.append(wllt)
+        bound_h.append(wult)
+    # bound_l.append(width_ll)
+    #         bound_h.append(width_ul)
+
+    param, pcov = _curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
+    out['fit_pcov'] = pcov
+
+    y_fit = multi_gauss(x, *param)
+
+    param = param.reshape(len(peak_args), 3).transpose()
+    param_df = _pd.DataFrame(param.transpose(), columns=['amp', 'pos', 'sig'])
+    out['fit_res_param_pre'] = param_df.copy()
+
+    #### individual peaks
+    gaus = _pd.DataFrame(index=x)
+    for idx in param_df.index:
+        gaus[idx] = _pd.Series(
+            _math_functions.gauss(x, param_df.loc[idx, 'amp'], param_df.loc[idx, 'pos'], param_df.loc[idx, 'sig']),
+            index=x)
+
+    sum_peaks = gaus.sum(axis=1)
+
+    #### fix x axis back to diameter
+    if log:
+        param[1] = 10 ** param[1]
+        x = 10 ** x
+    # dist_by_type.index = x_orig
+
+    param_df.index.name = 'peak'
+    out['fit_res_param'] = param_df
+    fit_res = _pd.DataFrame(y_fit, index=x, columns=['fit_res'])
+    fit_res['data'] = _pd.Series(y, index=x)
+    out['fit_res'] = fit_res
+    out['fit_res_std'] = _np.sqrt(((fit_res.data - fit_res.fit_res) ** 2).sum())
+
+    # dist_by_type.index.name = 'growth factor'
+    # dist_by_type.columns.name = 'peak_no'
+    # out['dist_by_type'] = dist_by_type
+    gaus.index = x
+    out['fit_res_individual'] = gaus
+
+    res_gf_contribution = _pd.DataFrame(gaus.sum() * (1 / gaus.sum().sum()), columns=['ratio'])
+    res_gf_contribution['gf'] = param_df['pos']
+    res_gf_contribution[res_gf_contribution.ratio < 0.01 / (2 ** 6 / 1)] = _np.nan
+    res_gf_contribution.dropna(inplace=True)
+    out['res_gf_contribution'] = res_gf_contribution
+    return out
+
+
+def calc_mixing_state(growth_modes):
+    """Calculate a value that represents how aerosols are mixed, internally or externally.
+    Therefor, the pythagoras of the ratios of aerosols in the different growth modes is calculated.
+    E.g. if there where 3 growth modes and the respective aerosol ratios in each mode is r1, r2, and r3
+    the mixing_state would be sqrt(r1**2 + r2**2 + r3**2)
+
+    Parameters
+    ----------
+    growth_modes: pandas.DataFrame
+        The DataFrame should contain the ratios of has particles in the different growth modes
+
+    Returns
+    -------
+    mixing_state: float
+    """
+    ms = _np.sqrt((growth_modes.ratio ** 2).sum())
+    return ms
+
+
+class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._reset()
+
+    def _reset(self):
+        self.__fit_results = None
+
+    @property
+    def _fit_results(self):
+        if not self.__fit_results:
+            self._mixing_state = _pd.DataFrame(index=self.data.index, columns=['mixing_state'])
+            for e, i in enumerate(self.data.index):
+                hd = self.data.loc[i, :]
+                #                 hd = self.data.iloc[15,:]
+                fit_res = _fit_normals(hd)
+                self._fit_res_of_last_distribution = fit_res
+                ###
+                mixing_state = calc_mixing_state(fit_res['res_gf_contribution'])
+                self._mixing_state.loc[i, 'mixing_state'] = mixing_state
+
+                groth_modes_t = fit_res['res_gf_contribution']
+
+                groth_modes_t['datetime'] = _pd.Series()
+                groth_modes_t['datetime'] = i
+                groth_modes_t.index = groth_modes_t['datetime']
+                groth_modes_t.drop('datetime', axis=1, inplace=True)
+                if e == 0:
+                    self._growth_modes = groth_modes_t
+                else:
+                    self._growth_modes = self._growth_modes.append(groth_modes_t)
+                    #                 break
+            self.__fit_results = True
+
+    @property
+    def growth_modes(self):
+        self._fit_results
+        return self._growth_modes
+
+    @property
+    def mixing_state(self):
+        self._fit_results
+        return self._mixing_state
+
+    def plot(hgfd, growth_modes=True, **kwargs):
+        f, a, pc, cb = super().plot(**kwargs)
+        #             pc_kwargs={
+        #         #                                 'cmap': plt_tools.get_colorMap_intensity_r(),
+        #                                         'cmap': plt.cm.gist_earth,
+        #                                         })
+        pc.set_cmap(_plt.cm.gist_earth)
+        #         cols = plt_tools.color_cycle[1]
+        if growth_modes:
+            a.scatter(hgfd.growth_modes.index, hgfd.growth_modes.gf, s=hgfd.growth_modes.ratio * 200,
+                      color=_plt_tools.color_cycle[1]
+                      )
+        return f, a, pc, cb
