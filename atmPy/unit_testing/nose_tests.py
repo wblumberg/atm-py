@@ -148,12 +148,12 @@ class SizeDistTest(TestCase):
 
 class PhysicsHygroscopicityTest(TestCase):
     def test_hygroscopic_growth_factor_distributions(self):
-        fname = './test_data/sgptdmahygC1.b1.20120601.004227.cdf'
+        fname = os.path.join(test_data_folder, 'sgptdmahygC1.b1.20120601.004227.cdf')
         out = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
         hgfd = hyg.HygroscopicGrowthFactorDistributions(out.hyg_distributions.data.loc[:, 200.0, :].transpose())
         # hgfd.plot()
 
-        fname = './test_data/aerosols_physics_hygroscopicity_growth_mode.csv'
+        fname = os.path.join(test_data_folder, 'aerosols_physics_hygroscopicity_growth_mode.csv')
         growth_mode_soll = pd.read_csv(fname, index_col=0)
 
         threshold = growth_mode_soll.ratio.sum() * 1e-5
@@ -163,7 +163,7 @@ class PhysicsHygroscopicityTest(TestCase):
         self.assertLess(np.abs(hgfd.growth_modes.gf - growth_mode_soll.gf).sum(), threshold)
 
         #######
-        fname = './test_data/aerosols_physics_hygroscopicity_mixing_state.csv'
+        fname = os.path.join(test_data_folder, 'aerosols_physics_hygroscopicity_mixing_state.csv')
         mixing_state_soll = pd.read_csv(fname, index_col=0)
 
         threshold = mixing_state_soll.mixing_state.sum() * 1e-6
