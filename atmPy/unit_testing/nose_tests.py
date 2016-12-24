@@ -12,6 +12,7 @@ import atmPy
 from atmPy.aerosols import size_distribution
 from atmPy.data_archives import arm
 from atmPy.aerosols.physics import hygroscopic_growth as hyg
+from atmPy.general import vertical_profile
 
 class ArmDataTests(TestCase):
     def test_1twr10xC1(self):
@@ -143,8 +144,38 @@ class SizeDistTest(TestCase):
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
         sdl = atmPy.read_file.netCDF(fname)
 
+        self.sizedistributionLS = sd
+
         # self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
         self.assertLess(abs((sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values - sdl.data.values).sum()), 1e-10)
+
+    def test_growth_opt_propLS(self):
+
+        # use the same dist_LS as in test_opt_prop_LS
+        sdto = SizeDistTest()
+        sdto.test_opt_prop_LS()
+
+        # generate some RH which we can put into the housekeeping
+        hk = pd.DataFrame(index=sdto.sizedistributionLS.data.index, columns=['Relative_humidity'])
+        hk['Relative_humidity'] = 90
+        hk = vertical_profile.VerticalProfile(hk)
+        sdto.sizedistributionLS.housekeeping = hk
+
+        # let it grow
+        distg = sdto.sizedistributionLS.apply_hygro_growth(0.7)
+
+        # load the test data
+        fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')
+        aodcs = atmPy.read_file.netCDF(fname)
+
+        threshold = distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values.sum() * 1e-10
+
+        # res = np.abs(distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values
+        #              - aodcs.data.values).sum() < threshold
+        self.assertLess(np.abs(distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values
+                     - aodcs.data.values).sum(), threshold)
+
+
 
 class PhysicsHygroscopicityTest(TestCase):
     def test_hygroscopic_growth_factor_distributions(self):

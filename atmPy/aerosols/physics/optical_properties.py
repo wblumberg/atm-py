@@ -45,8 +45,8 @@ def size_dist2optical_properties(sd, aod=False, noOfAngles=100):
     #     raise AttributeError(txt)
 
     sd.optical_properties_settings._check()
-    wavelength = sd.optical_properties_settings.wavelength
-    n = sd.optical_properties_settings.refractive_index
+    wavelength = sd.optical_properties_settings.wavelength.value
+    n = sd.optical_properties_settings.refractive_index.value
     out = {}
     sdls = sd.convert2numberconcentration()
     index = sdls.data.index

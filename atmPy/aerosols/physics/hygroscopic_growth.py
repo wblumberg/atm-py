@@ -76,8 +76,6 @@ def kappa_simple(k, RH, refractive_index = None, inverse = False):
             n_mix = lambda n, gf: (n + (nw * (gf ** 3 - 1))) / gf ** 3 # This is the correct function for volume mixing ratio
             if type(refractive_index).__name__ == 'DataFrame':
                 refractive_index = refractive_index.iloc[:,0]
-            # import pdb
-            # pdb.set_trace()
             return out, n_mix(refractive_index, out)
 
     return out
@@ -318,13 +316,13 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
             results.loc[section_start] = _np.nan
             continue
 
-        try:
-            kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
-            # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
-            gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
-        except:
-            import pdb
-            pdb.set_trace()
+        # try:
+        kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+        # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
+        gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
+        # except:
+        #     import pdb
+        #     pdb.set_trace()
 
         frame_this = {'kappa': kappa[0],
                       'kappa_std': _np.sqrt(k_varience[0]),
