@@ -61,7 +61,7 @@ class SizeDistTest(TestCase):
         self.assertEqual(round(float(sd.particle_surface_concentration.values), 4) , round(194.42186363605904, 4))
         self.assertEqual(round(float(sd.particle_volume_concentration.values), 4) , round(11.068545094055812, 4))
 
-        sd.properties.particle_density = 2.2
+        sd.parameters4reductions.particle_density = 2.2
         self.assertEqual(round(float(sd.particle_mass_concentration), 4), round(24.350799206922783, 4))
 
 
@@ -79,7 +79,7 @@ class SizeDistTest(TestCase):
         sd.housekeeping = atmPy.general.timeseries.TimeSeries(
             pd.DataFrame(np.array([[250.], [750.]]).transpose(), index=sd.data.index,
                          columns=['temperature_K', 'pressure_Pa']))
-        sd.properties.particle_density = 2.8
+        sd.parameters4reductions.particle_density = 2.8
 
         self.assertEqual(round(float(sd.particle_mass_mixing_ratio.data.values) * 1e6, 4), round(2.96533739732464, 4))
 
@@ -138,8 +138,8 @@ class SizeDistTest(TestCase):
                                                                                       layerModecenter=[200.0, 800.0],
                                                                                       widthOfAerosolMode=0.2)
 
-        sd.optical_properties_settings.refractive_index = 1.56
-        sd.optical_properties_settings.wavelength = 515
+        sd.optical_properties.parameters.refractive_index = 1.56
+        sd.optical_properties.parameters.wavelength = 515
 
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
         sdl = atmPy.read_file.netCDF(fname)
@@ -147,7 +147,7 @@ class SizeDistTest(TestCase):
         self.sizedistributionLS = sd
 
         # self.assertTrue(np.all(sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values == sdl.data.values))
-        self.assertLess(abs((sd.optical_properties.aerosol_optical_depth_cumulative_VP.data.values - sdl.data.values).sum()), 1e-10)
+        self.assertLess(abs((sd.optical_properties.aod_cumulative.data.values - sdl.data.values).sum()), 1e-10)
 
     def test_growth_opt_propLS(self):
 
@@ -168,11 +168,11 @@ class SizeDistTest(TestCase):
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')
         aodcs = atmPy.read_file.netCDF(fname)
 
-        threshold = distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values.sum() * 1e-10
+        threshold = distg.optical_properties.aod_cumulative.data.values.sum() * 1e-10
 
         # res = np.abs(distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values
         #              - aodcs.data.values).sum() < threshold
-        self.assertLess(np.abs(distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values
+        self.assertLess(np.abs(distg.optical_properties.aod_cumulative.data.values
                      - aodcs.data.values).sum(), threshold)
 
 

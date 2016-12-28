@@ -22,7 +22,7 @@ def run():
 
     title = 'atm-py unit test (%s)'%(out_lines[-1])
 
-    print(out_lines)
+    print('\n'.join(out_lines))
     if out_lines[-1] == 'OK':
         message = out_lines[2]
     else:
