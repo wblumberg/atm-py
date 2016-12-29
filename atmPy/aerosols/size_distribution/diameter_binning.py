@@ -25,8 +25,8 @@ def bincenters2binsANDnames(bincenters):
     if type(bincenters) != np.ndarray:
         raise TypeError('Parameter "bincenters" has to be numpy.ndarray. Given object is %s'%type(bincenters))
     noEnds = (bincenters[:-1]+bincenters[1:])/2.
-    firstEdge = bincenters[0] - (noEnds[0]-bincenters[0])
-    lastEdge = bincenters[-1] + (noEnds[-1]-bincenters[-1])
+    firstEdge = bincenters[0] - abs(noEnds[0]-bincenters[0])
+    lastEdge = bincenters[-1] + abs(noEnds[-1]-bincenters[-1])
     binedges = np.append(firstEdge,noEnds)
     binedges = np.append(binedges,lastEdge)
     minusses = binedges[:-1].copy().astype(str)
