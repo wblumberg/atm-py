@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from atmPy.aerosols.physics import hygroscopic_growth as hg
+from atmPy.aerosols.physics import hygroscopicity as hg
 from atmPy.general import timeseries
 from atmPy.data_archives.arm._netCDF import ArmDataset
 

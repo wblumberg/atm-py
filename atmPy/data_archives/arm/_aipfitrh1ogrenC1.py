@@ -2,7 +2,7 @@ from atmPy.general import timeseries as _timeseries
 from atmPy.data_archives.arm import _netCDF
 import pandas as _pd
 import numpy as _np
-from atmPy.aerosols.physics import hygroscopic_growth as _hygrow
+from atmPy.aerosols.physics import hygroscopicity as _hygrow
 from atmPy.tools import decorators as _decorators
 
 class ArmDatasetSub(_netCDF.ArmDataset):

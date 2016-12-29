@@ -4,8 +4,8 @@ import pandas as _pd
 from atmPy.data_archives.arm._netCDF import ArmDataset as _ArmDataset
 import numpy as _np
 from atmPy.tools import decorators
-from atmPy.aerosols.physics import hygroscopic_growth as hygrow
-from atmPy.aerosols.physics import hygroscopic_growth
+from atmPy.aerosols.physics import hygroscopicity as hygrow
+from atmPy.aerosols.physics import hygroscopicity
 
 # import pdb as _pdb
 
@@ -263,21 +263,21 @@ class ArmDatasetSub(_ArmDataset):
     @property
     def hygroscopicity_10um(self):
         if not self.__hygroscopicity:
-            self.__hygroscopicity = hygroscopic_growth.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_10um_Neph3W_1'),
-                                                             self.scatt_coeff._del_all_columns_but('Bs_G_Wet_10um_Neph3W_2'),
-                                                             self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
-                                                             self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
-                                                             return_fits = False)
+            self.__hygroscopicity = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_10um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_G_Wet_10um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits = False)
         return self.__hygroscopicity
 
     @property
     def hygroscopicity_1um(self):
         if not self.__hygroscopicity:
-            self.__hygroscopicity = hygroscopic_growth.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_1um_Neph3W_1'),
-                                                                                     self.scatt_coeff._del_all_columns_but('Bs_G_Wet_1um_Neph3W_2'),
-                                                                                     self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
-                                                                                     self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
-                                                                                     return_fits=False)
+            self.__hygroscopicity = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_G_Dry_1um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_G_Wet_1um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits=False)
         return self.__hygroscopicity
 
 
