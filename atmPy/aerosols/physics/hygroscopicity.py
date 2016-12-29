@@ -8,6 +8,8 @@ import warnings as _warnings
 from atmPy.tools import math_functions as _math_functions
 from atmPy.tools import plt_tools as _plt_tools
 import matplotlib.pylab as _plt
+from  atmPy.aerosols.size_distribution import sizedistribution as _sizedistribution
+
 
 
 
@@ -549,6 +551,24 @@ def calc_mixing_state(growth_modes):
     """
     ms = _np.sqrt((growth_modes.ratio ** 2).sum())
     return ms
+
+
+class HygroscopicityAndSizedistributions(object):
+    def __init__(self, parent):
+        self._parent_sizedist = parent
+        self.parameters = _sizedistribution._Parameters4Reductions_hygro_growth(parent)
+        self._grown_size_distribution = None
+
+        #todo: this needs to be integrated better
+        self.RH = None
+
+    @property
+    def grown_size_distribution(self):
+        if not self._grown_size_distribution:
+            self._grown_size_distribution = self._parent_sizedist.apply_hygro_growth(self.parameters.kappa.value, self.parameters.RH.value)
+        return self._grown_size_distribution
+
+
 
 
 class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):

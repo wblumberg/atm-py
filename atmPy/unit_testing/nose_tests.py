@@ -11,7 +11,7 @@ from atmPy.data_archives.arm import _read_data
 import atmPy
 from atmPy.aerosols import size_distribution
 from atmPy.data_archives import arm
-from atmPy.aerosols.physics import hygroscopic_growth as hyg
+from atmPy.aerosols.physics import hygroscopicity as hyg
 from atmPy.general import vertical_profile
 
 class ArmDataTests(TestCase):
@@ -162,7 +162,8 @@ class SizeDistTest(TestCase):
         sdto.sizedistributionLS.housekeeping = hk
 
         # let it grow
-        distg = sdto.sizedistributionLS.apply_hygro_growth(0.7)
+        sdto.sizedistributionLS.hygroscopicity.parameters.kappa = 0.7
+        distg = sdto.sizedistributionLS.hygroscopicity.grown_size_distribution
 
         # load the test data
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')

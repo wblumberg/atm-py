@@ -13,14 +13,13 @@ import warnings as _warnings
 import datetime
 import scipy.optimize as optimization
 from scipy import stats
-from atmPy.aerosols.physics import hygroscopic_growth as hg, optical_properties
+from atmPy.aerosols.physics import hygroscopicity as hygroscopicity
 from atmPy.tools import pandas_tools
 from atmPy.aerosols.physics import optical_properties
 from atmPy.aerosols.size_distribution import moments
 from atmPy.gases import physics as _gas_physics
 from . import modes
 # from atmPy import atmosphere
-import pdb
 
 
 # Todo: rotate the plots of the layerseries (e.g. plot_particle_concentration) to have the altitude as the y-axes
@@ -169,6 +168,19 @@ def get_settings():
                              'default':'None',
                              'unit': 'no unit',
                              'options': ['None', 'STP', 'ambient']},
+                'kappa': {'value': None,
+                          'default': None,
+                          'unit': 'no unit',
+                          'doc': ''},
+                'growth_factor': {'value': None,
+                                  'default':None,
+                                  'unit': 'no unit',
+                                  'doc': 'This should be HygroscopicGrowthFactorDistributions instance.'},
+
+                'RH': {'value': None,
+                       'default': None,
+                       'unit': 'no unit',
+                       'doc': 'If None column in housekeeping will be used ... if it exists.'},
                 }
     return settings.copy()
 
@@ -358,7 +370,7 @@ class _Parameters4Reductions(object):
 
             if missing:
                 if raise_error:
-                    txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(par)
+                    txt = 'Parameter {} is not set ... do so!'.format(par)
                     raise ValueError(txt)
                 else:
                     passed = False
@@ -368,29 +380,11 @@ class _Parameters4Reductions(object):
         return self._check_parameter_exists(parameters= ['wavelength', 'refractive_index'], raise_error = raise_error)
 
     def _check_growth_parameters_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= ['refractive_index'], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [], raise_error = raise_error)
 
     def _check_mixing_ratio_param_exist(self, raise_error = True):
         return self._check_parameter_exists(parameters= ['particle_density'], raise_error = raise_error)
 
-    # def _check_opt_prop(self, raise_error = True):
-    #     dependence = ['wavelength', 'refractive_index']
-    #     passed = True
-    #     for dep in dependence:
-    #         value = self._parent._settings[dep]['value']
-    #         missing = False
-    #         if type(value) == type(None):
-    #             missing = True
-    #         elif not _np.all(~_np.isnan(value)):
-    #             missing = True
-    #
-    #         if missing:
-    #             if raise_error:
-    #                 txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(dep)
-    #                 raise ValueError(txt)
-    #             else:
-    #                 passed = False
-    #     return passed
 
     @property
     def _prop_refractive_index(self):
@@ -432,6 +426,24 @@ sizedistribution.align to align the index of the new array."""
         _Parameter(self, 'wavelength')._set_value(value)
 
     @property
+    def _prop_kappa(self):
+        return _Parameter(self, 'kappa')
+
+    @_prop_kappa.setter
+    def _prop_kappa(self, value):
+        self._reset()
+        _Parameter(self, 'kappa')._set_value(value)
+
+    @property
+    def _prop_RH(self):
+        return _Parameter(self, 'RH')
+
+    @_prop_RH.setter
+    def _prop_RH(self, value):
+        self._reset()
+        _Parameter(self, 'RH')._set_value(value)
+
+    @property
     def _prop_particle_density(self):
         return _Parameter(self, 'particle_density')
 
@@ -453,6 +465,8 @@ class _Parameters4Reductions_all(_Parameters4Reductions):
         setattr(_Parameters4Reductions_all, 'wavelength', _Parameters4Reductions_all._prop_wavelength)
         setattr(_Parameters4Reductions_all, 'refractive_index', _Parameters4Reductions_all._prop_refractive_index)
         setattr(_Parameters4Reductions_all, 'particle_density', _Parameters4Reductions_all._prop_particle_density)
+        setattr(_Parameters4Reductions_all, 'kappa', _Parameters4Reductions_all._prop_kappa)
+        setattr(_Parameters4Reductions_all, 'RH', _Parameters4Reductions_all._prop_RH)
 
 class _Parameters4Reductions_opt_prop(_Parameters4Reductions):
     def __init__(self, *args, **kwargs):
@@ -465,6 +479,9 @@ class _Parameters4Reductions_hygro_growth(_Parameters4Reductions):
         super().__init__(*args, **kwargs)
         setattr(_Parameters4Reductions_hygro_growth, 'refractive_index', _Parameters4Reductions_hygro_growth._prop_refractive_index)
         setattr(_Parameters4Reductions_hygro_growth, 'particle_density', _Parameters4Reductions_hygro_growth._prop_particle_density)
+        setattr(_Parameters4Reductions_hygro_growth, 'kappa',            _Parameters4Reductions_hygro_growth._prop_kappa)
+        setattr(_Parameters4Reductions_hygro_growth, 'RH',               _Parameters4Reductions_hygro_growth._prop_RH)
+
 
 # class _SettingHygroscopicGrowth(object):
 #     def __init__(self, parent):
@@ -605,7 +622,8 @@ class SizeDist(object):
             self.data = data
 
         self._settings = get_settings()
-        self.__optical_properties = None
+        self._optical_properties = None
+        self._hygroscopicity = None
 
         # self.optical_properties_settings = _SettingOpticalProperty(self)
         self.parameters4reductions = _Parameters4Reductions_all(self)
@@ -670,15 +688,21 @@ class SizeDist(object):
 
     @property
     def DEPRECATEDoptical_properties(self):
-        if not self.__optical_properties:
-            self.__optical_properties = optical_properties.size_dist2optical_properties(self, aod = self.__sup_opt_aod, noOfAngles=100)
-        return self.__optical_properties
+        if not self._optical_properties:
+            self._optical_properties = optical_properties.size_dist2optical_properties(self, aod = self.__sup_opt_aod, noOfAngles=100)
+        return self._optical_properties
 
     @property
     def optical_properties(self):
-        if not self.__optical_properties:
-            self.__optical_properties = optical_properties.OpticalProperties(self)
-        return self.__optical_properties
+        if not self._optical_properties:
+            self._optical_properties = optical_properties.OpticalProperties(self)
+        return self._optical_properties
+
+    @property
+    def hygroscopicity(self):
+        if not self._hygroscopicity:
+            self._hygroscopicity = hygroscopicity.HygroscopicityAndSizedistributions(self)
+        return self._hygroscopicity
 
     # @optical_properties.setter
     # def optical_properties(self, value):
@@ -742,7 +766,7 @@ class SizeDist(object):
 
     @sup_optical_properties_wavelength.setter
     def sup_optical_properties_wavelength(self, data):
-        self.__optical_properties = None
+        self._optical_properties = None
         self._sup_opt_wl = data
 
 #     @property
@@ -886,8 +910,7 @@ class SizeDist(object):
         if type(kappa).__name__ == 'TimeSeries':
             kappa = kappa.data.iloc[:, 0].values
         # gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
-        gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.parameters4reductions.refractive_index)
-
+        gf,n_mix = hygroscopicity.kappa_simple(kappa, RH, refractive_index= dist_g.parameters4reductions.refractive_index)
         # pdb.set_trace()
 
         if how == 'shift_bins':
@@ -896,12 +919,19 @@ class SizeDist(object):
                 It is %s'''%(type(RH).__name__)
                 raise TypeError(txt)
         if type(self).__name__ == 'SizeDist_LS':
+            if type(gf) in (float, int):
+                nda = _np.zeros(self.data.index.shape)
+                nda[:] = gf
+                gf = nda
             gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
 
         elif type(self).__name__ == 'SizeDist_TS':
+            if type(gf) in (float, int):
+                nda = _np.zeros(self.data.index.shape)
+                nda[:] = gf
+                gf = nda
             gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
             gf._data_period = self._data_period
-
         # pdb.set_trace()
         dist_g = dist_g.apply_growth(gf, how = how)
 
@@ -910,7 +940,10 @@ class SizeDist(object):
             dist_g.parameters4reductions.refractive_index = n_mix
         elif how == 'shift_data':
             if adjust_refractive_index:
-                # print('yes')
+                if type(n_mix) in (float, int):
+                    nda = _np.zeros(self.data.index.shape)
+                    nda[:] = n_mix
+                    n_mix = nda
                 df = pd.DataFrame(n_mix)
                 df.columns = ['index_of_refraction']
                 df.index = dist_g.data.index
@@ -1505,7 +1538,7 @@ class SizeDist(object):
         """
         Resets properties so they are recalculated. This is usually necessary once you perform an operation on data.
         """
-        self.__optical_properties = None
+        self._optical_properties = None
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
@@ -1696,8 +1729,8 @@ class SizeDist_TS(SizeDist):
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
-        sd_TS.index_of_refraction = sd.index_of_refraction
-        sd_TS._SizeDist_growth_factor = sd.growth_factor
+        sd_TS.parameters4reductions.refractive_index = sd.parameters4reductions.refractive_index
+        # sd_TS._SizeDist_growth_factor = sd.growth_factor
         # out['size_distribution'] = sd_LS
         return sd_TS
 
@@ -1713,8 +1746,8 @@ class SizeDist_TS(SizeDist):
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
-        sd_TS.index_of_refraction = sd.index_of_refraction
-        sd_TS._SizeDist_growth_factor = sd.growth_factor
+        sd_TS.parameters4reductions.refractive_index = sd.parameters4reductions.refractive_index
+        # sd_TS._SizeDist_growth_factor = sd.growth_factor
         sd_TS._data_period = self._data_period
         # out['size_distribution'] = sd_LS
         return sd_TS
@@ -2178,7 +2211,6 @@ class SizeDist_LS(SizeDist):
         kappa: float
         RH: bool, float, or array.
             If None, RH from self.housekeeping will be taken"""
-
         if not _np.any(RH):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
