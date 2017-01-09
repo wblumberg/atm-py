@@ -926,10 +926,11 @@ class SizeDist(object):
             gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
 
         elif type(self).__name__ == 'SizeDist_TS':
-            if type(gf) in (float, int):
+            if type(gf).__name__ in ('float', 'int', 'float64'):
                 nda = _np.zeros(self.data.index.shape)
                 nda[:] = gf
                 gf = nda
+            # import pdb; pdb.set_trace()
             gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
             gf._data_period = self._data_period
         # pdb.set_trace()
@@ -940,10 +941,12 @@ class SizeDist(object):
             dist_g.parameters4reductions.refractive_index = n_mix
         elif how == 'shift_data':
             if adjust_refractive_index:
-                if type(n_mix) in (float, int):
+                if type(n_mix).__name__ in ('float', 'int', 'float64'):
                     nda = _np.zeros(self.data.index.shape)
                     nda[:] = n_mix
                     n_mix = nda
+                # import pdb;
+                # pdb.set_trace()
                 df = pd.DataFrame(n_mix)
                 df.columns = ['index_of_refraction']
                 df.index = dist_g.data.index
@@ -954,7 +957,7 @@ class SizeDist(object):
                 dist_g.parameters4reductions.refractive_index = self.parameters4reductions.refractive_index
 
         # pdb.set_trace()
-        dist_g._growth_factor = pd.DataFrame(gf, index = dist_g.data.index, columns = ['Growth_factor'])
+        # dist_g._growth_factor = pd.DataFrame(gfsdf, index = dist_g.data.index, columns = ['Growth_factor'])
         # pdb.set_trace()
         return dist_g
 
@@ -1586,6 +1589,7 @@ class SizeDist_TS(SizeDist):
         self._uptodate_particle_number_mixing_ratio = False
         self._uptodate_particle_surface_concentration = False
         self._uptodate_particle_volume_concentration = False
+        self._optical_properties = None
 
 
     def correct4ambient_LFE_tmp_difference(self):
@@ -1720,7 +1724,7 @@ class SizeDist_TS(SizeDist):
         kappa: float
         RH: bool, float, or array.
             If None, RH from self.housekeeping will be taken"""
-
+        # import pdb; pdb.set_trace()
         if not _np.any(RH):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
@@ -2036,9 +2040,9 @@ class SizeDist_TS(SizeDist):
 
     @property
     def optical_properties(self):
-        if not self.__optical_properties:
-            self.__optical_properties = optical_properties.OpticalProperties_TS(self)
-        return self.__optical_properties
+        if not self._optical_properties:
+            self._optical_properties = optical_properties.OpticalProperties_TS(self)
+        return self._optical_properties
 
     # @property
     # def optical_properties(self):
@@ -2224,7 +2228,7 @@ class SizeDist_LS(SizeDist):
         # sd_LS.hygroscopic_growth_settings.refractive_index = sd.hygroscopic_growth_settings.refractive_index
         sd_LS.parameters4reductions.refractive_index = sd.parameters4reductions.refractive_index
         sd_LS.parameters4reductions.wavelength = sd.parameters4reductions.wavelength
-        sd_LS._SizeDist_growth_factor = sd.growth_factor
+        # sd_LS._SizeDist_growth_factor = sd.growth_factor
         # out['size_distribution'] = sd_LS
         return sd_LS
 

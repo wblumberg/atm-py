@@ -189,10 +189,10 @@ class PhysicsHygroscopicityTest(TestCase):
         growth_mode_soll = pd.read_csv(fname, index_col=0)
 
         threshold = growth_mode_soll.ratio.sum() * 1e-5
-        self.assertLess(np.abs(hgfd.growth_modes.ratio - growth_mode_soll.ratio).sum(), threshold)
+        self.assertLess(np.abs(hgfd.growth_modes_gf.ratio - growth_mode_soll.ratio).sum(), threshold)
 
         threshold = growth_mode_soll.gf.sum() * 1e-7
-        self.assertLess(np.abs(hgfd.growth_modes.gf - growth_mode_soll.gf).sum(), threshold)
+        self.assertLess(np.abs(hgfd.growth_modes_gf.gf - growth_mode_soll.gf).sum(), threshold)
 
         #######
         fname = os.path.join(test_data_folder, 'aerosols_physics_hygroscopicity_mixing_state.csv')

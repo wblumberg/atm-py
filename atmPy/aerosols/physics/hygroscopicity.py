@@ -572,12 +572,16 @@ class HygroscopicityAndSizedistributions(object):
 
 
 class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
-    def __init__(self, *args):
+    def __init__(self, *args, RH_high = None, RH_low = None):
         super().__init__(*args)
         self._reset()
+        self.RH_high = RH_high
+        self.RH_low = RH_low
+
 
     def _reset(self):
         self.__fit_results = None
+        self._growth_modes_kappa = None
 
     @property
     def _fit_results(self):
@@ -606,9 +610,18 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
             self.__fit_results = True
 
     @property
-    def growth_modes(self):
+    def growth_modes_gf(self):
         self._fit_results
         return self._growth_modes
+
+    @property
+    def growth_modes_kappa(self):
+        if not _np.any(self._growth_modes_kappa):
+            gm = self.growth_modes_gf.copy()
+            gm['kappa'] = _pd.Series(kappa_simple(gm.gf.values, self.RH_high, inverse=True), index=gm.index)
+            gm.drop('gf', axis=1, inplace=True)
+            self._growth_modes_kappa = gm
+        return self._growth_modes_kappa
 
     @property
     def mixing_state(self):
@@ -624,7 +637,7 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
         pc.set_cmap(_plt.cm.gist_earth)
         #         cols = plt_tools.color_cycle[1]
         if growth_modes:
-            a.scatter(hgfd.growth_modes.index, hgfd.growth_modes.gf, s=hgfd.growth_modes.ratio * 200,
+            a.scatter(hgfd.growth_modes_gf.index, hgfd.growth_modes_gf.gf, s=hgfd.growth_modes_gf.ratio * 200,
                       color=_plt_tools.color_cycle[1]
                       )
         return f, a, pc, cb

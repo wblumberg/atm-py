@@ -13,6 +13,7 @@ class ArmDatasetSub(ArmDataset):
         super(ArmDatasetSub,self).__init__(*args, **kwargs)
         self._concatable = ['RH_interDMA', 'hyg_distributions']
         self.__kappa_values = None
+        self._hyg_distributions_d200nm = None
 
 
     def _data_quality_control(self):
@@ -71,6 +72,12 @@ class ArmDatasetSub(ArmDataset):
             self.__mean_growth_factor = allmeans
             self.__mean_growth_factor._data_period = self._data_period
         return self.__mean_growth_factor
+
+    @property
+    def hyg_distributions_d200nm(self):
+        if not self._hyg_distributions_d200nm:
+            self._hyg_distributions_d200nm = hg.HygroscopicGrowthFactorDistributions(self.hyg_distributions.data.loc[:,200.0,:].transpose(), RH_high = 90, RH_low = 20)
+        return self._hyg_distributions_d200nm
 
     @property
     def kappa_values(self):
