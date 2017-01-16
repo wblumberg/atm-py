@@ -186,7 +186,9 @@ def f_RH_kappa(RH, k, RH0 = 0):
     return f_RH
 
 def f_RH_gamma(RH, g, RH0 = 0):
-    f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
+    """"Doherty et al., 2005"""
+    # f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
+    f_RH = ((100 - RH0) / (100 - RH))**(g)
     return f_RH
 
 
