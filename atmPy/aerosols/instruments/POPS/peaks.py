@@ -251,7 +251,7 @@ def _binary2array_labview_clusters(fname, skip = 20):
         lengtht  = unpack(entry_format, record)[0]
         return lengtht
 
-    def read_array(file, length, time, entry_format = '>LHBBB'):
+    def read_array(rein, length, time, entry_format = '>LHBBB'):
         entry_size = calcsize(entry_format)
 
         thearray = np.zeros((length,6))
