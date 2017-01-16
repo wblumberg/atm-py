@@ -67,11 +67,11 @@ def read_csv(fname,
                     break
                 else:
                     is_hk = False
-            if verbose and not is_hk:
-                print('%s is not a housekeeping file ... continue')
+                if verbose and not is_hk:
+                    print('%s is not a housekeeping file ... continue'%file)
 
             if is_hk:
-                hktmp = _read_housekeeping(file)
+                hktmp = _read_housekeeping(file, verbose=verbose)
                 if not hktmp:
                     print('%s is empty ... next one' % file)
                 elif first:
