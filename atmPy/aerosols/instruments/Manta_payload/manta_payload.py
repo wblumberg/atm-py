@@ -10,6 +10,7 @@ _pressure_alt = ['StaticP', 'PRESS']
 _temp_alt = ['AT_cont', 'AT']
 _RH_alt = ['RH_cont', 'RH']
 _temp_payload_alt = ['CONDT']
+_cn_concentration_alt = ['CONCN']
 
 def read_csv(fname, temperature_limits=(-20, -0.5)):
     """
@@ -26,8 +27,14 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
     _pandas_tools.ensure_column_exists(df, 'Temperature', _temp_alt)
     _pandas_tools.ensure_column_exists(df, 'Relative_humidity', _RH_alt)
     _pandas_tools.ensure_column_exists(df, 'Temperature_instrument', _temp_payload_alt, raise_error=False)
+    _pandas_tools.ensure_column_exists(df, 'CN_concentration', _cn_concentration_alt)
     try:
+        # df.Temperature_payload = df.Temperature_payload.astype(float)
         df.Temperature_instrument = _pd.to_numeric(df.Temperature_instrument, errors='coerce')
+        df.CN_concentration = _pd.to_numeric(df.CN_concentration, errors='coerce')
+
+        df.CONCN = _pd.to_numeric(df.CONCN, errors='coerce')
+        df.COUNT = _pd.to_numeric(df.COUNT, errors='coerce')
     except AttributeError:
         pass
 
@@ -43,7 +50,7 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
         df = df[df.Temperature > temperature_limits[0]]
         df = df[temperature_limits[1] > df.Temperature]
 
-    # df.Temperature_payload = df.Temperature_payload.astype(float)
+
     hk = _timeseries.TimeSeries(df)
     hk._data_period = 2
     return hk
