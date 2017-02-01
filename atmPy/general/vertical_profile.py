@@ -68,6 +68,13 @@ class VerticalProfile(object):
         self._x_label = None
         self._y_label = 'Altitude'
 
+    ###########################################
+    def __sub__(self, other):
+        vp = self.copy()
+        vp.data = _pd.DataFrame(vp.data.iloc[:, 0] - other.data.iloc[:, 0])
+        return vp
+    ###########################################
+
     def align_to(self, ts_other):
         return align_to(self, ts_other)
 
@@ -113,6 +120,19 @@ class VerticalProfile(object):
         cat_sort_int.index = cat_sort_int.TimeUTC
         cat_sort_int = cat_sort_int.drop('TimeUTC', axis=1)
         return atmPy.general.timeseries.TimeSeries(cat_sort_int)
+
+    def drop_all_columns_but(self, keep, inplace = False):
+        if inplace:
+            ts = self
+        else:
+            ts = self.copy()
+        all_keys = ts.data.keys()
+        del_keys = all_keys.drop(keep)
+        ts.data = ts.data.drop(labels=del_keys, axis=1)
+        if inplace:
+            return
+        else:
+            return ts
 
 class VerticalProfile_2D(VerticalProfile):
     def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
