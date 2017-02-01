@@ -293,13 +293,17 @@ def _binary2array_labview_clusters(fname, skip = 20):
                 skip = 0
                 break
 
-
-        full_array = np.concatenate(array_list)
         rein.close()
 
         if wrong_skip:
             continue
         else:
+            # looks like for short files the above skip test does not work ... quickfix:
+            try:
+                full_array = np.concatenate(array_list)
+            except ValueError:
+                skip = 0
+                continue
             break
 
     return full_array
