@@ -3,7 +3,7 @@
 import warnings
 
 import numpy as np
-
+import pandas as pd
 from atmPy.aerosols.physics import _tools_sampling_efficiency
 
 
@@ -30,17 +30,36 @@ def loss_in_a_T_junction(temperature=293.15,
         kg/m^3
     verbose: bool.
         """
+    diag_os = np.sqrt(2) * pick_of_tube_diameter
+    diag_is = pick_of_tube_diameter
+    mid_dig = (diag_os + diag_is) / 2
+    effective_tube_diameter = mid_dig / np.sqrt(2)
 
-    pl = _tools_sampling_efficiency.stopping_distance(temperature=temperature,
-                                                      pressure=pressure,
-                                                      particle_diameter=particle_diameter,
-                                                      particle_velocity=particle_velocity,
-                                                      particle_density=particle_density,
-                                                      verbose=verbose)
-    out = 1. - pl / pick_of_tube_diameter
+    if not hasattr(particle_diameter, '__iter__'):
+        particle_diameter = [particle_diameter]
+
+    df = pd.DataFrame()
+    for d in particle_diameter:
+
+        pl = _tools_sampling_efficiency.stopping_distance(temperature=temperature,
+                                                          pressure=pressure,
+                                                          particle_diameter=d,
+                                                          particle_velocity=particle_velocity,
+                                                          particle_density=particle_density,
+                                                          verbose=verbose)
+
+
+        out = 1. - pl / effective_tube_diameter
+
+        if not hasattr(out, '__iter__'):
+            out = [out]
+        df[d] = out
+
+    df[df < 0] = 0
+
     if verbose:
-        print('loss_in_a_T_junction: %s' % out)
-    return out
+        print('loss_in_a_T_junction: %s' % df)
+    return df
 
 
 def loss_at_an_abrupt_contraction_in_circular_tubing(temperature=293.15,  # Kelvin
