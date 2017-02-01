@@ -435,6 +435,15 @@ sizedistribution.align to align the index of the new array."""
         _Parameter(self, 'kappa')._set_value(value)
 
     @property
+    def _prop_growth_distribution(self):
+        return _Parameter(self, 'growth_distribution')
+
+    @_prop_growth_distribution.setter
+    def _prop_growth_distribution(self, value):
+        self._reset()
+        _Parameter(self, 'growth_distribution')._set_value(value)
+
+    @property
     def _prop_RH(self):
         return _Parameter(self, 'RH')
 
@@ -2730,13 +2739,14 @@ def simulate_sizedistribution_timeseries(diameter=[10, 2500], numberOfDiameters=
                                          frequency=10):
     delta = datetime.datetime.strptime(endDate, '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(startDate,
                                                                                                   '%Y-%m-%d %H:%M:%S')
-    periods = delta.total_seconds() / float(frequency)
+    periods = int(delta.total_seconds() / float(frequency))
     rng = pd.date_range(startDate, periods=periods, freq='%ss' % frequency)
 
     noOfOsz = 5
     ampOfOsz = 100
 
     oszi = _np.linspace(0, noOfOsz * 2 * _np.pi, periods)
+
     sdArray = _np.zeros((periods, numberOfDiameters - 1))
     for e, i in enumerate(rng):
         sdtmp = simulate_sizedistribution(diameter=diameter,
