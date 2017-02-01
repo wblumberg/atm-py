@@ -1178,13 +1178,25 @@ class TimeSeries(object):
         return out
 
     def _del_all_columns_but(self, keep, inplace = False):
+        """as it says, deletes all columns but ...
+        Parameters:
+        -----------
+        keep: string or array-like
+            column name(s) to keep
+        """
         if inplace:
             ts = self
         else:
             ts = self.copy()
-        all_keys = ts.data.keys()
-        del_keys = all_keys.drop(keep)
-        ts.data = ts.data.drop(labels=del_keys, axis=1)
+        all_keys = list(ts.data.keys())
+
+        if isinstance(keep, str):
+            keep = [keep]
+
+        for k in keep:
+            all_keys.remove(k)
+
+        ts.data = ts.data.drop(labels=all_keys, axis=1)
         if inplace:
             return
         else:
