@@ -291,6 +291,7 @@ def _binary2array_labview_clusters(fname, skip = 20):
                     return False
                 wrong_skip = True
                 skip = 0
+                break
 
 
         full_array = np.concatenate(array_list)
