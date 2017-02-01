@@ -172,11 +172,14 @@ def get_settings():
                           'default': None,
                           'unit': 'no unit',
                           'doc': ''},
-                'growth_factor': {'value': None,
+                # 'growth_factor': {'value': None,
+                #                   'default':None,
+                #                   'unit': 'no unit',
+                #                   'doc': 'This should be HygroscopicGrowthFactorDistributions instance.'},
+                'growth_distribution': {'value': None,
                                   'default':None,
                                   'unit': 'no unit',
                                   'doc': 'This should be HygroscopicGrowthFactorDistributions instance.'},
-
                 'RH': {'value': None,
                        'default': None,
                        'unit': 'no unit',
@@ -347,40 +350,77 @@ class _Parameters4Reductions(object):
     def __init__(self, parent):
 
         self._parent = parent
-        self._reset()
+        self._reset_opt_prop()
 
 
     def __repr__(self):
         out = _all_attributes2string(self)
         return out
 
-    def _reset(self):
-        self._parent.__optical_properties = None
+    def _reset_opt_prop(self):
+        self._parent._optical_properties = None
+
+    def _reset_hygro(self):
+        self._parent._hygroscopicity = None
 
     def _check_parameter_exists(self, parameters = None, raise_error = True):
-        # dependence = ['wavelength', 'refractive_index']
-        passed = True
-        for par in parameters:
-            value = self._parent._settings[par]['value']
-            missing = False
-            if type(value) == type(None):
-                missing = True
-            elif not _np.all(~_np.isnan(value)):
-                missing = True
+        """Check if each parameter in the list of parameters is set to a value other then None. If a parameter it self
+        is a list of parameters it will be checked if at least one of them is set."""
 
-            if missing:
+        passed = True
+
+        for param in parameters:
+            if type(param) != list:
+                param = [param]
+                was_list = False
+            else:
+                was_list = True
+
+            passed_list = []
+            for par in param:
+                value = self._parent._settings[par]['value']
+                exists = True
+                if type(value) == type(None):
+                    exists = False
+                elif not _np.all(~_np.isnan(value)):
+                    exists = False
+
+                passed_list.append(exists)
+
+            if not _np.any(passed_list):
                 if raise_error:
-                    txt = 'Parameter {} is not set ... do so!'.format(par)
+                    if was_list:
+                        txt = 'One of the Parameters {} or {} needs to be set ... do so!'.format(','.join(param[:-1]), param[-1])
+                    else:
+                        txt = 'Parameter {} is not set ... do so!'.format(param[0])
                     raise ValueError(txt)
                 else:
                     passed = False
+
         return passed
+
+
+        # for par in parameters:
+        #     value = self._parent._settings[par]['value']
+        #     missing = False
+        #     if type(value) == type(None):
+        #         missing = True
+        #     elif not _np.all(~_np.isnan(value)):
+        #         missing = True
+        #
+        #     if missing:
+        #         if raise_error:
+        #             txt = 'Parameter {} is not set ... do so!'.format(par)
+        #             raise ValueError(txt)
+        #         else:
+        #             passed = False
+        # return passed
 
     def _check_opt_prop_param_exist(self, raise_error = True):
         return self._check_parameter_exists(parameters= ['wavelength', 'refractive_index'], raise_error = raise_error)
 
     def _check_growth_parameters_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= [], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [['kappa','growth_distribution']], raise_error = raise_error)
 
     def _check_mixing_ratio_param_exist(self, raise_error = True):
         return self._check_parameter_exists(parameters= ['particle_density'], raise_error = raise_error)
@@ -412,7 +452,8 @@ The index of the new DataFrame has to be the same as that of the size distributi
 sizedistribution.align to align the index of the new array."""
                 raise ValueError(txt)
 
-        self._reset()
+        self._reset_opt_prop()
+        self._reset_hygro()
         # self._parent._settings['refractive_index']['value'] = n
         _Parameter(self, 'refractive_index')._set_value(n)
 
@@ -422,7 +463,7 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_wavelength.setter
     def _prop_wavelength(self, value):
-        self._reset()
+        self._reset_opt_prop()
         _Parameter(self, 'wavelength')._set_value(value)
 
     @property
@@ -431,8 +472,9 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_kappa.setter
     def _prop_kappa(self, value):
-        self._reset()
+        self._reset_hygro()
         _Parameter(self, 'kappa')._set_value(value)
+        _Parameter(self, 'growth_distribution')._set_value(None)
 
     @property
     def _prop_growth_distribution(self):
@@ -440,8 +482,9 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_growth_distribution.setter
     def _prop_growth_distribution(self, value):
-        self._reset()
+        self._reset_hygro()
         _Parameter(self, 'growth_distribution')._set_value(value)
+        _Parameter(self, 'kappa')._set_value(None)
 
     @property
     def _prop_RH(self):
@@ -449,7 +492,7 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_RH.setter
     def _prop_RH(self, value):
-        self._reset()
+        self._reset_hygro()
         _Parameter(self, 'RH')._set_value(value)
 
     @property
@@ -475,6 +518,7 @@ class _Parameters4Reductions_all(_Parameters4Reductions):
         setattr(_Parameters4Reductions_all, 'refractive_index', _Parameters4Reductions_all._prop_refractive_index)
         setattr(_Parameters4Reductions_all, 'particle_density', _Parameters4Reductions_all._prop_particle_density)
         setattr(_Parameters4Reductions_all, 'kappa', _Parameters4Reductions_all._prop_kappa)
+        setattr(_Parameters4Reductions_all, 'growth_distribution', _Parameters4Reductions_all._prop_growth_distribution)
         setattr(_Parameters4Reductions_all, 'RH', _Parameters4Reductions_all._prop_RH)
 
 class _Parameters4Reductions_opt_prop(_Parameters4Reductions):
@@ -486,10 +530,11 @@ class _Parameters4Reductions_opt_prop(_Parameters4Reductions):
 class _Parameters4Reductions_hygro_growth(_Parameters4Reductions):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        setattr(_Parameters4Reductions_hygro_growth, 'refractive_index', _Parameters4Reductions_hygro_growth._prop_refractive_index)
-        setattr(_Parameters4Reductions_hygro_growth, 'particle_density', _Parameters4Reductions_hygro_growth._prop_particle_density)
-        setattr(_Parameters4Reductions_hygro_growth, 'kappa',            _Parameters4Reductions_hygro_growth._prop_kappa)
-        setattr(_Parameters4Reductions_hygro_growth, 'RH',               _Parameters4Reductions_hygro_growth._prop_RH)
+        setattr(_Parameters4Reductions_hygro_growth, 'refractive_index',    _Parameters4Reductions_hygro_growth._prop_refractive_index)
+        setattr(_Parameters4Reductions_hygro_growth, 'particle_density',    _Parameters4Reductions_hygro_growth._prop_particle_density)
+        setattr(_Parameters4Reductions_hygro_growth, 'kappa',               _Parameters4Reductions_hygro_growth._prop_kappa)
+        setattr(_Parameters4Reductions_hygro_growth, 'growth_distribution', _Parameters4Reductions_hygro_growth._prop_growth_distribution)
+        setattr(_Parameters4Reductions_hygro_growth, 'RH',                  _Parameters4Reductions_hygro_growth._prop_RH)
 
 
 # class _SettingHygroscopicGrowth(object):
@@ -649,8 +694,8 @@ class SizeDist(object):
         self.__housekeeping = None
 
         self.distributionType = distType
-        self._sup_opt_wl = None
-        self.__sup_opt_aod = False
+        self._sup_opt_wl = None #todo: deprecated?!?
+        self.__sup_opt_aod = False #todo: deprecated?!?
         self.particle_number_concentration_outside_range = None
         self._update()
         self._is_reduced_to_pt = False
