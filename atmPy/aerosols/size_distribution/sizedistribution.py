@@ -617,9 +617,9 @@ class SizeDist(object):
                  fixGaps=False):
 
         if type(data).__name__ == 'NoneType':
-            self.data = pd.DataFrame()
+            self._data = pd.DataFrame()
         else:
-            self.data = data
+            self._data = data
 
         self._settings = get_settings()
         self._optical_properties = None
@@ -679,6 +679,15 @@ class SizeDist(object):
 
 
     # mode_analysis = modes.ModeAnalysis
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+        self._update()
 
     @property
     def mode_analysis(self):
