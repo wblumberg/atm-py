@@ -324,11 +324,31 @@ def _PeakFileArray2dataFrame(data,fname,time_shift, log = True, since_midnight =
 
     try:
         Time_s = data[:,0]
+
         rest = data[:,1:]
         dataTable = pd.DataFrame(rest, columns=columns)
         dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + time_shift_in_sec, unit = 's'), name = 'Time_UTC')
+
+    # corrupt file
+    except pd.tslib.OutOfBoundsDatetime:
+        Time_s = data[:, 0]
+        threshold = 48*60*60
+        txt = ('Something is wrong with the time stamp. Binary file %s is probably corrupt. All data after the first'
+               'occurence of a suspect Timestamp will be ignored.')
+
+        warnings.warn(txt)
+        # Time_s[Time_s > threshold] =  np.nan
+        point_of_termination = np.where(Time_s > threshold)[0][0]
+        Time_s = Time_s[:point_of_termination]
+
+        rest = data[:, 1:]
+        rest = rest[:point_of_termination]
+
+        dataTable = pd.DataFrame(rest, columns=columns)
+        dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + time_shift_in_sec, unit='s'), name='Time_UTC')
+
+    # corrupt file, somewhat different though
     except OverflowError:
-        
         data, report = _cleanPeaksArray(data)
         warnings.warn('Binary file %s is corrupt. Will try to fix it. if no exception accured it probably worked\nReport:\n%s'%(fname,report))
         
