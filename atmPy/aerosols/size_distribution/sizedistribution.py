@@ -964,7 +964,7 @@ class SizeDist(object):
         dist._is_reduced_to_pt = True
         return dist
 
-    def apply_hygro_growth(self, kappa, RH, how = 'shift_bins', adjust_refractive_index = True):
+    def deprecated_apply_hygro_growth(self, kappa, RH, how ='shift_bins', adjust_refractive_index = True):
         """Note kappa values are !!NOT!! aligned to self in case its timesersies
         how: string ['shift_bins', 'shift_data']
             If the shift_bins the growth factor has to be the same for all lines in
@@ -1007,7 +1007,7 @@ class SizeDist(object):
             gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
             gf._data_period = self._data_period
         # pdb.set_trace()
-        dist_g = dist_g.apply_growth(gf, how = how)
+        dist_g = dist_g.deprecated_apply_growth(gf, how = how)
 
         # pdb.set_trace()
         if how == 'shift_bins':
@@ -1035,7 +1035,7 @@ class SizeDist(object):
         return dist_g
 
 
-    def apply_growth(self, growth_factor, how ='auto'):
+    def deprecated_apply_growth(self, growth_factor, how ='auto'):
         """Note this does not adjust the refractive index according to the dilution!!!!!!!"""
         # pdb.set_trace()
         if how == 'auto':
@@ -1798,7 +1798,7 @@ class SizeDist_TS(SizeDist):
         return self.data_fit_normal
 
 
-    def apply_hygro_growth(self, kappa, RH = None, how='shift_data', adjust_refractive_index = True):
+    def deprecated_apply_hygro_growth(self, kappa, RH = None, how='shift_data', adjust_refractive_index = True):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
         ----------
@@ -1810,7 +1810,7 @@ class SizeDist_TS(SizeDist):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
         # return kappa,RH,how
-        sd = super(SizeDist_TS,self).apply_hygro_growth(kappa,RH,how = how, adjust_refractive_index = adjust_refractive_index)
+        sd = super(SizeDist_TS,self).deprecated_apply_hygro_growth(kappa, RH, how = how, adjust_refractive_index = adjust_refractive_index)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
@@ -1819,7 +1819,7 @@ class SizeDist_TS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_TS
 
-    def apply_growth(self, growth_factor, how='shift_data'):
+    def deprecated_apply_growth(self, growth_factor, how='shift_data'):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
         ----------
@@ -1827,7 +1827,7 @@ class SizeDist_TS(SizeDist):
         RH: bool, float, or array.
             If None, RH from self.housekeeping will be taken"""
 
-        sd = super(SizeDist_TS,self).apply_growth(growth_factor,how = how)
+        sd = super(SizeDist_TS,self).deprecated_apply_growth(growth_factor, how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_TS = SizeDist_TS(sd.data, sd.bins, sd.distributionType, fixGaps=False)
@@ -2289,7 +2289,7 @@ class SizeDist_LS(SizeDist):
     #         # opt_properties.parent_dist = self
     #     return self.__optical_properties
 
-    def apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
+    def deprecated_apply_hygro_growth(self, kappa, RH = None, how='shift_data'):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
         ----------
@@ -2300,7 +2300,7 @@ class SizeDist_LS(SizeDist):
             pandas_tools.ensure_column_exists(self.housekeeping.data, 'Relative_humidity')
             RH = self.housekeeping.data.Relative_humidity.values
         # return kappa,RH,how
-        sd = super(SizeDist_LS,self).apply_hygro_growth(kappa,RH,how = how)
+        sd = super(SizeDist_LS,self).deprecated_apply_hygro_growth(kappa, RH, how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies,
@@ -2313,7 +2313,7 @@ class SizeDist_LS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_LS
 
-    def apply_growth(self, growth_factor, how='shift_data'):
+    def deprecated_apply_growth(self, growth_factor, how='shift_data'):
         """ see docstring of atmPy.sizedistribution.SizeDist for more information
         Parameters
         ----------
@@ -2321,7 +2321,7 @@ class SizeDist_LS(SizeDist):
         RH: bool, float, or array.
             If None, RH from self.housekeeping will be taken"""
 
-        sd = super(SizeDist_LS,self).apply_growth(growth_factor,how = how)
+        sd = super(SizeDist_LS,self).deprecated_apply_growth(growth_factor, how = how)
         # sd = out['size_distribution']
         # gf = out['growth_factor']
         sd_LS = SizeDist_LS(sd.data, sd.bins, sd.distributionType, self.layerbounderies,
