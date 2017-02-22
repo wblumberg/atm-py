@@ -382,8 +382,15 @@ class _Parameters4Reductions(object):
                 exists = True
                 if type(value) == type(None):
                     exists = False
-                elif not _np.all(~_np.isnan(value)):
-                    exists = False
+                elif type(value).__name__ == 'ndarray':
+                    if not _np.all(~_np.isnan(value)):
+                        exists = False
+                elif hasattr(value, 'data'):
+                    if not _np.any(~_np.isnan(value.data)):
+                        exists = False
+                # import pdb; pdb.set_trace()
+                # else:
+                #     raise ValueError('sorry, programming requried, this type is not allowed')
 
                 passed_list.append(exists)
 
@@ -420,7 +427,7 @@ class _Parameters4Reductions(object):
         return self._check_parameter_exists(parameters= ['wavelength', 'refractive_index'], raise_error = raise_error)
 
     def _check_growth_parameters_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= [['kappa','growth_distribution']], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [['kappa','growth_distribution'], 'RH'], raise_error = raise_error)
 
     def _check_mixing_ratio_param_exist(self, raise_error = True):
         return self._check_parameter_exists(parameters= ['particle_density'], raise_error = raise_error)
@@ -436,7 +443,7 @@ class _Parameters4Reductions(object):
             pass
         elif type(n).__name__  in ('TimeSeries'):
             if not _np.array_equal(self._parent.data.index, n.data.index):
-                n = n.align_to(self)
+                n = n.align_to(self._parent)
             n = n.data
 
         if type(n).__name__ in ('DataFrame', 'ndarray'):
@@ -482,6 +489,9 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_growth_distribution.setter
     def _prop_growth_distribution(self, value):
+        if not isinstance(value, hygroscopicity.HygroscopicGrowthFactorDistributions):
+            txt = "Make sure value is of type: atmPy.aerosols.physics.hygroscopicity.HygroscopicGrowthFactorDistributions"
+            raise ValueError(txt)
         self._reset_hygro()
         _Parameter(self, 'growth_distribution')._set_value(value)
         _Parameter(self, 'kappa')._set_value(None)
@@ -1065,18 +1075,24 @@ class SizeDist(object):
             else:
                 txt = 'Make sure type of growthfactor is int,float,TimeSeries, or Series. It currently is: %s.'%(type(growth_factor).__name__)
                 raise TypeError(txt)
+            try:
+                growth_max = float(_np.nanmax(growth_factor.data))
+            except AttributeError:
+                growth_max = growth_factor
 
-            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, float(_np.nanmax(growth_factor.data)), ignore_data_nan = True)
+            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, growth_max, ignore_data_nan = True)
             bin_num = test['data'].shape[0]
-            data_new = _np.zeros((dist_g.data.shape[0],bin_num))
+            data_new = _np.zeros((dist_g.data.shape[0],bin_num), dtype= object) # this has to be of type object, so the sum is nan when all are nan, otherwise it would be 0
+            data_new[:] = _np.nan
             #todo: it would be nicer to have _hygro_growht_shift_data take the TimeSeries directly
             gf = growth_factor.data.values.transpose()[0]
             for e,i in enumerate(dist_g.data.values):
                 out = dist_g._hygro_growht_shift_data(i, dist_g.bins, gf[e])
                 dt = out['data']
                 diff = bin_num - dt.shape[0]
-
-                dt = _np.append(dt, _np.zeros(diff))
+                diff_nans = _np.zeros(diff, dtype= object)
+                diff_nans[:] = _np.nan
+                dt = _np.append(dt, diff_nans)
                 data_new[e] = dt
             df = pd.DataFrame(data_new)
             df.index = dist_g.data.index
@@ -1605,10 +1621,12 @@ class SizeDist(object):
         Resets properties so they are recalculated. This is usually necessary once you perform an operation on data.
         """
         self._optical_properties = None
+        self._hygroscopicity = None
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
         self._uptodate_particle_volume_concentration = False
+
 
 
 class SizeDist_TS(SizeDist):
@@ -1645,14 +1663,14 @@ class SizeDist_TS(SizeDist):
 
     close_gaps = _timeseries.close_gaps
 
-    def _update(self):
-        self._uptodate_particle_number_concentration = False
-        self._uptodate_particle_mass_concentration = False
-        self._uptodate_particle_mass_mixing_ratio = False
-        self._uptodate_particle_number_mixing_ratio = False
-        self._uptodate_particle_surface_concentration = False
-        self._uptodate_particle_volume_concentration = False
-        self._optical_properties = None
+    # def _update(self):
+    #     self._uptodate_particle_number_concentration = False
+    #     self._uptodate_particle_mass_concentration = False
+    #     self._uptodate_particle_mass_mixing_ratio = False
+    #     self._uptodate_particle_number_mixing_ratio = False
+    #     self._uptodate_particle_surface_concentration = False
+    #     self._uptodate_particle_volume_concentration = False
+    #     self._optical_properties = None
 
 
     def correct4ambient_LFE_tmp_difference(self):
@@ -2155,23 +2173,23 @@ class SizeDist_LS(SizeDist):
         self.__particle_mass_concentration = None
         self.__particle_mass_mixing_ratio = None
         self.__particle_number_mixing_ratio = None
-        self.__optical_properties = None
+        self._optical_properties = None
         # self.sup_optical_properties_wavelength = None
         self._SizeDist__sup_opt_aod = True
         self._update()
 
     # todo: I have the impression this is redundant. I think the reason I introduced this, was that I did not understand how inheritance of properties work .. uuuuh what a mess :-)
-    def _update(self):
-        self._uptodate_particle_number_concentration = False
-        self._uptodate_particle_mass_concentration = False
-        self._uptodate_particle_mass_mixing_ratio = False
-        self._uptodate_particle_number_mixing_ratio = False
+    # def _update(self):
+    #     self._uptodate_particle_number_concentration = False
+    #     self._uptodate_particle_mass_concentration = False
+    #     self._uptodate_particle_mass_mixing_ratio = False
+    #     self._uptodate_particle_number_mixing_ratio = False
 
     @property
     def optical_properties(self):
-        if not self.__optical_properties:
-            self.__optical_properties = optical_properties.OpticalProperties_VP(self)
-        return self.__optical_properties
+        if not self._optical_properties:
+            self._optical_properties = optical_properties.OpticalProperties_VP(self)
+        return self._optical_properties
 
     # @property
     # def optical_properties(self):

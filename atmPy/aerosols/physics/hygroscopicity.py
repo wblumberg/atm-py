@@ -191,6 +191,32 @@ def f_RH_gamma(RH, g, RH0 = 0):
     f_RH = ((100 - RH0) / (100 - RH))**(g)
     return f_RH
 
+def get_f_of_RH_from_dry_sizedistribution(size_dist, RH_low, RH_high):
+    """Get the f of RH from a dry sizedistribution between the two RH values RH_low and RH_high
+    Parameters
+    ----------
+    size_dist: sizedistribution instance
+    RH_low: float
+    RH_high: float
+    """
+    size_dist.parameters4reductions._check_opt_prop_param_exist()
+    sdhigh = size_dist.copy()
+    sdlow = size_dist.copy()
+    sdhigh.hygroscopicity.parameters.RH = RH_high
+    scattcoff_high = sdhigh.hygroscopicity.grown_size_distribution.optical_properties.scattering_coeff.copy()
+    if RH_low == 0:
+        scattcoff_low = sdlow.optical_properties.scattering_coeff.copy()
+    else:
+        sdlow.hygroscopicity.parameters.RH = RH_low
+        scattcoff_low = sdlow.hygroscopicity.grown_size_distribution.optical_properties.scattering_coeff.copy()
+    out = {}
+#     out['f_rh'] = scattcoff_high/scattcoff_low
+    out['scattcofflow'] = scattcoff_low
+    out['scattcoffhigh'] = scattcoff_high
+    out['sdhigh'] = sdhigh
+    out['sdlow'] = sdlow
+    out['f_RH'] = scattcoff_high/scattcoff_low
+    return out['f_RH']
 
 def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_period = 60, return_fits = False, verbose = False):
     """
@@ -320,13 +346,9 @@ def fofRH_from_dry_wet_scattering(scatt_dry, scatt_wet,RH_dry, RH_wet, data_peri
             results.loc[section_start] = _np.nan
             continue
 
-        # try:
         kappa, [k_varience] = _curve_fit(f_RH_kappa_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
-        # gamma, [varience] = curve_fit(gamma_paramterization, section.index.values, section.f_RH.values)
         gamma, [varience] = _curve_fit(f_RH_gamma_RH0(dry_neph_mean), section.index.values, section.f_RH.values)
-        # except:
-        #     import pdb
-        #     pdb.set_trace()
+
 
         frame_this = {'kappa': kappa[0],
                       'kappa_std': _np.sqrt(k_varience[0]),
@@ -555,20 +577,481 @@ def calc_mixing_state(growth_modes):
     return ms
 
 
+#### try to make this work with changin gf
+def apply_growth2sizedist(sd, gf):
+    def apply_growth_factor_gf_const(data, gf, bins):
+        if gf == 1.:
+            return data.copy(), bins.copy()
+
+        gfp = gf - 1
+        width = bins[1:] - bins[:-1]
+        widthlog = _np.log10(bins[1:]) - _np.log10(bins[:-1])
+        width_in_percent_of_low_bin_edge = width / bins[:-1]
+        no_extra_bins = int(_np.ceil(gfp / width_in_percent_of_low_bin_edge[-1]))
+
+        # new / extra bins
+        extra_bins = _np.zeros(no_extra_bins)
+        extra_bins[:] = widthlog[-1]
+        extra_bins = extra_bins.cumsum()
+        extra_bins += _np.log10(bins[-1])
+        extra_bins = 10 ** extra_bins
+        bins_new = _np.append(bins, extra_bins)
+        # width_new = bins_new[1:] - bins_new[:-1]
+        # widthlog_new = _np.log10(bins_new[1:]) - _np.log10(bins_new[:-1])
+        # width_in_percent_of_low_bin_edge_extra_bins = width_new / bins_new[:-1]
+        bins_grown = bins_new * gf
+
+        i = no_extra_bins
+        while 1:
+            end = i - 1
+            if end == 0:
+                end = None
+            else:
+                end = -end
+            in_first_bin = (bins_new[i:] - bins_grown[:-i]) / (bins_grown[1:end] - bins_grown[:-i])
+            if _np.any(in_first_bin >= 1):
+                #             break
+                i -= 1
+                continue
+            else:
+                break
+        in_second_bin = (bins_grown[1:end] - bins_new[i:]) / (bins_grown[1:end] - bins_grown[:-i])
+        if _np.any(in_second_bin < 0):
+            txt = 'This should not be possible'
+            raise ValueError(txt)
+
+        # data with extra bins
+        bincenters_new = ((bins_new[1:] + bins_new[:-1]) / 2).astype(_np.float32)
+        bincenters = ((bins[1:] + bins[:-1]) / 2).astype(_np.float32) # depending how data was created (POPS, ARM, ...) the type
+        data.columns = bincenters                               # can vary between float32 and float64, this is to unify them.
+        df = _pd.DataFrame(columns=bincenters_new)
+        data = _pd.concat([df, data])
+
+        #######
+        # print('shape_data_new', data.shape)
+        # print('shape_data_slice', data.iloc[:, :end].values.shape)
+        # print('shape_firstb', in_first_bin.shape)
+        # print('+++++++++++')
+        ######
+        # shift and make new data
+        data_in_first_bin = data.iloc[:, :end].values * in_first_bin
+        data_in_second_bin = data.iloc[:, :end].values * in_second_bin
+        dffb = _pd.DataFrame(data_in_first_bin, columns=data.iloc[:, i - 1:].columns)
+        dfsb = _pd.DataFrame(data_in_second_bin[:, :-1], columns=data.iloc[:, i:].columns)
+        dffsb = dffb + dfsb
+        data_t = _pd.concat([df, dffsb])
+        data_new = _pd.DataFrame(data_t)
+        data_new.index = data.index
+        return data_new.astype(float), bins_new
+
+    sd = sd.convert2numberconcentration()
+
+    # ensure that gf is either float or ndarray
+    if type(gf).__name__ in ('ndarray', 'float', 'float16', 'float32', 'float64', 'float128'):
+        pass
+    elif type(gf).__name__ == 'DataFrame':
+        gf = gf.iloc[:, 0].values
+    elif hasattr(gf, 'data'):
+        gf = gf.data.iloc[:, 0].values
+
+    # if gf-ndarray consists of identical values ... convert to float
+    if type(gf).__name__ == 'ndarray':
+        unique = _np.unique(gf)
+        if unique.shape[0] == 1:
+            gf = unique[0]
+
+    # if gf is still ndarray, loop through all gf
+    if type(gf).__name__ == 'ndarray':
+        # ensure that length is correct
+        if gf.shape[0] != sd.data.shape[0]:
+            txt = 'length of growhfactor (shape: {}) does not match that of the size distribution (shape: {}).'.format(
+                gf.shape, sd.data.shape)
+            raise ValueError(txt)
+        data_new_list = []
+        bins_list = []
+        for e, gfs in enumerate(gf):
+            data_new, bins_new = apply_growth_factor_gf_const(sd.data.iloc[[e], :], gfs, sd.bins)
+            data_new_list.append(data_new)
+            bins_list.append(bins_new)
+
+        bins_list.sort(key=lambda x: x.max())
+        bins_new = bins_list[-1]
+        data_new = _pd.concat(data_new_list)
+    else:
+        data_new, bins_new = apply_growth_factor_gf_const(sd.data, gf, sd.bins)
+
+    if type(sd).__name__ == "SizeDist_LS":
+        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', sd.layerbounderies)
+
+    else:
+        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration')
+
+    sd_grown.optical_properties.parameters.wavelength = sd.parameters4reductions.wavelength.value
+
+
+    sd.data = data_new
+    sd.bins = bins_new
+    return sd
+
+
+def apply_hygro_growth2sizedist(sizedist, how='shift_data', adjust_refractive_index=True):
+    """Note kappa values are !!NOT!! aligned to self in case its timesersies
+    how: string ['shift_bins', 'shift_data']
+        If the shift_bins the growth factor has to be the same for all lines in
+        data (important for timeseries and vertical profile.
+        If gf changes (as probably the case in TS and LS) you want to use
+        'shift_data'
+    """
+
+    sizedist.parameters4reductions._check_growth_parameters_exist()
+    dist_g = sizedist.convert2numberconcentration()
+    kappa = dist_g.parameters4reductions.kappa.value
+    RH = dist_g.parameters4reductions.RH.value
+    refract_idx = dist_g.parameters4reductions.refractive_index.value
+    # make sure kappa and RH have the appropriate types
+    if type(kappa).__name__ in ('ndarray','float', 'float16', 'float32', 'float64', 'float128'):
+        pass
+    elif type(kappa).__name__ == 'DataFrame':
+        kappa = kappa.iloc[:, 0].values
+    elif hasattr(kappa, 'data'):
+        kappa = kappa.data.iloc[:, 0].values
+
+    if type(RH).__name__ in ('ndarray', 'float', 'float16', 'float32', 'float64', 'float128'):
+        pass
+    elif type(RH).__name__ == 'DataFrame':
+        RH = RH.iloc[:, 0].values
+    elif hasattr(RH, 'data'):
+        RH = RH.data.iloc[:, 0].values
+
+    gf = kappa_simple(kappa, RH, refractive_index = refract_idx)
+    if type(gf) == tuple:
+        gf, n_mix = gf
+    else:
+        n_mix = None
+
+    if how == 'shift_bins':
+        if not isinstance(gf, (float, int)):
+            txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
+            It is %s''' % (type(RH).__name__)
+            raise TypeError(txt)
+
+    dist_g = apply_growth2sizedist(dist_g, gf)
+    dist_g.gf = gf
+    if how == 'shift_bins':
+        dist_g.parameters4reductions.refractive_index = n_mix
+    elif how == 'shift_data':
+        if adjust_refractive_index:
+            if type(n_mix).__name__ in ('float', 'int', 'float64','NoneType'):
+                nda = _np.zeros(dist_g.data.index.shape)
+                nda[:] = n_mix
+                n_mix = nda
+            df = _pd.DataFrame(n_mix)
+            df.columns = ['index_of_refraction']
+            df.index = dist_g.data.index
+            dist_g.parameters4reductions.refractive_index = df
+        else:
+            dist_g.parameters4reductions.refractive_index = sizedist.parameters4reductions.refractive_index
+
+    return dist_g
+
+# def apply_growth_distribution_on_sizedist(sd, growth_dist, RH_high):
+#     """Apply hygroscopic growth on dry sizedistribution (sd) by applying a growth distribution (growth_dist).
+#     Parameters
+#     ----------
+#     sd: sizedist_TS instance
+#     growth_dist: growth_distribution instance
+#     RH: float
+#         Relative humidity at which the grown sizedistribution is supposed to calculated"""
+#     gmk = growth_dist.growth_modes_kappa
+#     sdtsumlist = []
+#     sd_growth_res = {}
+#     for u,i in enumerate(gmk.index.unique()):
+#         # get sizedist and kappa for the particular time ... kappa contains likely multiple values
+#         gmkt = gmk.loc[i,:]
+#         sdd = sd.data.loc[i,:]
+#
+#         # make a size distribution from the particular slice
+#         sdsd = _sizedistribution.SizeDist_TS(_pd.DataFrame(sdd).transpose(), sd.bins, sd.distributionType)
+#         sdsd.hygroscopicity.parameters.refractive_index = sd.parameters4reductions.refractive_index
+#         sdsd.hygroscopicity.parameters.RH = RH_high
+#         datasum = None
+#         sd_growth_res_dict = {}
+#         sd_growth_dict_list = []
+#         for e, (_,gm) in enumerate(gmkt.iterrows()):
+#             sd_growth_dict = {}
+#             sdt = sdsd.copy()
+#             sdt.data *= gm.ratio
+#             if gm.kappa < 0:
+#                 kappa = 0.0001 #in principle this is a bug ... does not like kappa == 0
+#             else:
+#                 kappa = gm.kappa
+#
+#             sdt.hygroscopicity.parameters.kappa = kappa
+#             sdtg = sdt.hygroscopicity.grown_size_distribution
+#
+#             sd_growth_dict['kappa'] = kappa
+#             sd_growth_dict['size_dist_grown'] = sdtg
+#
+#             ######
+#             # in order to be able merge size distributions we have to find the biggest bins
+#             if e == 0:
+#                 datasum = sdtg.data
+#                 lastbin = sdtg.bins[-1]
+#                 bins = sdtg.bins.copy()
+#                 tbins = sdtg.bins.copy()
+#             else:
+#                 if sdtg.bins[-1] > lastbin:
+#                     lastbin = sdtg.bins[-1]
+#                     bins = sdtg.bins.copy()
+#                 lbins = sdtg.bins.copy()
+#                 datasum = datasum.add(sdtg.data, fill_value = 0)
+#
+#             #####
+#             # add dict to list
+#             sd_growth_dict_list.append(sd_growth_dict)
+#
+#
+#         sdtsum = _sizedistribution.SizeDist(datasum, bins, sdtg.distributionType)
+#         sdtsumlist.append(sdtsum)
+#         sd_growth_res_dict['index'] = i
+#         sd_growth_res_dict['individual'] = sd_growth_dict_list
+#         sd_growth_res_dict['sum'] = sdtsum
+#         if u == 0:
+#             sdtsumall = sdtsum.data
+#             binsall = bins.copy()
+#             lastbinall = bins[-1]
+#         else:
+#             if bins[-1] > lastbinall:
+#                 binsall = bins.copy()
+#                 lastbinall = bins[-1]
+#             sdtsumall = sdtsumall.add(sdtsum.data, fill_value = 0)
+#         ## enter into res dictionary
+#         sd_growth_res[i] = sd_growth_res_dict
+#     #     if u == 19:
+#     #         break
+#
+#
+#     sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall,  sdtg.distributionType)
+#     out = {}
+#     out['grown_size_dists_sum'] = sdtsout
+#     out['grown_size_dists_individual']  = sd_growth_res
+#     return SizeDistGrownByGrowthDistribution(out)
+
 class HygroscopicityAndSizedistributions(object):
+    """In the future it would be nice if this class handles how a size distributions react to hygroscopic growth.
+    As you can see, the class points back to function in sizeditribution. Would be nice to move all that stuff here at
+    some point"""
     def __init__(self, parent):
         self._parent_sizedist = parent
         self.parameters = _sizedistribution._Parameters4Reductions_hygro_growth(parent)
         self._grown_size_distribution = None
+        self._f_RH = None
+        self._f_RH_85_0 = None
+        self._f_RH_85_40 = None
+        # #todo: this needs to be integrated better
+        # self.RH = None
 
-        #todo: this needs to be integrated better
-        self.RH = None
+    @property
+    def f_RH(self):
+        if not self._f_RH:
+            self._f_RH = get_f_of_RH_from_dry_sizedistribution(self._parent_sizedist, 0, self.parameters.RH.value)
+        return self._f_RH
+
+    @property
+    def f_RH_85_0(self):
+        if not self._f_RH_85_0:
+            self._f_RH_85_0 = get_f_of_RH_from_dry_sizedistribution(self._parent_sizedist, 0, 85)
+        return self._f_RH_85_0
+
+    @property
+    def f_RH_85_40(self):
+        if not self._f_RH_85_40:
+            self._f_RH_85_40 = get_f_of_RH_from_dry_sizedistribution(self._parent_sizedist, 40, 85)
+        return self._f_RH_85_40
 
     @property
     def grown_size_distribution(self):
         if not self._grown_size_distribution:
-            self._grown_size_distribution = self._parent_sizedist.apply_hygro_growth(self.parameters.kappa.value, self.parameters.RH.value)
+            self.parameters._check_growth_parameters_exist()
+            if self.parameters.kappa:
+                # self._grown_size_distribution = self._parent_sizedist.apply_hygro_growth(self.parameters.kappa.value, self.parameters.RH.value)
+                self._grown_size_distribution = apply_hygro_growth2sizedist(self._parent_sizedist)
+            else:
+                self._grown_size_distribution = SizeDistGrownByGrowthDistribution(self) #apply_growth_distribution_on_sizedist(self._parent_sizedist, self.parameters.growth_distribution.value, self.parameters.RH.value)
         return self._grown_size_distribution
+
+    # @property
+    # def fRH_85(self):
+    #     """f(RH) at 85 and 0 RH"""
+    #     sd.hygroscopicity.parameters.RH = 85
+    #     scattcoff85 = sd.hygroscopicity.grown_size_distribution.optical_properties.scattering_coeff.copy()
+    #         sd.hygroscopicity.parameters.RH = 40
+    #         scattcoff40 = sd.hygroscopicity.grown_size_distribution.optical_properties.scattering_coeff.copy()
+
+class SizeDistGrownByGrowthDistribution(object):
+    """When applying a growth distribution to a sizeditribution you get a lot of sizedistributionthat are grown by a
+    different amount. This class is here to take care of it."""
+    def __init__(self, parent):
+        self._parent = parent
+        self._grown_sizedistribution = None
+        self._sum_of_all_sizeditributions = None
+        self._individual_sizedistributions = None
+        self._optical_properties = None
+
+    @property
+    def sum_of_all_sizeditributions(self):
+        self._result
+        return self._sum_of_all_sizeditributions
+
+    @property
+    def individual_sizedistributions(self):
+        self._result
+        return self._individual_sizedistributions
+
+    @property
+    def optical_properties(self):
+        if not self._optical_properties:
+            self._optical_properties = SizeDistGrownByGrowthDistributionOpticalProperties(self)
+        return self._optical_properties
+
+    @property
+    def _result(self):
+        if not self._grown_sizedistribution:
+            self._grown_sizedistribution = self._apply_growth_distribution_on_sizedist()
+        return self._grown_sizedistribution
+
+
+    def _apply_growth_distribution_on_sizedist(self):
+        """Apply hygroscopic growth on dry sizedistribution (sd) by applying a growth distribution (growth_dist).
+        Parameters
+        ----------
+        sd: sizedist_TS instance
+        growth_dist: growth_distribution instance
+        RH: float
+            Relative humidity at which the grown sizedistribution is supposed to calculated"""
+        gmk = self._parent.parameters.growth_distribution.value.growth_modes_kappa
+        RH_heigh = self._parent.parameters.RH.value
+        sd = self._parent._parent_sizedist
+        sdtsumlist = []
+        sd_growth_res = {}
+        for u, i in enumerate(gmk.index.unique()):
+            # get sizedist, refractive index,  and kappa for the particular time ... kappa contains likely multiple values
+            gmkt = gmk.loc[i, :]
+            sdd = sd.data.loc[i, :]
+
+            if type(sd.parameters4reductions.refractive_index.value).__name__ == 'DataFrame':
+                ref_idx = sd.parameters4reductions.refractive_index.value.loc[i].values[0]
+            elif 'float' in type(sd.parameters4reductions.refractive_index.value).__name__:
+                ref_idx = sd.parameters4reductions.refractive_index.value
+            elif 'int' in type(sd.parameters4reductions.refractive_index.value).__name__:
+                ref_idx = sd.parameters4reductions.refractive_index.value
+            elif type(sd.parameters4reductions.refractive_index.value).__name__ == 'NoneType':
+                ref_idx = None
+
+            # make a size distribution from the particular slice
+            sdsd = _sizedistribution.SizeDist_TS(_pd.DataFrame(sdd).transpose(), sd.bins, sd.distributionType)
+            sdsd.hygroscopicity.parameters.refractive_index = ref_idx #sd.parameters4reductions.refractive_index.value
+            sdsd.hygroscopicity.parameters.RH = RH_heigh
+            datasum = None
+            sd_growth_res_dict = {}
+            sd_growth_dict_list = []
+            for e, (_, gm) in enumerate(gmkt.iterrows()):
+                sd_growth_dict = {}
+                sdt = sdsd.copy()
+                sdt.data *= gm.ratio
+                if gm.kappa < 0:
+                    kappa = 0.0001  # in principle this is a bug ... does not like kappa == 0
+                else:
+                    kappa = gm.kappa
+
+                sdt.hygroscopicity.parameters.kappa = kappa
+                sdtg = sdt.hygroscopicity.grown_size_distribution
+
+                sd_growth_dict['kappa'] = kappa
+                sd_growth_dict['size_dist_grown'] = sdtg
+
+                ######
+                # in order to be able merge size distributions we have to find the biggest bins
+                if e == 0:
+                    datasum = sdtg.data
+                    lastbin = sdtg.bins[-1]
+                    bins = sdtg.bins.copy()
+                    # tbins = sdtg.bins.copy()
+                else:
+                    if sdtg.bins[-1] > lastbin:
+                        lastbin = sdtg.bins[-1]
+                        bins = sdtg.bins.copy()
+                    # lbins = sdtg.bins.copy()
+                    datasum = datasum.add(sdtg.data, fill_value=0)
+
+                #####
+                # add dict to list
+                sd_growth_dict_list.append(sd_growth_dict)
+
+            sdtsum = _sizedistribution.SizeDist(datasum, bins, sdtg.distributionType)
+            sdtsumlist.append(sdtsum)
+            sd_growth_res_dict['index'] = i
+            sd_growth_res_dict['individual'] = sd_growth_dict_list
+            sd_growth_res_dict['sum'] = sdtsum
+            if u == 0:
+                sdtsumall = sdtsum.data
+                binsall = bins.copy()
+                lastbinall = bins[-1]
+            else:
+                if bins[-1] > lastbinall:
+                    binsall = bins.copy()
+                    lastbinall = bins[-1]
+                sdtsumall = sdtsumall.add(sdtsum.data, fill_value=0)
+            ## enter into res dictionary
+            sd_growth_res[i] = sd_growth_res_dict
+        # if u == 19:
+        #         break
+
+
+        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sdtg.distributionType)
+        out = {}
+        out['grown_size_dists_sum'] = sdtsout
+        self._sum_of_all_sizeditributions = sdtsout
+        out['grown_size_dists_individual'] = sd_growth_res
+        self._individual_sizedistributions = sd_growth_res
+        return SizeDistGrownByGrowthDistribution(out)
+
+class SizeDistGrownByGrowthDistributionOpticalProperties(object):
+    def __init__(self, parent):
+        self._parent = parent
+        self._optical_properties = None
+        self._scattering_coeff = None
+
+    @property
+    def _result(self):
+        if not self._optical_properties:
+            self._optical_properties = self._calculate_optical_properties()
+        return self._optical_properties
+
+    @property
+    def scattering_coeff(self):
+        self._result
+        return self._scattering_coeff
+
+    def _calculate_optical_properties(self):
+        for a, index in enumerate(self._parent.individual_sizedistributions.keys()):
+            for e, indi in enumerate(self._parent.individual_sizedistributions[index]['individual']):
+                sdgt = indi['size_dist_grown']
+                sdgt.optical_properties.parameters.wavelength = self._parent._parent._parent_sizedist.optical_properties.parameters.wavelength
+                if e == 0:
+                    scattering_coeff = sdgt.optical_properties.scattering_coeff.data.copy()
+                else:
+                    scattering_coeff += sdgt.optical_properties.scattering_coeff.data
+            if a == 0:
+                scattering_coeff_ts = scattering_coeff.copy()
+
+            else:
+                scattering_coeff_ts = _pd.concat([scattering_coeff_ts, scattering_coeff])
+
+        scattering_coeff_ts.sort_index(inplace=True)
+        self._scattering_coeff = _timeseries.TimeSeries(scattering_coeff_ts, sampling_period= self._parent._parent._parent_sizedist._data_period)
+
+        return True
 
 
 

@@ -734,37 +734,37 @@ class OpticalProperties_TS(OpticalProperties):
     @property
     def hemispheric_forwardscattering(self):
         super().hemispheric_forwardscattering
-        return _timeseries.TimeSeries(self._hemispheric_forwardscattering)
+        return _timeseries.TimeSeries(self._hemispheric_forwardscattering, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def hemispheric_backscattering(self):
         super().hemispheric_backscattering
-        return _timeseries.TimeSeries(self._hemispheric_backscattering)
+        return _timeseries.TimeSeries(self._hemispheric_backscattering, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def hemispheric_backscattering_ratio(self):
         self.hemispheric_backscattering
-        return _timeseries.TimeSeries(self._hemispheric_backscattering_ratio)
+        return _timeseries.TimeSeries(self._hemispheric_backscattering_ratio, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def hemispheric_forwardscattering_ratio(self):
         self.hemispheric_forwardscattering
-        return _timeseries.TimeSeries(self._hemispheric_forwardscattering_ratio)
+        return _timeseries.TimeSeries(self._hemispheric_forwardscattering_ratio, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def absorption_coeff(self):
         self._optical_porperties
-        return _timeseries.TimeSeries(self._absorption_coeff)
+        return _timeseries.TimeSeries(self._absorption_coeff, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def extinction_coeff(self):
         self._optical_porperties
-        return _timeseries.TimeSeries(self._extinction_coeff)
+        return _timeseries.TimeSeries(self._extinction_coeff, sampling_period = self._parent_sizedist._data_period)
 
     @property
     def scattering_coeff(self):
         self._optical_porperties
-        return _timeseries.TimeSeries(self._scattering_coeff)
+        return _timeseries.TimeSeries(self._scattering_coeff, sampling_period = self._parent_sizedist._data_period)
 
     # def __init__(self, *args, **kwargs):
     #     super().__init__(*args, **kwargs)

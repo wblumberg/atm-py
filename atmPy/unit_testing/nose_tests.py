@@ -160,10 +160,12 @@ class SizeDistTest(TestCase):
         hk['Relative_humidity'] = 90
         hk = vertical_profile.VerticalProfile(hk)
         sdto.sizedistributionLS.housekeeping = hk
+        sdto.sizedistributionLS.hygroscopicity.parameters.RH = hk
 
         # let it grow
         sdto.sizedistributionLS.hygroscopicity.parameters.kappa = 0.7
         distg = sdto.sizedistributionLS.hygroscopicity.grown_size_distribution
+        distg.optical_properties.parameters.wavelength = sdto.sizedistributionLS.optical_properties.parameters.wavelength.value
 
         # load the test data
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')
@@ -200,3 +202,50 @@ class PhysicsHygroscopicityTest(TestCase):
 
         threshold = mixing_state_soll.mixing_state.sum() * 1e-6
         self.assertLess(np.abs(hgfd.mixing_state.mixing_state - mixing_state_soll.mixing_state).sum(), threshold)
+
+    def test_fRH_kappa(self):
+        """A size distribution time series (ARM tdmaaps) with a variable index of refraction (ARM acsm) is used to
+        calculate fRH at RH 85 and 40 %. Kappa is constant. In the future I probably want to extend that to a variable
+        kappa"""
+        fname = 'test_data/sgptdmaapssizeC1.c1.20120601.004227.cdf'
+        tdmaaps = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+        sd = tdmaaps.size_distribution
+
+        fname = 'test_data/sgpaosacsmC1.b1.20120601.002649.cdf'
+        acsm = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+
+        sd.parameters4reductions.refractive_index = acsm.refractive_index
+
+        sd.hygroscopicity.parameters.kappa = 0.6
+        sd.optical_properties.parameters.wavelength = 550
+        sd.optical_properties.parameters.refractive_index = 1.5
+
+        fname = './test_data/aerosols_physics_hygroscopicity_fRH_kappa.csv'
+        fRHk_soll = atmPy.read_file.netCDF(fname)
+
+        threshold = sd.hygroscopicity.f_RH_85_40.data.sum().values[0] * 1e-10
+        self.assertLess(np.abs(sd.hygroscopicity.f_RH_85_40.data - fRHk_soll.data).sum().values[0], threshold)
+
+    def test_fRH_growthdist(self):
+        """As above but instead of a kappa here a growth distribution time series defines how particles grow"""
+        fname = 'test_data/sgptdmaapssizeC1.c1.20120601.004227.cdf'
+        tdmaaps = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+        sd = tdmaaps.size_distribution
+
+        fname = 'test_data/sgpaosacsmC1.b1.20120601.002649.cdf'
+        acsm = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+
+        sd.parameters4reductions.refractive_index = acsm.refractive_index
+
+        fname = 'test_data/sgptdmahygC1.b1.20120601.004227.cdf'
+        out = arm.read_netCDF(fname, data_quality='patchy', leave_cdf_open=False)
+        hgfd = out.hyg_distributions_d200nm
+        sd.hygroscopicity.parameters.growth_distribution = hgfd
+        sd.optical_properties.parameters.wavelength = 550
+
+        fname = './test_data/aerosol_fRH_from_size_dist_and_growthdistribution.cdf'
+        fRH_gd_soll = atmPy.read_file.netCDF(fname)
+
+        threshold = sd.hygroscopicity.f_RH_85_40.data.sum().values[0] * 1e-5
+        # np.abs(sd.hygroscopicity.f_RH_85_40.data - fRH_gd_soll.data).sum().values[0] < threshold
+        self.assertLess(np.abs(sd.hygroscopicity.f_RH_85_40.data - fRH_gd_soll.data).sum().values[0], threshold)
