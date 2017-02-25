@@ -71,9 +71,9 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
         #todo: use function that does a the interpolation instead of the sum?!? I guess this can lead to errors when layers are very thick, since centers are used instea dof edges?
         AOD_layer = _np.zeros((len(sdls.layercenters)))
 
-    extCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
-    scattCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
-    absCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)))
+    extCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)), dtype= _np.float32)
+    scattCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)), dtype= _np.float32)
+    absCoeffPerLayer = _np.zeros((len(sdls.data.index.values), len(sdls.bincenters)), dtype= _np.float32)
 
     angular_scatt_func_effective = _pd.DataFrame()
     asymmetry_parameter_LS = _np.zeros((len(sdls.data.index.values)))
@@ -133,17 +133,11 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
         out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
         out['scattCoeff_perrow_perbin'] = scattCoeff_perrow_perbin
         out['absCoeff_perrow_perbin'] = absCoeff_perrow_perbin
-    # extCoeff_perrow = pd.DataFrame(extCoeff_perrow_perbin.sum(axis=1), columns=['ext_coeff'])
-    # if index.dtype == '<M8[ns]':
-    #     out['extCoeff_perrow'] = timeseries.TimeSeries(extCoeff_perrow)
-    # else:
-    #     out['extCoeff_perrow'] = extCoeff_perrow
 
     out['parent_type'] = dist_class
     out['asymmetry_param'] = _pd.DataFrame(asymmetry_parameter_LS, index=index,
                                            columns=['asymmetry_param'])
-    # out['asymmetry_param_alt'] = pd.DataFrame(asymmetry_parameter_LS_alt, index=sdls.layercenters, columns = ['asymmetry_param_alt'])
-    # out['OptPropInstance']= OpticalProperties(out, self.bins)
+
     out['wavelength'] = wavelength
     out['index_of_refraction'] = n
     out['bin_centers'] = sdls.bincenters
@@ -152,10 +146,6 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
     out['distType'] = sdls.distributionType
     out['angular_scatt_func'] = angular_scatt_func_effective.transpose()
 
-    # if dist_class == 'SizeDist_TS':
-    #     return OpticalProperties_TS(out, parent = sd)
-    # elif dist_class == 'SizeDist_LS':
-    #     return OpticalProperties_VP(out, parent= sd)
     return out
 
 def DEPRECATED_size_dist2optical_properties(sd, aod=False, noOfAngles=100):

@@ -822,6 +822,7 @@ class SizeDist(object):
         self.__bins = array
         self.__bincenters = (array[1:] + array[:-1]) / 2.
         self.__binwidth = (array[1:] - array[:-1])
+        # self.data.columns = _np.round(self.bincenters, 0).astype(_np.float32)
         self.data.columns = self.bincenters
         self.data.columns.name = 'bincenters_(nm)'
 

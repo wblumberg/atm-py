@@ -454,7 +454,9 @@ def _fit_normals(sd):
     y = y[~ _np.isnan(y)]
 
     if len(x) == 0:
-        raise ValueError('noting to fit')
+        out['res_gf_contribution'] = None
+        # raise ValueError('nothing to fit')
+        return out
     # return False
 
     if log:
@@ -510,10 +512,21 @@ def _fit_normals(sd):
             raise ValueError('upper bound must be higher than lower bound. pul:{}, pll:{}'.format(pult, pllt))
         bound_l.append(wllt)
         bound_h.append(wult)
-    # bound_l.append(width_ll)
-    #         bound_h.append(width_ul)
 
-    param, pcov = _curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
+    # sometimes fits don't work, following tries to fix it
+    try:
+        param, pcov = _curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
+    except RuntimeError:
+        # file sgptdmahygC1.b1.20110226.003336.cdf at '2011-02-26 11:49:44' is fittable after deviding the amplitudes by 2
+        paramt = _np.array(param)
+        paramt[::3] /= 10
+        try:
+            param, pcov = _curve_fit(multi_gauss, x, y, p0=paramt, bounds=(bound_l, bound_h))
+        except RuntimeError:
+            # increas of number of evaluation as needed in sgptdmahygC1.b1.20110331.075458.cdf
+            paramt = _np.array(param)
+            param, pcov = _curve_fit(multi_gauss, x, y, p0=paramt, bounds=(bound_l, bound_h), max_nfev = 10000)
+
     out['fit_pcov'] = pcov
 
     y_fit = multi_gauss(x, *param)
@@ -573,6 +586,9 @@ def calc_mixing_state(growth_modes):
     -------
     mixing_state: float
     """
+    if isinstance(growth_modes,type(None)):
+        return _np.nan
+
     ms = _np.sqrt((growth_modes.ratio ** 2).sum())
     return ms
 
@@ -851,6 +867,9 @@ class HygroscopicityAndSizedistributions(object):
         # #todo: this needs to be integrated better
         # self.RH = None
 
+    def _get_f_RH(self, RH_low, RH_high):
+        return get_f_of_RH_from_dry_sizedistribution(self._parent_sizedist, RH_low, RH_high)
+
     @property
     def f_RH(self):
         if not self._f_RH:
@@ -931,64 +950,82 @@ class SizeDistGrownByGrowthDistribution(object):
             Relative humidity at which the grown sizedistribution is supposed to calculated"""
         gmk = self._parent.parameters.growth_distribution.value.growth_modes_kappa
         RH_heigh = self._parent.parameters.RH.value
-        sd = self._parent._parent_sizedist
+        sd = self._parent._parent_sizedist.convert2numberconcentration()
         sdtsumlist = []
         sd_growth_res = {}
         for u, i in enumerate(gmk.index.unique()):
-            # get sizedist, refractive index,  and kappa for the particular time ... kappa contains likely multiple values
-            gmkt = gmk.loc[i, :]
-            sdd = sd.data.loc[i, :]
-
-            if type(sd.parameters4reductions.refractive_index.value).__name__ == 'DataFrame':
-                ref_idx = sd.parameters4reductions.refractive_index.value.loc[i].values[0]
-            elif 'float' in type(sd.parameters4reductions.refractive_index.value).__name__:
-                ref_idx = sd.parameters4reductions.refractive_index.value
-            elif 'int' in type(sd.parameters4reductions.refractive_index.value).__name__:
-                ref_idx = sd.parameters4reductions.refractive_index.value
-            elif type(sd.parameters4reductions.refractive_index.value).__name__ == 'NoneType':
-                ref_idx = None
-
-            # make a size distribution from the particular slice
-            sdsd = _sizedistribution.SizeDist_TS(_pd.DataFrame(sdd).transpose(), sd.bins, sd.distributionType)
-            sdsd.hygroscopicity.parameters.refractive_index = ref_idx #sd.parameters4reductions.refractive_index.value
-            sdsd.hygroscopicity.parameters.RH = RH_heigh
-            datasum = None
             sd_growth_res_dict = {}
             sd_growth_dict_list = []
-            for e, (_, gm) in enumerate(gmkt.iterrows()):
+            # get sizedist, refractive index,  and kappa for the particular time ... kappa contains likely multiple values
+            gmkt = gmk.loc[[i], :]
+
+            # sometimes there a growth mode by no tdmaaps file (no idea why that is, its the same instrument ... there should at least be one thats labeled as bad?!?)
+            try:
+                sdd = sd.data.loc[i, :]
+            except KeyError:
+                continue
+
+            if _np.isnan(gmkt.kappa.iloc[0]):
                 sd_growth_dict = {}
-                sdt = sdsd.copy()
-                sdt.data *= gm.ratio
-                if gm.kappa < 0:
-                    kappa = 0.0001  # in principle this is a bug ... does not like kappa == 0
-                else:
-                    kappa = gm.kappa
+                sd_growth_dict['kappa'] = _np.nan
+                sdd.loc[:] = _np.nan
+                sdsd = _sizedistribution.SizeDist_TS(_pd.DataFrame(sdd).transpose(), sd.bins, sd.distributionType)
+                sdsd.hygroscopicity.parameters.refractive_index = 1.5 #the actual number here does not matter since there is no size distribution data to begin with
+                sd_growth_dict['size_dist_grown'] = sdsd
+                sd_growth_dict_list.append(sd_growth_dict)
+                datasum = sdsd.data
+                bins = sdsd.bins.copy().astype(_np.float32)
 
-                sdt.hygroscopicity.parameters.kappa = kappa
-                sdtg = sdt.hygroscopicity.grown_size_distribution
+            else:
+                if type(sd.parameters4reductions.refractive_index.value).__name__ == 'DataFrame':
+                    ref_idx = sd.parameters4reductions.refractive_index.value.loc[i].values[0]
+                elif 'float' in type(sd.parameters4reductions.refractive_index.value).__name__:
+                    ref_idx = sd.parameters4reductions.refractive_index.value
+                elif 'int' in type(sd.parameters4reductions.refractive_index.value).__name__:
+                    ref_idx = sd.parameters4reductions.refractive_index.value
+                elif type(sd.parameters4reductions.refractive_index.value).__name__ == 'NoneType':
+                    ref_idx = None
 
-                sd_growth_dict['kappa'] = kappa
-                sd_growth_dict['size_dist_grown'] = sdtg
+                # make a size distribution from the particular slice
+                sdsd = _sizedistribution.SizeDist_TS(_pd.DataFrame(sdd).transpose(), sd.bins, sd.distributionType)
+                sdsd.hygroscopicity.parameters.refractive_index = ref_idx #sd.parameters4reductions.refractive_index.value
+                sdsd.hygroscopicity.parameters.RH = RH_heigh
+                datasum = None
 
-                ######
-                # in order to be able merge size distributions we have to find the biggest bins
-                if e == 0:
-                    datasum = sdtg.data
-                    lastbin = sdtg.bins[-1]
-                    bins = sdtg.bins.copy()
-                    # tbins = sdtg.bins.copy()
-                else:
-                    if sdtg.bins[-1] > lastbin:
+                for e, (_, gm) in enumerate(gmkt.iterrows()):
+                    sd_growth_dict = {}
+                    sdt = sdsd.copy()
+                    sdt.data *= gm.ratio
+                    if gm.kappa < 0:
+                        kappa = 0.0001  # in principle this is a bug ... does not like kappa == 0
+                    else:
+                        kappa = gm.kappa
+
+                    sdt.hygroscopicity.parameters.kappa = kappa
+                    sdtg = sdt.hygroscopicity.grown_size_distribution
+
+                    sd_growth_dict['kappa'] = kappa
+                    sd_growth_dict['size_dist_grown'] = sdtg
+
+                    ######
+                    # in order to be able merge size distributions we have to find the biggest bins
+                    if e == 0:
+                        datasum = sdtg.data
                         lastbin = sdtg.bins[-1]
                         bins = sdtg.bins.copy()
-                    # lbins = sdtg.bins.copy()
-                    datasum = datasum.add(sdtg.data, fill_value=0)
+                        # tbins = sdtg.bins.copy()
+                    else:
+                        if sdtg.bins[-1] > lastbin:
+                            lastbin = sdtg.bins[-1]
+                            bins = sdtg.bins.copy()
+                        datasum = datasum.add(sdtg.data, fill_value=0)
 
-                #####
-                # add dict to list
-                sd_growth_dict_list.append(sd_growth_dict)
+                    #####
+                    # add dict to list
+                    sd_growth_dict_list.append(sd_growth_dict)
 
-            sdtsum = _sizedistribution.SizeDist(datasum, bins, sdtg.distributionType)
+            sdtsum = _sizedistribution.SizeDist(datasum, bins, sd.distributionType)
+            sdtsum.data.columns = sdtsum.data.columns.values.astype(_np.float32)
             sdtsumlist.append(sdtsum)
             sd_growth_res_dict['index'] = i
             sd_growth_res_dict['individual'] = sd_growth_dict_list
@@ -1007,7 +1044,7 @@ class SizeDistGrownByGrowthDistribution(object):
         # if u == 19:
         #         break
 
-
+        # import pdb; pdb.set_trace()
         sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sdtg.distributionType)
         out = {}
         out['grown_size_dists_sum'] = sdtsout
@@ -1076,17 +1113,19 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
                 hd = self.data.loc[i, :]
                 #                 hd = self.data.iloc[15,:]
                 fit_res = _fit_normals(hd)
-                self._fit_res_of_last_distribution = fit_res
+
                 ###
                 mixing_state = calc_mixing_state(fit_res['res_gf_contribution'])
                 self._mixing_state.loc[i, 'mixing_state'] = mixing_state
-
+                self._fit_res_of_last_distribution = fit_res
                 groth_modes_t = fit_res['res_gf_contribution']
-
-                groth_modes_t['datetime'] = _pd.Series()
-                groth_modes_t['datetime'] = i
-                groth_modes_t.index = groth_modes_t['datetime']
-                groth_modes_t.drop('datetime', axis=1, inplace=True)
+                if isinstance(groth_modes_t, type(None)):
+                    groth_modes_t = _pd.DataFrame(index=[i], columns=['ratio', 'gf'])
+                else:
+                    groth_modes_t['datetime'] = _pd.Series()
+                    groth_modes_t['datetime'] = i
+                    groth_modes_t.index = groth_modes_t['datetime']
+                    groth_modes_t.drop('datetime', axis=1, inplace=True)
                 if e == 0:
                     self._growth_modes = groth_modes_t
                 else:

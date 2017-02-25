@@ -171,7 +171,7 @@ class SizeDistTest(TestCase):
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')
         aodcs = atmPy.read_file.netCDF(fname)
 
-        threshold = distg.optical_properties.aod_cumulative.data.values.sum() * 1e-10
+        threshold = distg.optical_properties.aod_cumulative.data.values.sum() * 1e-9
 
         # res = np.abs(distg.optical_properties.aerosol_optical_depth_cumulative_VP.data.values
         #              - aodcs.data.values).sum() < threshold
