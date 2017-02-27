@@ -953,6 +953,8 @@ class SizeDistGrownByGrowthDistribution(object):
         sd = self._parent._parent_sizedist.convert2numberconcentration()
         sdtsumlist = []
         sd_growth_res = {}
+
+        first_timestamp = True
         for u, i in enumerate(gmk.index.unique()):
             sd_growth_res_dict = {}
             sd_growth_dict_list = []
@@ -1030,10 +1032,12 @@ class SizeDistGrownByGrowthDistribution(object):
             sd_growth_res_dict['index'] = i
             sd_growth_res_dict['individual'] = sd_growth_dict_list
             sd_growth_res_dict['sum'] = sdtsum
-            if u == 0:
+
+            if first_timestamp:
                 sdtsumall = sdtsum.data
                 binsall = bins.copy()
                 lastbinall = bins[-1]
+                first_timestamp = False
             else:
                 if bins[-1] > lastbinall:
                     binsall = bins.copy()
@@ -1045,7 +1049,7 @@ class SizeDistGrownByGrowthDistribution(object):
         #         break
 
         # import pdb; pdb.set_trace()
-        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sdtg.distributionType)
+        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sd.distributionType)
         out = {}
         out['grown_size_dists_sum'] = sdtsout
         self._sum_of_all_sizeditributions = sdtsout

@@ -382,13 +382,12 @@ class _Parameters4Reductions(object):
                 exists = True
                 if type(value) == type(None):
                     exists = False
-                elif type(value).__name__ == 'ndarray':
-                    if not _np.all(~_np.isnan(value)):
-                        exists = False
-                elif hasattr(value, 'data'):
-                    if not _np.any(~_np.isnan(value.data)):
-                        exists = False
-                # import pdb; pdb.set_trace()
+                # elif type(value).__name__ == 'ndarray':
+                #     if not _np.all(~_np.isnan(value)):
+                #         exists = False
+                # elif hasattr(value, 'data'):
+                #     if not _np.any(~_np.isnan(value.data)):
+                #         exists = False
                 # else:
                 #     raise ValueError('sorry, programming requried, this type is not allowed')
 
