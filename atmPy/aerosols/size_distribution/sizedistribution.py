@@ -33,6 +33,29 @@ from . import modes
 
 _axes_types = ('AxesSubplot', 'AxesHostAxes')
 
+
+def align2sizedist(sizedist, other):
+    if type(other).__name__ in ('int', 'float'):
+        pass
+    elif type(other).__name__  in ('TimeSeries'):
+        if not _np.array_equal(sizedist.data.index, other.data.index):
+            other = other.align_to(sizedist)
+        other = other.data
+
+    if type(other).__name__ in ('DataFrame', 'ndarray'):
+        if other.shape[0] != sizedist.data.shape[0]:
+            txt = """\
+    Length of new array has to be the same as that of the size distribution. Use
+    sizedistribution.align to align the new array to the appropriate length"""
+            raise ValueError(txt)
+
+        if not _np.array_equal(sizedist.data.index, other.index):
+            txt = """\
+    The index of the new DataFrame has to be the same as that of the size distribution. Use
+    sizedistribution.align to align the index of the new array."""
+            raise ValueError(txt)
+    return other
+
 def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     """Fits a normal distribution to a """
     param = p0[:]
@@ -438,29 +461,9 @@ class _Parameters4Reductions(object):
 
     @_prop_refractive_index.setter
     def _prop_refractive_index(self, n):
-        if type(n).__name__ in ('int','float'):
-            pass
-        elif type(n).__name__  in ('TimeSeries'):
-            if not _np.array_equal(self._parent.data.index, n.data.index):
-                n = n.align_to(self._parent)
-            n = n.data
-
-        if type(n).__name__ in ('DataFrame', 'ndarray'):
-            if n.shape[0] != self._parent.data.shape[0]:
-                txt = """\
-Length of new array has to be the same as that of the size distribution. Use
-sizedistribution.align to align the new array to the appropriate length"""
-                raise ValueError(txt)
-
-            if not _np.array_equal(self._parent.data.index, n.index):
-                txt = """\
-The index of the new DataFrame has to be the same as that of the size distribution. Use
-sizedistribution.align to align the index of the new array."""
-                raise ValueError(txt)
-
+        n = align2sizedist(self._parent, n)
         self._reset_opt_prop()
         self._reset_hygro()
-        # self._parent._settings['refractive_index']['value'] = n
         _Parameter(self, 'refractive_index')._set_value(n)
 
     @property
@@ -478,6 +481,7 @@ sizedistribution.align to align the index of the new array."""
 
     @_prop_kappa.setter
     def _prop_kappa(self, value):
+        value = align2sizedist(self._parent, value)
         self._reset_hygro()
         _Parameter(self, 'kappa')._set_value(value)
         _Parameter(self, 'growth_distribution')._set_value(None)
@@ -708,7 +712,7 @@ class SizeDist(object):
         self.particle_number_concentration_outside_range = None
         self._update()
         self._is_reduced_to_pt = False
-        self.__mode_analysis = None
+        self._mode_analysis = None
 
         if fixGaps:
             self.fillGaps()
@@ -754,9 +758,9 @@ class SizeDist(object):
 
     @property
     def mode_analysis(self):
-        if not self.__mode_analysis:
-            self.__mode_analysis = modes.ModeAnalysis(self)
-        return self.__mode_analysis
+        if not self._mode_analysis:
+            self._mode_analysis = modes.ModeAnalysis(self)
+        return self._mode_analysis
 
     @property
     def DEPRECATEDoptical_properties(self):
@@ -1240,6 +1244,7 @@ class SizeDist(object):
              fit_res=True,
              fit_res_scale = 'log',
              ax=None,
+             **kwargs
              ):
         """
         Plots and returns f,a (figure, axis).
@@ -1269,7 +1274,7 @@ class SizeDist(object):
         else:
             f, a = plt.subplots()
 
-        g, = a.plot(self.bincenters, self.data.iloc[0,:], color=plt_tools.color_cycle[0], linewidth=2, label='exp.')
+        g, = a.plot(self.bincenters, self.data.iloc[0,:], **kwargs)
         g.set_drawstyle('steps-mid')
 
         a.set_xlabel('Particle diameter (nm)')
@@ -1288,7 +1293,7 @@ class SizeDist(object):
                 else:
                     txt = '"fit_res_scale has to be either log or linear'
                     raise ValueError(txt)
-                a.plot(self.bincenters, normal_dist, color=plt_tools.color_cycle[1], linewidth=2,
+                a.plot(self.bincenters, normal_dist,
                        label='fit with norm. dist.')
                 a.legend()
 
@@ -1389,6 +1394,7 @@ class SizeDist(object):
         return sd
 
     def _convert2otherDistribution(self, distType, verbose=False):
+        self._mode_analysis = None
         return moments.convert(self, distType, verbose = verbose)
 
     def _get_mass_concentration(self):
@@ -1622,6 +1628,7 @@ class SizeDist(object):
         """
         self._optical_properties = None
         self._hygroscopicity = None
+        self._mode_analysis = None
         self._uptodate_particle_number_concentration = False
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
