@@ -24,6 +24,7 @@ from matplotlib.ticker import FuncFormatter as _FuncFormatter
 from matplotlib.dates import DayLocator as _DayLocator
 from matplotlib.dates import MonthLocator as _MonthLocator
 import os as _os
+from matplotlib import dates as _dates
 
 _unit_time = 'days since 1900-01-01'
 
@@ -925,8 +926,6 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
 
 
         if tst:
-            # import pdb
-            # pdb.set_trace()
             tst.data.index  = tst.data.index - _pd.to_datetime(start_t)
             tst.data.index = _pd.to_datetime(tst.data.index + _np.datetime64('1900'))
             if 'TimeSeries' in (tst.__class__.__bases__[0].__name__ , type(tst).__name__):
@@ -1351,6 +1350,12 @@ class TimeSeries(object):
         ---------
         same as pandas.plot
 
+        **kwargs
+        picker: float
+            in addition to the normal behaviour this will add text with the position to the plot and append the
+            timeseries attribute plot_click_position. Matplotlib has to be in some kind of interactive backend.
+
+
         Returns
         -------
         list of matplotlib axes object """
@@ -1364,6 +1369,20 @@ class TimeSeries(object):
             f,ax = _plt.subplots()
         else:
             f = ax.get_figure()
+        if 'picker' in kwargs.keys():
+            self.plot_click_positions = []
+            self.plot_events = []
+
+            def onclick(event):
+                self.plot_events.append(event)
+                x = event.mouseevent.xdata
+                xdate = _pd.Timestamp(_dates.num2date(x))
+                y = event.mouseevent.ydata
+                self.plot_click_positions.append([xdate, y])
+                ax.text(x, y, 'x = {:02d}:{:02d}:{:02d}\ny = {:.0f}'.format(xdate.hour, xdate.minute, xdate.second, y))
+
+            f.canvas.mpl_connect('pick_event', onclick)
+
 
         did_plot = False  # had to implement that since matploglib cept crashing when all where nan
         for k in self.data.keys():
