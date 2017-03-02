@@ -90,10 +90,15 @@ the required ending (*HK.csv)"""
         hk = _read_housekeeping(fname)
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
 
-    if 'P_Baro' in hk.data.keys():
-        hk.data['Barometric_pressure'] = hk.data.P_Baro
-        hk.data.drop('P_Baro', 1, inplace=True)
-        # hk.data['Altitude'] = ct.p2h(hk.data.barometric_pressure)
+    if ('P_Baro' in hk.data.keys()) or ('P_Ambient' in hk.data.keys()):
+        if 'P_Baro' in hk.data.keys():
+            hk.data['Barometric_pressure'] = hk.data.P_Baro
+            hk.data.drop('P_Baro', 1, inplace=True)
+        if 'P_Ambient' in hk.data.keys():
+            hk.data['Barometric_pressure'] = hk.data.P_Ambient
+            hk.data.drop('P_Ambient', 1, inplace=True)
+            # try:
+                # hk.data['Altitude'] = ct.p2h(hk.data.barometric_pressure)
 
     if ignore_colums:
         hk.data = hk.data.drop(ignore_colums, axis=1)

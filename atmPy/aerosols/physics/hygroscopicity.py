@@ -598,6 +598,10 @@ def apply_growth2sizedist(sd, gf):
     def apply_growth_factor_gf_const(data, gf, bins):
         if gf == 1.:
             return data.copy(), bins.copy()
+        if _np.isnan(gf):
+            data = data.copy()
+            data.iloc[:, :] = _np.nan
+            return data, bins.copy()
 
         gfp = gf - 1
         width = bins[1:] - bins[:-1]
