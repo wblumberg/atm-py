@@ -519,3 +519,10 @@ class Correlation(object):
         a1 = self.plot_pearson(zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, ax = a_corr, **corr_kwargs)
         a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3
+
+    def plot_regressionANDoriginal_data(self, reg_type = 'simple', gridsize = 20, zero_intersect = False, xlim = None, ylim = None, cm = 'auto', width_ratio = [1.5, 2], corr_kwargs = {}, orig_kwargs = {}):
+        f, (a_corr, a_orig) = _plt.subplots(1,2, gridspec_kw = {'width_ratios':width_ratio})
+        f.set_figwidth(f.get_figwidth()*1.7)
+        a1 = self.plot_regression(reg_type = reg_type, zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, ax = a_corr, **corr_kwargs)
+        a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
+        return a1, a2, a3
