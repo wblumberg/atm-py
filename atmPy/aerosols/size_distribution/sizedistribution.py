@@ -733,8 +733,16 @@ class SizeDist(object):
         return self
 
     def __add__(self, other):
-        self.data += other
-        self.particle_number_concentration_outside_range += other
+        if type(other) == type(self):
+            if self.distributionType != other.distributionType:
+                raise ValueError('size distributions have to have the same distributionType')
+            if self.data.shape != other.data.shape:
+                raise ValueError('size distributions have to have the same shape')
+            self.data = self.data + other.data
+            # self.particle_number_concentration_outside_range = self.particle_number_concentration_outside_range + other.particle_number_concentration_outside_range
+        else:
+            self.data += other
+            self.particle_number_concentration_outside_range += other
         self._update()
         return self
 
