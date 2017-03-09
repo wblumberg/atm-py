@@ -761,7 +761,7 @@ def apply_hygro_growth2sizedist(sizedist, how='shift_data', adjust_refractive_in
         dist_g.parameters4reductions.refractive_index = n_mix
     elif how == 'shift_data':
         if adjust_refractive_index:
-            if type(n_mix).__name__ in ('float', 'int', 'float64','NoneType'):
+            if type(n_mix).__name__ in ('float', 'int', 'float64','NoneType', 'complex'):
                 nda = _np.zeros(dist_g.data.index.shape)
                 nda[:] = n_mix
                 n_mix = nda

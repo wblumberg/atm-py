@@ -628,7 +628,7 @@ class Rolling(_pd.core.window.Rolling):
             col_t = col_t[~ _np.isnan(line)]
             argmax = lt.argmax()
             realMax = col_t[argmax]
-            return realMax
+            return realMax.astype(_np.float)
 
         cols = out.data.columns
         dt_max = _np.apply_along_axis(aaa, 1, out.data.values)
@@ -1325,6 +1325,8 @@ class TimeSeries(object):
     close_gaps = close_gaps
 
     correlate_to = correlate
+
+    corr_timelag = corr_timelag
 
     rolling_correlation = rolling_correlation
 

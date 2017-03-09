@@ -143,7 +143,7 @@ def find_contour(df, value, xaxis = 0):
             dt[e] = np.nan
         else:
             idx[e] = temp.argmin()
-            dt[e] = float(y[idx[e],e])
+            dt[e] = float(y[int(idx[e]),e])
         timestamp[e] = x[0,e]
 
     contour = _pd.DataFrame(dt, index = timestamp, columns = ['%s_contour'%value])
