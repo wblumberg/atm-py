@@ -794,13 +794,20 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     else:
         cb_kwargs = False
 
-    if ax:
-        periods = ax._periods
-        frequency =  ax._frequency
-        ylabel = ax._ylabel
-        max_wraps = ax._max_wraps
-        ylim_old = ax._ylim
-        col_no = _np.array([len(a.get_lines()) for a in ax]).max()
+    ax_blank = False
+    if _np.any(ax):
+        if hasattr(ax, '_periods'):
+            periods = ax._periods
+            frequency =  ax._frequency
+            ylabel = ax._ylabel
+            max_wraps = ax._max_wraps
+            ylim_old = ax._ylim
+            col_no = _np.array([len(a.get_lines()) for a in ax]).max()
+        else:
+            a = ax
+            f = a[0].get_figure()
+            ax_blank = True
+            ax = None
 
     if periods >1:
         raise ValueError('Sorry periods larger one is not working ... consider fixing it?!?')
@@ -837,28 +844,31 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
     start_t = start
     if periods_no > max_wraps:
         raise ValueError("To many wraps (%i). Change frequency or max_wraps."%periods_no)
-    if ax:
+    if _np.any(ax):
         a = ax
         f = a[0].get_figure()
     else:
-        height_ratios = [1] * periods_no
-        # if cb_kwargs:
-        #     no_of_ax = periods_no + 1
-        #     height_ratios = [0.08] + height_ratios
-        # else:
-        no_of_ax = periods_no
-        f,a = _plt.subplots(no_of_ax, sharex=True, gridspec_kw={'hspace': 0,
-                                                                'height_ratios': height_ratios})
-        # twins_x = []
-        # for at in a:
-        #     twins_x.append(at.twinx())
-        # if cb_kwargs:
-        #     a_cb = a[0]
-        #     a = a[1:]
+        if not ax_blank:
+            height_ratios = [1] * periods_no
+            # if cb_kwargs:
+            #     no_of_ax = periods_no + 1
+            #     height_ratios = [0.08] + height_ratios
+            # else:
+            no_of_ax = periods_no
+            f,a = _plt.subplots(no_of_ax, sharex=True, gridspec_kw={'hspace': 0,
+                                                                    'height_ratios': height_ratios})
+            # twins_x = []
+            # for at in a:
+            #     twins_x.append(at.twinx())
+            # if cb_kwargs:
+            #     a_cb = a[0]
+            #     a = a[1:]
 
-        f.set_figheight(3*periods_no)
-        col_no = 0
-    bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=1)
+            f.set_figheight(3*periods_no)
+            col_no = 0
+        else:
+            col_no = 0 #not sure what that is good for ... but is needed ;-)
+    bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=0.5 * _plt.rcParams['axes.linewidth'])
 
     if twin_x:
         if not hasattr(a,'twins_x'):
