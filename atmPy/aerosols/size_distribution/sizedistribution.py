@@ -902,6 +902,21 @@ class SizeDist(object):
         return self.__particle_number_concentration
 
     @property
+    def particle_mean_diameter(self):
+        if not _np.any(self._particle_mean_diameter):
+            self._particle_mean_diameter = self._get_particle_mean_diameter()
+        return self._particle_mean_diameter
+
+    def _get_particle_mean_diameter(self):
+        def mean_d(row):
+            if row.sum() == 0:
+                return _np.nan
+            return (row.index.values * row).sum() / row.sum()
+        md = self.data.apply(mean_d, axis=1)
+        df = pd.DataFrame(md, columns=['mean d (nm)'])
+        return df
+
+    @property
     def particle_mass_concentration(self):
         if not _np.any(self.__particle_mass_concentration) or not self._uptodate_particle_mass_concentration:
             self.__particle_mass_concentration = self._get_mass_concentration()
@@ -1158,19 +1173,19 @@ class SizeDist(object):
     #     return out
 
     # todo: this function appears multiple times, can easily be inherited
-    def calculate_optical_properties(self, wavelength, n = None, AOD = False, noOfAngles=100):
-        if not _np.any(n):
-            n = self.index_of_refraction
-        if not _np.any(n):
-            txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
-            raise ValueError(txt)
-        out = optical_properties.size_dist2optical_properties(self, wavelength, n, aod = AOD, noOfAngles=noOfAngles)
-        opt_properties = optical_properties.OpticalProperties(out, parent = self)
-        # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
-        # opt_properties.index_of_refractio = n
-        #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
-        # opt_properties.parent_dist = self
-        return opt_properties
+    # def calculate_optical_properties(self, wavelength, n = None, AOD = False, noOfAngles=100):
+    #     if not _np.any(n):
+    #         n = self.index_of_refraction
+    #     if not _np.any(n):
+    #         txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+    #         raise ValueError(txt)
+    #     out = optical_properties.size_dist2optical_properties(self, wavelength, n, aod = AOD, noOfAngles=noOfAngles)
+    #     opt_properties = optical_properties.OpticalProperties(out, parent = self)
+    #     # opt_properties.wavelength = wavelength #should be set in OpticalProperty class
+    #     # opt_properties.index_of_refractio = n
+    #     #opt_properties.angular_scatt_func = out['angular_scatt_func']  # This is the formaer phase_fct, but since it is the angular scattering intensity, i changed the name
+    #     # opt_properties.parent_dist = self
+    #     return opt_properties
 
     def fillGaps(self, scale=1.1):
         """
@@ -1641,6 +1656,7 @@ class SizeDist(object):
         self._uptodate_particle_mass_concentration = False
         self._uptodate_particle_surface_concentration = False
         self._uptodate_particle_volume_concentration = False
+        self._particle_mean_diameter = None
 
 
 
@@ -1704,7 +1720,7 @@ class SizeDist_TS(SizeDist):
             _warnings.warn(txt)
 
     # todo: declared deprecated on 2016-04-29
-    def convert2layerseries(self, hk, layer_thickness=10, force=False):
+    def dprecated_convert2layerseries(self, hk, layer_thickness=10, force=False):
         """convertes the time series to a layer series.
 
         Note
@@ -1765,7 +1781,7 @@ class SizeDist_TS(SizeDist):
         lays.housekeeping = _vertical_profile.VerticalProfile(data)
         return lays
 
-    def convert2verticalprofile(self, laythick=2):
+    def convert2verticalprofile(self, layer_thickness=2):
         sd = self.copy()
         # if not np.array_equal(sd.data.index.values, sd.housekeeping.data.index.values): raise ValueError()
         # if not np.array_equal(sd.data.index.values, sd.housekeeping.data.index.values): raise ValueError()
@@ -1779,7 +1795,7 @@ class SizeDist_TS(SizeDist):
         start = _np.floor(sd.housekeeping.data.Altitude.min())
         end = _np.ceil(sd.housekeeping.data.Altitude.max())
 
-        layerbounderies = _np.arange(start, end + 1, laythick)
+        layerbounderies = _np.arange(start, end + 1, layer_thickness)
         layerbounderies = _np.array([layerbounderies[0:-1], layerbounderies[1:]]).transpose()
 
         index = _np.apply_along_axis(lambda x: x.sum(), 1, layerbounderies) / 2.
@@ -1852,20 +1868,20 @@ class SizeDist_TS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_TS
 
-    def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
-        # opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
-        if not _np.any(n):
-            n = self.index_of_refraction
-        if not _np.any(n):
-            txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
-            raise ValueError(txt)
-
-        out = optical_properties.size_dist2optical_properties(self, wavelength, n,
-                                                              aod=False,
-                                                              noOfAngles=noOfAngles)
-        # opt_properties = optical_properties.OpticalProperties(out, self.bins)
-        # opt._data_period = self._data_period
-        return out
+    # def calculate_optical_properties(self, wavelength, n = None, noOfAngles=100):
+    #     # opt = super(SizeDist_TS,self).calculate_optical_properties(wavelength, n = None, AOD = False, noOfAngles=100)
+    #     if not _np.any(n):
+    #         n = self.index_of_refraction
+    #     if not _np.any(n):
+    #         txt = 'Refractive index is not specified. Either set self.index_of_refraction or set optional parameter n.'
+    #         raise ValueError(txt)
+    #
+    #     out = optical_properties.size_dist2optical_properties(self, wavelength, n,
+    #                                                           aod=False,
+    #                                                           noOfAngles=noOfAngles)
+    #     # opt_properties = optical_properties.OpticalProperties(out, self.bins)
+    #     # opt._data_period = self._data_period
+    #     return out
 
     def _getXYZ(self):
         """
@@ -2350,7 +2366,7 @@ class SizeDist_LS(SizeDist):
         # out['size_distribution'] = sd_LS
         return sd_LS
 
-    def calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
+    def deprecated_calculate_angstromex(self, wavelengths=[460.3, 550.4, 671.2, 860.7], n=1.455):
         """Calculates the Anstrome coefficience (overall, layerdependent)
 
         Parameters
