@@ -1168,23 +1168,67 @@ class TimeSeries(object):
 
 
 
-    def convert2verticalprofile(self, alt_timeseries = None, alt_label = None):
+    def convert2verticalprofile(self, altitude_column = 'Altitude', resolution = None, return_std = False):
+        """Convertes the time series into a vertical profile based on a column containing altitude
+        information. In its simplest form it replaces the index with the altitude column. If resolution
+        is set the data will be binned into altitude bins.
+        Arguments
+        ---------
+        altitude_column: str ['Altitude']
+            column label which contains the altitude information
+        resolution: int or float
+            altitude resolution in the same unit as data in the altitude column
+        """
+
         ts_tmp = self.copy()
     #     hk_tmp.data['Time'] = hk_tmp.data.index
     #     if alt_label:
     #         label = alt_label
     #     else:
     #         label = 'Altitude'
-        if alt_timeseries:
-            alt_timeseries = alt_timeseries.align_to(ts_tmp)
-            _pandas_tools.ensure_column_exists(alt_timeseries.data, 'Altitude', col_alt=alt_label)
-            ts_tmp.data.index = alt_timeseries.data['Altitude']
+    #     if alt_timeseries:
+    #         alt_timeseries = alt_timeseries.align_to(ts_tmp)
+    #         _pandas_tools.ensure_column_exists(alt_timeseries.data, 'Altitude', col_alt=alt_label)
+    #         ts_tmp.data.index = alt_timeseries.data['Altitude']
+    #     else:
+        _pandas_tools.ensure_column_exists(ts_tmp.data, altitude_column)
+        ts_tmp.data['DateTime'] = ts_tmp.data.index
+        ts_tmp.data.index = ts_tmp.data[altitude_column]
+
+        if resolution:
+            ts_tmp.data.sort_index(inplace=True)
+
+            start = _np.floor(ts_tmp.data[altitude_column].min())
+            end = _np.ceil(ts_tmp.data[altitude_column].max())
+            vertical_bin_edges = _np.arange(start, end + 1, resolution)
+            vertical_bin_edges = _np.array([vertical_bin_edges[0:-1], vertical_bin_edges[1:]]).transpose()
+            index = _np.apply_along_axis(lambda x: x.sum(), 1, vertical_bin_edges) / 2.
+            df = _pd.DataFrame(_np.zeros((vertical_bin_edges.shape[0], ts_tmp.data.shape[1])),
+                              index=index, columns=ts_tmp.data.columns)
+            if return_std:
+                dfstd = df.copy()
+
+            for l in vertical_bin_edges:
+                where = _np.where(_np.logical_and(ts_tmp.data.index > l[0], ts_tmp.data.index < l[1]))[0]
+                mean = ts_tmp.data.iloc[where, :].mean()
+                df.loc[(l[0] + l[1]) / 2] = mean
+                if return_std:
+                    std = ts_tmp.data.iloc[where, :].std()
+                    dfstd.loc[(l[0] + l[1]) / 2] = std
+
         else:
-            _pandas_tools.ensure_column_exists(ts_tmp.data, 'Altitude', col_alt=alt_label)
-            ts_tmp.data.index = ts_tmp.data['Altitude']
-        out = atmPy.general.vertical_profile.VerticalProfile(ts_tmp.data)
+            df = ts_tmp.data
+
+        out = atmPy.general.vertical_profile.VerticalProfile(df)
         out._x_label = self._y_label
-        return out
+
+        if return_std:
+            out_std = atmPy.general.vertical_profile.VerticalProfile(dfstd)
+            out_std._x_label = self._y_label
+            return out, out_std
+        else:
+            return out
+
 
     def _del_all_columns_but(self, keep, inplace = False):
         """as it says, deletes all columns but ...
@@ -1355,6 +1399,22 @@ class TimeSeries(object):
                 correlant_column=False, min_good_ratio=0.67, verbose=True):
         return Rolling_old(self, correlant, window, data_column=data_column,
                correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+
+    def remove_artefacts(self, which, sigma=1.5, window=3, verbose=False, inplace = False):
+        """Removes artifacts by testing if the std is above a certain threshold"""
+        data = self.data[which]
+        roll = data.rolling(window=window, center=True)
+        roll_std = roll.std()
+        threshold = roll_std.mean() * sigma
+        spike_pos = roll_std > threshold
+        no_removed = spike_pos.sum()
+        data_ft = data.copy()
+        data_ft[spike_pos] = _np.nan
+        if verbose:
+            print("Number of points removed: {}".format(no_removed))
+        if inplace:
+            self.data[which] = data_ft
+        return data_ft
 
     def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, **kwargs):
         """Plot each parameter separately versus time
