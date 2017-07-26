@@ -2112,6 +2112,11 @@ class SizeDist_TS(SizeDist):
         return self.__particle_number_concentration
 
     @property
+    def particle_mean_diameter(self):
+        sup = super().particle_mean_diameter
+        return _timeseries.TimeSeries(sup, sampling_period = self._data_period)
+
+    @property
     def particle_mass_concentration(self):
         if not _np.any(self.__particle_mass_concentration) or not self._uptodate_particle_mass_concentration:
             mass_conc = self._get_mass_concentration()
