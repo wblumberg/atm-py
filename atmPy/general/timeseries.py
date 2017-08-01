@@ -1197,9 +1197,13 @@ class TimeSeries(object):
 
         if resolution:
             ts_tmp.data.sort_index(inplace=True)
-
-            start = _np.floor(ts_tmp.data[altitude_column].min())
-            end = _np.ceil(ts_tmp.data[altitude_column].max())
+            if type(resolution) == tuple:
+                start = resolution[1]
+                end = resolution[2]
+                resolution = resolution[0]
+            else:
+                start = _np.floor(ts_tmp.data[altitude_column].min())
+                end = _np.ceil(ts_tmp.data[altitude_column].max())
             vertical_bin_edges = _np.arange(start, end + 1, resolution)
             vertical_bin_edges = _np.array([vertical_bin_edges[0:-1], vertical_bin_edges[1:]]).transpose()
             index = _np.apply_along_axis(lambda x: x.sum(), 1, vertical_bin_edges) / 2.
