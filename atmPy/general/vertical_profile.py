@@ -163,8 +163,14 @@ def merge(ts, ts_other):
 
     """
     ts_this = ts.copy()
+    # ts_data_list = [ts_this.data, ts_other.data]
+    # catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
+    # merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+    # ts_this.data = merged
+
     ts_data_list = [ts_this.data, ts_other.data]
-    catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate()
+    bla = _pd.concat(ts_data_list).sort_index()
+    catsortinterp = bla.interpolate().where(bla.bfill().notnull())
     merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
     ts_this.data = merged
     return ts_this
