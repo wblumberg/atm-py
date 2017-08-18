@@ -31,6 +31,18 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites =
     elif version == '01':
         data = _BinaryFile2Array(fname)
         dataFrame = _PeakFileArray2dataFrame(data,filename,time_shift)
+    elif version == 'BBB': # Beaglebone system running POPS_BBB.c
+        data = _bbb_binary2array(fname, 1)
+        dataFrame = _PeakFileArray2dataFrame(data, filename, deltaTime,
+                                             log=False,
+                                             since_midnight=False,
+                                             BBBtype=1)
+    elif version == 'BBB_dt': # Beaglebone system running POPS_BBB_dt.c
+        data = _bbb_binary2array(fname, 2)
+        dataFrame = _PeakFileArray2dataFrame(data, filename, deltaTime,
+                                             log=False,
+                                             since_midnight=False,
+                                             BBBtype=2)
     else:
         txt = 'This version does not exist: '%version
         raise ValueError(txt)
@@ -51,6 +63,8 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
     version: str
         'current' - current :-)
         '01': before summer-fall 2015
+        'BBB': added by Gavin McMeeking to conver files produced by POPS_BBB.c Beaglebone version
+        'BBB_dt': added by Gavin McMeeking to convert files produced by POPS_BBB_dt.c version 
     """
 
     m = None
@@ -62,7 +76,7 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
     if type(fname).__name__ == 'list':
         first = True
         for file in fname:
-            if 'Peak.bin' not in file:
+            if 'Peak' not in file: # changed by GM because BBB file names slightly different than sbRIO
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)
@@ -234,6 +248,53 @@ def _BinaryFile2Array(fname):
     rein.close()
     return data
 
+def _bbb_binary2array(fname, bbbtype):
+
+    def read_time(file, entry_format='<d'):
+        entry_size = calcsize(entry_format)
+        record = file.read(entry_size)
+        et = unpack(entry_format, record)[0]
+        timet = et
+        return timet
+
+    def read_array_length(file, entry_format='<I'):
+        entry_size = calcsize(entry_format)
+        record = file.read(entry_size)
+        lengtht = unpack(entry_format, record)[0]
+        return lengtht
+
+    def read_array(file, length, time, type):
+        if type == 1:
+            entry_format = '<IIII'
+            ncol = 5
+        elif type == 2:
+            entry_format = '<III'
+            ncol = 4
+
+        entry_size = calcsize(entry_format)
+        thearray = np.zeros((length, ncol))  # change based on BBB version
+
+        for i in range(length):
+            record = rein.read(entry_size)
+            entry = unpack(entry_format, record)
+            thearray[i, 0] = time
+            thearray[i, 1:] = entry
+        return thearray
+
+    rein = open(fname, mode='rb')
+    array_list = []
+    while 1:
+        try:
+            length = read_array_length(rein)
+            time = read_time(rein)
+            array = read_array(rein, length, time, bbbtype)
+            array_list.append(array)
+        except:
+            break
+
+    full_array = np.concatenate(array_list)
+    rein.close()
+    return full_array
 
 def _binary2array_labview_clusters(fname, skip = 20):
 
@@ -309,18 +370,32 @@ def _binary2array_labview_clusters(fname, skip = 20):
     return full_array
 
 
-def _PeakFileArray2dataFrame(data,fname,time_shift, log = True, since_midnight = True):
+def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, since_midnight = True):
     data = data.copy()
-    dateString = fname.split('_')[0]
-    if since_midnight:
+
+    # GRM added to deal with different binary file naming format between BBB and sbRIO
+    if BBBtype == 0:
+        dateString = fname.split('_')[0]
+    else:
+        dateString = fname.split('_')[1][0:8]
+
+    if since_midnight and BBBtype == 0:
         dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
         dts = dt.total_seconds()
-    else:
+    elif BBBtype == 0:
         dt = datetime.datetime.strptime('19040101', "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
         dts = dt.total_seconds()
+    else:
+        dts = 0 # no time adjustment needed with BBB version?
+
     #dtsPlus = datetime.timedelta(seconds = deltaTime).total_seconds() 
     
-    columns = np.array(['Ticks', 'Amplitude', 'Width', 'Saturated', 'Masked'])
+    if BBBtype == 0:
+        columns = np.array(['Ticks', 'Amplitude', 'Width', 'Saturated', 'Masked'])
+    elif BBBtype == 1:
+        columns = np.array(['Pos', 'Max', 'Width', 'NoSat'])
+    elif BBBtype == 2:
+        columns = np.array(['Max','Width','dt'])
 
     if time_shift:
         time_shift_in_sec = np.timedelta64(*time_shift)/np.timedelta64(1,'s')
@@ -329,7 +404,6 @@ def _PeakFileArray2dataFrame(data,fname,time_shift, log = True, since_midnight =
 
     try:
         Time_s = data[:,0]
-
         rest = data[:,1:]
         dataTable = pd.DataFrame(rest, columns=columns)
         dataTable.index = pd.Series(pd.to_datetime(Time_s + dts + time_shift_in_sec, unit = 's'), name = 'Time_UTC')
@@ -365,11 +439,16 @@ def _PeakFileArray2dataFrame(data,fname,time_shift, log = True, since_midnight =
         
     if log:
         dataTable.Amplitude = 10**dataTable.Amplitude # data is written in log10
-
-    dataTable.Ticks = dataTable.Ticks.astype(np.int32)
-    dataTable.Width = dataTable.Width.astype(np.int16)
-    dataTable.Saturated = dataTable.Saturated.astype(np.int16)
-    dataTable.Masked = np.abs(1. - dataTable.Masked).astype(np.int8)
+    if BBBtype == 0:
+        dataTable.Ticks = dataTable.Ticks.astype(np.int32)
+        dataTable.Width = dataTable.Width.astype(np.int16)
+        dataTable.Saturated = dataTable.Saturated.astype(np.int16)
+        dataTable.Masked = np.abs(1. - dataTable.Masked).astype(np.int8)
+    elif BBBtype == 1:
+        dataTable.Width = dataTable.Width.astype(np.int16)
+    elif BBBtype == 2:
+        dataTable.Width = dataTable.Width.astype(np.int16)
+        
     return dataTable
 
 def _cleanPeaksArray(PeakArray):
