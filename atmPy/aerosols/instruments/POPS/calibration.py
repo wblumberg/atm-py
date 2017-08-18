@@ -6,6 +6,8 @@ import pylab as plt
 from io import StringIO as io
 import pandas as pd
 import warnings
+from atmPy.aerosols.instruments.POPS import mie
+
 
 #read_fromFile = fileIO.read_Calibration_fromFile
 #read_fromString = fileIO.read_Calibration_fromString
@@ -16,6 +18,114 @@ def _msg(txt, save, out_file, verbose):
     if save:
         out_file.write(str(txt) + '\n')
 
+
+def generate_calibration(single_pnt_cali_d=508,
+                         single_pnt_cali_ior=1.6,
+                         single_pnt_cali_int=1000,
+                         ior=1.5,
+                         dr=[110, 3400],
+                         no_pts=600,
+                         no_cal_pts=30,
+                         plot=False,
+                         raise_error=True,
+                         test=False
+                         ):
+    """
+    This function generates a calibration function for the POPS instrument based on its theoretical responds.
+
+    Args:
+        single_pnt_cali_d: float [508]
+            Diameter of single point calibration in nm.
+        single_pnt_cali_ior: float [1.6]
+            Refractive index of material used in single point calibration.
+        single_pnt_cali_int: float [1000]
+            Raw intensity (digitizer bins) measured in single point calibration
+        ior: float [1.5]
+            Refractive index of the anticipated aerosol material.
+        dr: array-like [[110, 3400]]
+            Diameter range of the calibration. The calibration range will actually be a bit smaller than this, so make
+            this range a little bit larger than you want it.
+        no_pts: int [600]
+            Number of points used in the Mie calculations... quite unimportant value.
+        no_cal_pts: [30]
+            Number of points in the generated calibration. This value is a measure of how much the POPS responds curve
+            gets smoothened. Since the the final calibration function needs to be bijective, this value might need to be
+            tweaked.
+        plot: bool [False]
+            If the plotting of the result is desired.
+        raise_error: bool [True]
+            If an error is raised in case the resulting calibration function is not bijective.
+        test: bool [False]
+            If True the calibration diameters are returned, so one can check if they are in the desired range.
+    Returns:
+        Calibration instance
+        if plot: (Calibration instance, Axes instance)
+        if test: Series instance
+    """
+    dr = np.array(dr)
+
+    single_pnt_cali_d *= 1e-3
+    rr = dr / 2 / 1000
+    cal_d = pd.Series(index=np.logspace(np.log10(rr[0]), np.log10(rr[1]), no_cal_pts + 2)[1:-1] * 2)
+    #     cal_d = pd.Series(index = np.logspace(np.log10(rr[0]), np.log10(rr[1]), no_cal_pts) * 2)
+
+    if test:
+        return cal_d
+
+    d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, radiusRangeInMikroMeter=rr, IOR=ior)
+    ds = pd.Series(amp, d)
+    if ior == single_pnt_cali_ior:
+        ds_spc = ds
+    else:
+        d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, radiusRangeInMikroMeter=rr, IOR=single_pnt_cali_ior)
+        ds_spc = pd.Series(amp, d)
+
+    ampm = ds.rolling(int(no_pts / no_cal_pts), center=True).mean()
+
+    cali = ampm.append(cal_d).sort_index().interpolate().reindex(cal_d.index)
+
+    spc_point = ds_spc.append(pd.Series(index=[single_pnt_cali_d])).sort_index().interpolate().reindex(
+        [single_pnt_cali_d])  # .values[0]
+    scale = single_pnt_cali_int / spc_point.values[0]
+
+    cali *= scale
+    cali.index *= 1e3
+
+    cali_inst = pd.DataFrame(cali, columns=['amp'])
+    cali_inst['d'] = cali_inst.index
+    cali_inst = Calibration(cali_inst)
+
+    if raise_error:
+        ct = cali.values
+        if (ct[1:] - ct[:-1]).min() < 0:
+            raise ValueError(
+                'Clibration function is not bijective. usually decreasing the number of calibration points will help!')
+
+        cal_fkt_test = cali_inst.calibrationFunction(cali_inst.data.amp.values)
+        if not np.all(~np.isnan(cal_fkt_test)):
+            raise ValueError(
+                'Clibration function is not bijective. usually decreasing the number of calibration points will help!')
+
+    if plot:
+        f, a = plt.subplots()
+        a.plot(ds.index * 1e3, ds.values * scale, label='POPS resp.')
+        a.plot(ampm.index * 1e3, ampm.values * scale, label='POPS resp. smooth')
+        g, = a.plot(cali.index, cali.values, label='cali')
+        g.set_linestyle('')
+        g.set_marker('x')
+        g.set_markersize(10)
+        g.set_markeredgewidth(2)
+        g, = a.plot(single_pnt_cali_d * 1e3, single_pnt_cali_int, label='single ptn cal')
+        g.set_linestyle('')
+        g.set_marker('o')
+        g.set_markersize(10)
+        g.set_markeredgewidth(2)
+        # st.plot(ax = a)
+        a.loglog()
+        a.legend()
+        return cali_inst, a
+
+    return cali_inst
 
 def get_interface_bins(fname, n_bins, imin=1.4, imax=4.8, save=False, verbose = True):
     """Prints the bins assosiated with what is seen on the POPS user interface and the serial output, respectively.
@@ -182,14 +292,14 @@ def read_str(data, log=True):
     '''
 
     dataFrame = _string2Dataframe(data, log=log)
-    calibrationInstance = calibration(dataFrame)
+    calibrationInstance = Calibration(dataFrame)
     return calibrationInstance
 
 
 def read_csv(fname):
     """ most likely found here"""
     calDataFrame = pd.read_csv(fname)
-    calibrationInstance = calibration(calDataFrame)
+    calibrationInstance = Calibration(calDataFrame)
     return calibrationInstance
 
 def save_Calibration(calibrationInstance, fname):
@@ -197,7 +307,7 @@ def save_Calibration(calibrationInstance, fname):
     calibrationInstance.data.to_csv(fname, index = False)
     return
 
-class calibration:
+class Calibration:
     def __init__(self,dataTabel):
         self.data = dataTabel
         self.calibrationFunction = self.get_calibrationFunctionSpline()
@@ -223,17 +333,31 @@ class calibration:
         """       
         # The following two step method is necessary to get a smooth curve. 
         #When I only do the second step on the cal_curve I get some wired whiggles
+
+
+
         ##### First Step
         if (self.data.amp.values[1:]-self.data.amp.values[:-1]).min() < 0:
-            warnings.warn('The data represent a non injective function! This will not work. plot the calibration to see what I meen')  
-        
-        fitOrder = 1
-        sf = UnivariateSpline(self.data.d.values, self.data.amp.values, s=fitOrder)
-        d = np.logspace(np.log10(self.data.d.values.min()), np.log10(self.data.d.values.max()), 500)
+            warnings.warn('The data represent a non injective function! This will not work. plot the calibration to see what I meen')
+
+        # #OLD
+        #
+        # sf = UnivariateSpline(self.data.d.values, self.data.amp.values, s=fitOrder)
+        # d = np.logspace(np.log10(self.data.d.values.min()), np.log10(self.data.d.values.max()), 500)
+        # amp = sf(d)
+        #
+        # ##### second step
+        # cal_function = UnivariateSpline(amp, d, s=fitOrder)
+
+        #New
+
+        sf = UnivariateSpline(np.log10(self.data.d.values), np.log10(self.data.amp.values), s=0)
+        d = np.linspace(np.log10(self.data.d.values.min()), np.log10(self.data.d.values.max()), 500)
         amp = sf(d)
-    
-        ##### second step
-        cal_function = UnivariateSpline(amp, d, s=fitOrder)
+
+        # us = UnivariateSpline(np.log10(self.data.amp), np.log10(self.data.d), s=0)
+        us = UnivariateSpline(amp, d, s=0)
+        cal_function = lambda amp: 10**us(np.log10(amp))
         return cal_function
         
     def plot_calibration(self):
