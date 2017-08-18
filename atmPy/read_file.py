@@ -5,6 +5,7 @@ import pandas as _pd
 from .general import timeseries as _timeseries
 from atmPy.aerosols.instruments.miniSASP import _miniSASP
 from atmPy.general import vertical_profile as _vertical_profile
+from atmPy.aerosols.instruments.POPS import housekeeping as _pops_hk
 import warnings as _warnings
 
 importable_types = {#########
@@ -13,6 +14,7 @@ importable_types = {#########
                     'TimeSeries_2D':        {'call': _timeseries.TimeSeries_2D, 'category': 'timeseries'},
                     'TimeSeries_3D':        {'call': _timeseries.TimeSeries_3D, 'category': 'timeseries'},
                     'Sun_Intensities_TS':   {'call': _miniSASP.Sun_Intensities_TS, 'category': 'timeseries'},
+                    'POPSHouseKeeping':     {'call': _pops_hk.POPSHouseKeeping, 'category': 'timeseries'},
                     ##########
                     ### Vertical profiles
                     'VerticalProfile':      {'call': _vertical_profile.VerticalProfile, 'category': 'verticalprofile'}

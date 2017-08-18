@@ -1570,7 +1570,7 @@ class TimeSeries(object):
             print('end:   %s' % end.strftime('%Y-%m-%d %H:%M:%S.%f'))
         return start, end
 
-    def save(self, fname):
+    def save_csv(self, fname):
         """currently this simply saves the data of the timeseries using pandas
         to_csv
 

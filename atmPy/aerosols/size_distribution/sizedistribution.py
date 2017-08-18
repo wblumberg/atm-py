@@ -2581,15 +2581,15 @@ class SizeDist_LS(SizeDist):
         else:
             cb = None
 
-        if self.distributionType != 'calibration':
-            a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
-            a.xaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
-
-            f.canvas.draw()  # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
-            ticks = a.xaxis.get_minor_ticks()
-            for i in ticks:
-                if i.label.get_text() in removeTickLabels:
-                    i.label.set_visible(False)
+        # if self.distributionType != 'calibration':
+        #     a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
+        #     a.xaxis.set_major_formatter(plt.FormatStrFormatter("%i"))
+        #
+        #     f.canvas.draw()  # this is important, otherwise the ticks (at least in case of minor ticks) are not created yet
+        #     ticks = a.xaxis.get_minor_ticks()
+        #     for i in ticks:
+        #         if i.label.get_text() in removeTickLabels:
+        #             i.label.set_visible(False)
 
         if fit_pos:
             if 'data_fit_normal' in dir(self):
