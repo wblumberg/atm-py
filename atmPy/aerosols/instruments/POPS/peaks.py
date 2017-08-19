@@ -22,6 +22,9 @@ defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites = 20):
     """returns a peak instance
     test_data_folder: ..."""
+    if version == 'current':
+        version = 'BBB'
+
     directory, filename = os.path.split(fname)
     if version == 'current':
         data = _binary2array_labview_clusters(fname, skip = skip_bites)
@@ -33,13 +36,13 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites =
         dataFrame = _PeakFileArray2dataFrame(data,filename,time_shift)
     elif version == 'BBB': # Beaglebone system running POPS_BBB.c
         data = _bbb_binary2array(fname, 1)
-        dataFrame = _PeakFileArray2dataFrame(data, filename, deltaTime,
+        dataFrame = _PeakFileArray2dataFrame(data, filename, time_shift,
                                              log=False,
                                              since_midnight=False,
                                              BBBtype=1)
     elif version == 'BBB_dt': # Beaglebone system running POPS_BBB_dt.c
         data = _bbb_binary2array(fname, 2)
-        dataFrame = _PeakFileArray2dataFrame(data, filename, deltaTime,
+        dataFrame = _PeakFileArray2dataFrame(data, filename, time_shift,
                                              log=False,
                                              since_midnight=False,
                                              BBBtype=2)
@@ -393,7 +396,7 @@ def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, sin
     if BBBtype == 0:
         columns = np.array(['Ticks', 'Amplitude', 'Width', 'Saturated', 'Masked'])
     elif BBBtype == 1:
-        columns = np.array(['Pos', 'Max', 'Width', 'NoSat'])
+        columns = np.array(['Amplitude', 'Max', 'Width', 'Saturated'])
     elif BBBtype == 2:
         columns = np.array(['Max','Width','dt'])
 
@@ -512,6 +515,10 @@ def _cleanPeaksArray(PeakArray):
 class peaks(object):
     def __init__(self,dataFrame):
         self.data = dataFrame
+
+        # the Beaglebone code does not provide a "masked" field -> create a blank one
+        if 'Masked' not in self.data.columns:
+            self.data['Masked'] = 0
         
     def apply_calibration(self,calibrationInstance):
         self.data['Diameter'] = pd.Series(calibrationInstance.calibrationFunction(self.data.Amplitude.values), index = self.data.index)
