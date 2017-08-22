@@ -59,7 +59,7 @@ def check_availability(folder,
         else:
             df[product_id][date] = 1
 
-    df = df.sort(axis=1)
+    df = df.sort_index(axis=1)
 
     for e,col in enumerate(df.columns):
         df[col].values[df[col].values == 1] = e+1
