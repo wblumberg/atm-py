@@ -182,11 +182,23 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
 ##### f of RH
 
 def f_RH_kappa(RH, k, RH0 = 0):
+    """
+    latex: f_{RH,\kappa} = \frac{\sigma_{wet}}{\sigma_{dry}} = \frac{1 + k \frac{RH_{wet}}{100 - RH_{wet}}}{1 + k \frac{RH_{dry}}{100 - RH_{dry}}}
+    Args:
+        RH:
+        k:
+        RH0:
+
+    Returns:
+
+    """
     f_RH = (1 + (k * (RH/(100 - RH)))) / (1 + (k * (RH0/(100 - RH0))))
     return f_RH
 
 def f_RH_gamma(RH, g, RH0 = 0):
-    """"Doherty et al., 2005"""
+    """"Doherty et al., 2005
+    latex: f_{RH,\gamma} = \frac{\left( 1 - \frac{RH_{wet\phantom{j}}}{100}\right) ^{-\gamma}}{ \left( 1 - \frac{RH_{dry}}{100}\right) ^{-\gamma}}
+    """
     # f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
     f_RH = ((100 - RH0) / (100 - RH))**(g)
     return f_RH
