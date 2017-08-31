@@ -1420,7 +1420,7 @@ class TimeSeries(object):
             self.data[which] = data_ft
         return data_ft
 
-    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, **kwargs):
+    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -1487,6 +1487,25 @@ class TimeSeries(object):
         if did_plot:
             if autofmt_xdate:
                 f.autofmt_xdate()
+
+        if times_of_interest:
+            for toi in times_of_interest:
+                ts = toi.pop('datetime')
+
+                try:
+                    annotate = toi.pop('annotate')
+                    annotate_kwargs = toi.pop('annotate_kwargs')
+                except:
+                    annotate = None
+                ax.vlines(ts, -300, 40000, **toi)
+
+                if annotate:
+                    if 'bbox' not in annotate_kwargs:
+                        annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
+                    if 'ha' not in annotate_kwargs:
+                        annotate_kwargs['ha'] = 'center'
+                    pos_y = annotate_kwargs.pop('pos_y')
+                    ax.annotate(annotate, (ts, pos_y), **annotate_kwargs)
 
         return ax
 
@@ -1593,16 +1612,64 @@ class TimeSeries_2D(TimeSeries):
         plotting
     """
     def __init__(self, *args):
-        super(TimeSeries_2D,self).__init__(*args)
+        super().__init__(*args)
 
-    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
-        if 'cb_kwargs' in kwargs.keys():
-            cb_kwargs = kwargs['cb_kwargs']
-        if 'pc_kwargs' in kwargs.keys():
-            pc_kwargs = pc_kwargs
+    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, times_of_interest = None, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
+        """
+
+        Args:
+            xaxis:
+            ax:
+            autofmt_xdate:
+            times_of_interest:
+            cb_kwargs:
+            pc_kwargs:
+            **kwargs:
+
+        Returns:
+
+        Examples:
+            cmap = calipso.get_cmap(norm = 'log',log_min=-2.5, reverse=True)
+            toi = {'datetime': cali.path.get_closest2location(loc_oliktok).index[0],
+                   'linestyle': '--',
+                   'color': 'black',
+                   'annotate': 'Min. dist. to Oliktok ({} km)'.format(int(closest.distance[0])),
+                   'annotate_kwargs': {'pos_y': 7000}}
+
+            f,a,pc,cb = cali.total_attenuated_backscattering.plot(times_of_interest = [toi],
+                                                                 pc_kwargs={'cmap': cmap,
+                                                                            'vmin': 0,
+                                                                            'vmax': 2
+            #                                                                 'norm': plt.Normalize(vmin=0,vmax=1.)
+                                                                           },
+                                                                 cb_kwargs=True)
+        """
+        # if 'cb_kwargs' in kwargs.keys():
+        #     cb_kwargs = kwargs['cb_kwargs']
+        # if 'pc_kwargs' in kwargs.keys():
+        #     pc_kwargs = pc_kwargs
         f, a, pc, cb = _pandas_tools.plot_dataframe_meshgrid(self.data, xaxis=xaxis, ax=ax, pc_kwargs=pc_kwargs, cb_kwargs=cb_kwargs)
         if autofmt_xdate:
             f.autofmt_xdate()
+
+        if times_of_interest:
+            for toi in times_of_interest:
+                ts = toi.pop('datetime')
+
+                try:
+                    annotate = toi.pop('annotate')
+                    annotate_kwargs = toi.pop('annotate_kwargs')
+                except:
+                    annotate = None
+                a.vlines(ts, -300, 40000, **toi)
+
+                if annotate:
+                    if 'bbox' not in annotate_kwargs:
+                        annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
+                    if 'ha' not in annotate_kwargs:
+                        annotate_kwargs['ha'] = 'center'
+                    pos_y = annotate_kwargs.pop('pos_y')
+                    a.annotate(annotate, (ts, pos_y), **annotate_kwargs)
         return f, a, pc, cb
 
     def _del_all_columns_but(self, keep, inplace = False):
