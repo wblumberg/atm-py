@@ -84,7 +84,7 @@ def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
     return [amp, pos, sigma, sigma_high, sigma_low]
 
 
-def read_csv(fname, fixGaps=True):
+def read_csv(fname, fixGaps=False):
     headerNo = 50
     rein = open(fname, 'r')
     nol = ['distributionType', 'objectType']
@@ -2086,20 +2086,72 @@ class SizeDist_TS(SizeDist):
         dist._update()
         return dist
 
-    def average_overAllTime(self):
+    def average_overAllTime(self, sigma = 0, minmax = False, percentile = False):
         """
         averages over the entire dataFrame and returns a single sizedistribution (numpy.ndarray)
+
+        Args
+        ----
+        minmax: bool
+            returns in addition size distribution that represent the min and max values
+        percentile: float
+            percentile to be calculated and returned in addition to averaged sizedist
+        sigma (!experimental!): int
+            if not ==0 this function will additionally return the std according to sigma
         """
         singleHist = _np.zeros(self.data.shape[1])
+        if sigma:
+            singleHist_std = _np.zeros(self.data.shape[1])
+
+        elif minmax:
+            singleHist_min = _np.zeros(self.data.shape[1])
+            singleHist_max = _np.zeros(self.data.shape[1])
+
+        elif percentile:
+            # if type(percentile).__name__ in (int, float):
+            #     percentile = [percentile]
+            singleHist_percentile = _np.zeros(self.data.shape[1])
 
         for i in range(self.data.shape[1]):
             line = self.data.values[:, i]
             singleHist[i] = _np.average(line[~_np.isnan(line)])
+            if sigma:
+                singleHist_std[i] = _np.std(line[~_np.isnan(line)])
+            elif minmax:
+                try:
+                    singleHist_min[i] = _np.min(line[~_np.isnan(line)])
+                    singleHist_max[i] = _np.max(line[~_np.isnan(line)])
+                except ValueError:
+                    pass
+            elif percentile:
+                try:
+                    singleHist_percentile[i] = _np.percentile(line[~_np.isnan(line)], percentile)
+                except IndexError:
+                    pass
 
         data = pd.DataFrame(_np.array([singleHist]), columns=self.data.columns)
         avgDist = SizeDist(data, self.bins, self.distributionType)
-        # self._update()
-        return avgDist
+
+        if sigma:
+            data_low = pd.DataFrame(_np.array([singleHist - singleHist_std]), columns=self.data.columns)
+            std_dist_low = SizeDist(data_low, self.bins, self.distributionType)
+            data_high = pd.DataFrame(_np.array([singleHist + singleHist_std]), columns=self.data.columns)
+            std_dist_high = SizeDist(data_high, self.bins, self.distributionType)
+            return avgDist, std_dist_low, std_dist_high
+        elif minmax:
+            data = pd.DataFrame(_np.array([singleHist_min]), columns=self.data.columns)
+            mindist = SizeDist(data, self.bins, self.distributionType)
+            data = pd.DataFrame(_np.array([singleHist_max]), columns=self.data.columns)
+            maxdist = SizeDist(data, self.bins, self.distributionType)
+            return avgDist, mindist, maxdist
+
+        elif percentile:
+            data = pd.DataFrame(_np.array([singleHist_percentile]), columns=self.data.columns)
+            percDist = SizeDist(data, self.bins, self.distributionType)
+            return avgDist, percDist
+
+        else:
+            return avgDist
 
     @property
     def particle_number_concentration(self):
