@@ -81,7 +81,7 @@ class Data_Quality(object):
         flag_matrix[0] = _pd.Series((good != 0), index = av.index)
         return flag_matrix
 
-    def plot_stacked_bars(self, which='or', ax = None, resample=(6, 'H'), width=0.25, lw=0, show_missing = None, label = 'short', kwargs_leg = {}):
+    def plot_stacked_bars(self, which='or', ax = None, resample=(6, 'H'), width=0.25, lw=0, show_missing = None, label = 'short', colormap = None, kwargs_leg = {}):
         """
         Args:
             which:
@@ -124,11 +124,13 @@ class Data_Quality(object):
         labels = []
 
         if which == 'all':
-            cm = _plt.cm.Accent
+            if not colormap:
+                colormap = _plt.cm.Accent
+
             bottom = np.zeros(fmrs.shape[0])
             for e,flag in enumerate(fmrs.columns):
                 # b = a.bar(fmrs.index, fmrs[flag], width=width, color=_plt_tools.color_cycle[e % len(_plt_tools.color_cycle)], linewidth=lw, edgecolor='w')
-                b = a.bar(fmrs.index, fmrs[flag], bottom = bottom, width=width, color=cm(e/fmrs.columns.max()), linewidth=lw, edgecolor='w')
+                b = a.bar(fmrs.index, fmrs[flag], bottom = bottom, width=width, color=colormap(e/fmrs.columns.max()), linewidth=lw, edgecolor='w')
                 bottom += fmrs[flag].values
                 bars.append(b)
                 if label == 'short':
@@ -148,6 +150,88 @@ class Data_Quality(object):
             b_i = a.bar(fmrs.index, fmrs['intermediate'], width=width, bottom=fmrs['good'], color=_plt_tools.color_cycle[0], linewidth=lw, edgecolor='w')
             b_b = a.bar(fmrs.index, fmrs['bad'], width=width, bottom=fmrs['good'] + fmrs['intermediate'], color=_plt_tools.color_cycle[1], linewidth=lw, edgecolor='w')
             bars = [b_b, b_i, b_g]
+            labels = ['bad', 'intermediate', 'good']
+            # a.legend((b_b, b_i, b_g), ('bad', 'intermediate', 'good'))
+
+        if show_missing:
+            x = self.availability.index
+            y = np.ones(x.shape) * show_missing
+            cg = 0.9
+            fb = a.fill_between(x, y, color=[cg, cg, cg])
+            bars.append(fb)
+            labels.append('missing')
+
+        a.legend(bars, labels, **kwargs_leg)
+        a.set_ylabel('Number of data points')
+        a.set_xlabel('Timestamp')
+        f.autofmt_xdate()
+        return f, a
+
+    def plot(self, which='or', ax = None, resample=(6, 'H'), show_missing = None, label = 'short', colormap = None, kwargs_leg = {}):
+        """
+        Args:
+            which:
+            ax: mpl axis instance
+            resample:
+            width:
+            lw:
+            show_missing: float
+                This adds a gray background up the show_missing. Therefor show_missing should be the expacted number of points!
+            kwargs_leg: dict
+                kwargs passed to legend, e.g. loc, title
+            label: string
+                if 'short' bits are given in legend
+                if 'long' flag descirption is given
+
+        Returns:
+            figur, axis
+        """
+        if which == 'or':
+            fmrs = self.flag_matrix_good_int_bad_either_or
+        elif which == 'and':
+            fmrs = self.flag_matrix_good_int_bad
+        elif which == 'all':
+            fmrs = self.flag_matrix
+        else:
+            raise ValueError('{} is not an option for which'.format(which))
+
+        if resample:
+            fmrs = self._get_resampled(fmrs, resample)
+
+        if not ax:
+            f, a = _plt.subplots()
+        else:
+            a = ax
+            f = a.get_figure()
+
+
+
+        bars = []
+        labels = []
+
+        if which == 'all':
+            if not colormap:
+                colormap = _plt.cm.Accent
+
+            for e,flag in enumerate(fmrs.columns):
+                # b = a.bar(fmrs.index, fmrs[flag], width=width, color=_plt_tools.color_cycle[e % len(_plt_tools.color_cycle)], linewidth=lw, edgecolor='w')
+                g, = a.plot(fmrs.index, fmrs[flag], color=colormap(e/fmrs.columns.max()))
+                if label == 'short':
+                    labels.append(flag)
+                elif label == 'long':
+                    if flag == 0:
+                        label_st = 'no flag'
+                    else:
+                        label_st = self.flag_info.loc[flag, 'description']
+                    labels.append(label_st)
+                else:
+                    raise ValueError()
+            # if show_missing:
+            # a.legend(bars, labels, title = 'flag')
+        else:
+            b_g = a.plot(fmrs.index, fmrs['good'],         color=_plt_tools.color_cycle[2])
+            b_i = a.plot(fmrs.index, fmrs['intermediate'], color=_plt_tools.color_cycle[0])
+            b_b = a.plot(fmrs.index, fmrs['bad'],          color=_plt_tools.color_cycle[1])
             labels = ['bad', 'intermediate', 'good']
             # a.legend((b_b, b_i, b_g), ('bad', 'intermediate', 'good'))
 
@@ -372,6 +456,7 @@ class ArmDataset(object):
 
     def _close(self):
         self.netCDF.close()
+        delattr(self, 'netCDF')
 
     def _parse_netCDF(self):
         self._data_quality_control()
