@@ -125,14 +125,14 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
 
     # if dist_class == 'SizeDist_TS':
     #     out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
-    if dist_class == 'SizeDist':
-        out['extCoeff_perrow_perbin'] = _timeseries.TimeSeries(extCoeff_perrow_perbin)
-        out['scattCoeff_perrow_perbin'] = _timeseries.TimeSeries(scattCoeff_perrow_perbin)
-        out['absCoeff_perrow_perbin'] = _timeseries.TimeSeries(absCoeff_perrow_perbin)
-    else:
-        out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
-        out['scattCoeff_perrow_perbin'] = scattCoeff_perrow_perbin
-        out['absCoeff_perrow_perbin'] = absCoeff_perrow_perbin
+    # if dist_class == 'SizeDist':
+    #     out['extCoeff_perrow_perbin'] = _timeseries.TimeSeries(extCoeff_perrow_perbin)
+    #     out['scattCoeff_perrow_perbin'] = _timeseries.TimeSeries(scattCoeff_perrow_perbin)
+    #     out['absCoeff_perrow_perbin'] = _timeseries.TimeSeries(absCoeff_perrow_perbin)
+    # else:
+    out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
+    out['scattCoeff_perrow_perbin'] = scattCoeff_perrow_perbin
+    out['absCoeff_perrow_perbin'] = absCoeff_perrow_perbin
 
     out['parent_type'] = dist_class
     out['asymmetry_param'] = _pd.DataFrame(asymmetry_parameter_LS, index=index,
