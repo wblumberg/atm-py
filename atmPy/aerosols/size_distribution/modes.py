@@ -249,11 +249,11 @@ class ModeAnalysis(object):
         #     break
         # df
 
-        volumes = sdts_aiken.particle_volume_concentration.data.copy()
-        volumes.columns = ['aiken']
-        volumes['acccu'] = sdts_accu.particle_volume_concentration.data
-        volumes['coarse'] = sdts_coarse.particle_volume_concentration.data
-        volume_ratios = volumes.truediv(volumes.sum(axis = 1), axis=0)
+        # volumes = sdts_aiken.particle_volume_concentration.data.copy()
+        # volumes.columns = ['aiken']
+        # volumes['acccu'] = sdts_accu.particle_volume_concentration.data
+        # volumes['coarse'] = sdts_coarse.particle_volume_concentration.data
+        # volume_ratios = volumes.truediv(volumes.sum(axis = 1), axis=0)
 
         self.__size_dist_aiken = sdts_aiken
         self.__size_dist_accu = sdts_accu
