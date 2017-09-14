@@ -2,6 +2,16 @@ import numpy as _np
 
 
 def dynamic_shape_factor4shperoids(polar2equatorial_axis_ratio, orientation2flow = 'perpendicular'):
+    """
+    Returns the dynamic shape factor of spheroids depending on their aspect ratio and their orientation with repect to
+    the direction of the flow.
+    Args:
+        polar2equatorial_axis_ratio: float or ndarray
+        orientation2flow: "perpendicular or parallel"
+
+    Returns:
+        float or ndarray
+    """
     def k_prolate_perp(q):
         """spheroid shape: https://en.wikipedia.org/wiki/Spheroid
         function ref:eq 13 in Kasper, G., 1982. Dynamics and Measurement of Smokes. I Size Characterization of Nonspherical Particles. Aerosol Sci. Technol. 1, 187–199. doi:10.1080/02786828208958587"""
