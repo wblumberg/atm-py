@@ -19,6 +19,7 @@ from atmPy.aerosols.physics import optical_properties
 from atmPy.aerosols.size_distribution import moments
 from atmPy.gases import physics as _gas_physics
 from . import modes
+from statsmodels import robust as _robust
 # from atmPy import atmosphere
 
 
@@ -56,7 +57,7 @@ def align2sizedist(sizedist, other):
             raise ValueError(txt)
     return other
 
-def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
+def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2], test = False):
     """Fits a normal distribution to a """
     param = p0[:]
     x = x[~ _np.isnan(y)]
@@ -81,10 +82,28 @@ def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2]):
         pos = para[0][1]
         sigma_high = (para[0][1] + para[0][2])
         sigma_low = (para[0][1] - para[0][2])
-    return [amp, pos, sigma, sigma_high, sigma_low]
+    if test:
+        return [amp, pos, sigma, sigma_high, sigma_low], para
+    else:
+        return [amp, pos, sigma, sigma_high, sigma_low]
 
 
-def read_csv(fname, fixGaps=False):
+
+def read_csv(fname,fill_data_gaps_with = None, ignore_data_gap_error = False,
+             # fixGaps=False
+             ):
+    """
+
+    Args:
+        fname:
+        fill_data_gaps_with: float
+            If None gaps are not filled. This should eighter be np.nan (if the instrument failed) or 0 if particle
+            concentration was so low, that no particle was detected in that time window
+        ignore_data_gap_error:
+
+    Returns:
+
+    """
     headerNo = 50
     rein = open(fname, 'r')
     nol = ['distributionType', 'objectType']
@@ -107,11 +126,19 @@ def read_csv(fname, fixGaps=False):
     # data.index = pd.to_datetime(data.index)
     if outDict['objectType'] == 'SizeDist_TS':
         data.index = pd.to_datetime(data.index)
-        distRein = SizeDist_TS(data, outDict['bins'], outDict['distributionType'], fixGaps=fixGaps)
+        distRein = SizeDist_TS(data, outDict['bins'], outDict['distributionType'],
+                               fill_data_gaps_with=fill_data_gaps_with,
+                               ignore_data_gap_error=ignore_data_gap_error
+                               # fixGaps=fixGaps
+                               )
     elif outDict['objectType'] == 'SizeDist':
-        distRein = SizeDist(data, outDict['bins'], outDict['distributionType'], fixGaps=fixGaps)
+        distRein = SizeDist(data, outDict['bins'], outDict['distributionType'],
+                            # fixGaps=fixGaps
+                            )
     elif outDict['objectType'] == 'SizeDist_LS':
-        distRein = SizeDist_LS(data, outDict['bins'], outDict['distributionType'], fixGaps=fixGaps)
+        distRein = SizeDist_LS(data, outDict['bins'], outDict['distributionType'],
+                               # fixGaps=fixGaps
+                               )
     else:
         raise TypeError('not a valid object type')
     return distRein
@@ -681,7 +708,8 @@ class SizeDist(object):
     #  changed too
     def __init__(self, data, bins, distType,
                  # bincenters=False,
-                 fixGaps=False):
+                 # fixGaps=False
+                 ):
 
         if type(data).__name__ == 'NoneType':
             self._data = pd.DataFrame()
@@ -714,8 +742,8 @@ class SizeDist(object):
         self._is_reduced_to_pt = False
         self._mode_analysis = None
 
-        if fixGaps:
-            self.fillGaps()
+        # if fixGaps:
+        #     self.fillGaps()
 
     def __mul__(self, other):
         dist  = self.copy()
@@ -945,6 +973,8 @@ class SizeDist(object):
             self.__particle_surface_concentration = self._get_surface_concentration()
             self._uptodate_particle_surface_concentration = True
         return self.__particle_surface_concentration
+
+
 
     def reduce2temp_press_ambient(self, tmp_is = 'auto', tmp_is_column = 'Temperature_instrument', press_is_column = 'Pressure_Pa'):
         """tmp in C
@@ -1188,7 +1218,7 @@ class SizeDist(object):
     #     return opt_properties
 
     def fillGaps(self, scale=1.1):
-        """
+        """Note: This function is purly esteticall and should be removed since it can also create errors ...
         Finds gaps in dataset (e.g. when instrument was shut of) and fills them with zeros.
 
         It adds one line of zeros to the beginning and one to the end of the gap. 
@@ -1678,10 +1708,22 @@ class SizeDist_TS(SizeDist):
          surface: 'dSdlogDp','dSdDp'
          volume: 'dVdlogDp','dVdDp'
        """
-    def __init__(self, *args, **kwargs):
+    def __init__(self,  *args, fill_data_gaps_with = None, ignore_data_gap_error = False, **kwargs):
         super(SizeDist_TS,self).__init__(*args,**kwargs)
 
         self._data_period = None
+        # ignore_data_gap_error = False
+
+        if type(fill_data_gaps_with).__name__ != 'NoneType':
+            self.fill_gaps_with(what = fill_data_gaps_with)
+
+        elif not ignore_data_gap_error:
+            noofgaps = self.detect_gaps()
+            if noofgaps > 0:
+                raise ValueError(("There are {} gaps in the data. This might mean your instrument malfunctioned or there"
+                                  "where time intervals where no particle was recorded. Use the fill_gaps_with function to"
+                                  "fill data gaps with appropriate values or choose set the ignore_data_gap_error to True".format(noofgaps)))
+
 
         self.__particle_number_concentration = None
         self.__particle_mass_concentration = None
@@ -1703,6 +1745,32 @@ class SizeDist_TS(SizeDist):
     #     self._uptodate_particle_volume_concentration = False
     #     self._optical_properties = None
 
+    def detect_gaps(self, toleranz=1.95, return_all=False):
+        idx = self.data.index
+        dt = (idx[1:] - idx[:-1]) / _np.timedelta64(1, 's')
+
+        med = _np.median(dt)
+        mad = _robust.mad(dt)
+
+        hist, edges = _np.histogram(dt[_np.logical_and((med - mad) < dt, dt < (med + mad))], bins=100)
+        period = int(round((edges[hist.argmax()] + edges[hist.argmax() + 1]) / 2))
+        noofgaps = dt[dt > toleranz * period].shape[0]
+        if return_all:
+            return idx, noofgaps, dt, period
+        else:
+            return noofgaps
+
+    def fill_gaps_with(self, what=0, toleranz=1.95):
+        idx, noofgaps, dt, period = self.detect_gaps(toleranz=toleranz, return_all=True)
+        for idxf, idxn, dtt in zip(idx[:-1][dt > toleranz * period], idx[1:][dt > toleranz * period],
+                                   dt[dt > toleranz * period]):
+            #     print(idxf, idxn, dtt)
+            no2add = int(round(((idxn - idxf) / _np.timedelta64(1, 's')) / period)) - 1
+            for i in range(no2add):
+                newidx = idxf + _np.timedelta64((i + 1) * period, 's')
+                self.data.loc[newidx, :] = what
+        self.data.sort_index(inplace=True)
+        return
 
     def correct4ambient_LFE_tmp_difference(self):
         """corrects for temperature differences between ambient and instrument.
@@ -2250,7 +2318,9 @@ class SizeDist_LS(SizeDist):
     """
 
     def __init__(self, data, bins, distributionType, layerbounderies):
-        super(SizeDist_LS, self).__init__(data, bins, distributionType, fixGaps=False)
+        super(SizeDist_LS, self).__init__(data, bins, distributionType,
+                                          # fixGaps=False
+                                          )
         if type(layerbounderies).__name__ == 'NoneType':
             self.layerbounderies = _np.empty((0, 2))
             # self.layercenters = _np.array([])
