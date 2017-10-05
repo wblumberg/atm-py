@@ -53,11 +53,15 @@ def plot_dataframe_meshgrid(df, xaxis = 0, ax = None, pc_kwargs = {}, cb_kwargs 
     else:
         f,a = plt.subplots()
 
+    if not pc_kwargs:
+        pc_kwargs = {}
+
     pc = a.pcolormesh(x, y , z, **pc_kwargs)
 
 
     if 'datetime' in df.index.dtype_str:
         f.autofmt_xdate()
+
     if cb_kwargs:
         # if passing an empty dict the colorbar is not plot ->
         if type(cb_kwargs) == bool or len(cb_kwargs) == 0:

@@ -18,3 +18,7 @@ examples/instruments_ARM-tdmaapssize.ipynb
 examples/instruments_ARM.ipynb
 mie_py.egg-info/
 setuptools*
+/atm_py.egg-info/
+atmPy/aerosols/materials/~$materials.xlsx
+atmPy/for_removal/
+examples/instruments_ARM-ceilm.ipynb
