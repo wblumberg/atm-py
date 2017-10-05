@@ -18,7 +18,7 @@ def get_cmap(norm='linear', log_min=None, reverse=False):
                        ])
 
     if norm == 'linear':
-        steps = np.logspace(0, 1, len(colors))
+        steps = np.linspace(0, 1, len(colors))
     elif norm == 'log':
         steps = np.logspace(log_min, 0, len(colors))
         steps[0] = 0
