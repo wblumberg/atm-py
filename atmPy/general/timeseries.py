@@ -1614,7 +1614,7 @@ class TimeSeries_2D(TimeSeries):
     def __init__(self, *args):
         super().__init__(*args)
 
-    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, times_of_interest = None, cb_kwargs = {}, pc_kwargs = {},  **kwargs):
+    def plot(self, xaxis = 0, ax = None, autofmt_xdate = True, times_of_interest = None, cb_kwargs = None, pc_kwargs = None,  **kwargs):
         """
 
         Args:
