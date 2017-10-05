@@ -15,7 +15,7 @@ from  atmPy.aerosols.size_distribution import sizedistribution as _sizedistribut
 
 def kappa_simple(k, RH, refractive_index = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
-    This function is based on the simplified model introduced by Rissler et al. (2006).
+    This function is based on a simplified version of a model originally introduced by Rissler et al. (2005).
     It ignores the curvature effect and is therefore independend of the exact particle diameter.
     Due to this simplification this function is valid only for particles larger than 100 nm
     Patters and Kreidenweis (2007).
@@ -27,7 +27,10 @@ def kappa_simple(k, RH, refractive_index = None, inverse = False):
     Size distribution and hygroscopic properties of aerosol particles from dry-season biomass burning
     in Amazonia. Atmospheric Chemistry and Physics Discussions, 5(5), 8149-8207. doi:10.5194/acpd-5-8149-2005
 
-    latex expression: $\sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}$
+    latex expression:
+        gf = \left(1 + \kappa \cdot \frac{RH}{100 - RH}\right)^{\frac{1}{3}}
+        gf = \sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}
+
 
     Arguments
     ---------
@@ -183,7 +186,10 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
 
 def f_RH_kappa(RH, k, RH0 = 0):
     """
-    latex: f_{RH,\kappa} = \frac{\sigma_{wet}}{\sigma_{dry}} = \frac{1 + k \frac{RH_{wet}}{100 - RH_{wet}}}{1 + k \frac{RH_{dry}}{100 - RH_{dry}}}
+    References:
+        Petters, M.D., Kreidenweis, S.M., 2007. A single parameter representation of hygroscopic growth and cloud condensation nucleus activity. Atmos. Chem. Phys. 7, 1961–1971. doi:10.5194/acp-7-1961-2007
+    Latex:
+        f_{RH,\kappa} = \frac{\sigma_{wet}}{\sigma_{dry}} = \frac{1 + k \frac{RH_{wet}}{100 - RH_{wet}}}{1 + k \frac{RH_{dry}}{100 - RH_{dry}}}
     Args:
         RH:
         k:
@@ -196,8 +202,14 @@ def f_RH_kappa(RH, k, RH0 = 0):
     return f_RH
 
 def f_RH_gamma(RH, g, RH0 = 0):
-    """"Doherty et al., 2005
-    latex: f_{RH,\gamma} = \frac{\left( 1 - \frac{RH_{wet\phantom{j}}}{100}\right) ^{-\gamma}}{ \left( 1 - \frac{RH_{dry}}{100}\right) ^{-\gamma}}
+    """"
+
+    Latex:
+        f_{RH,\gamma} = \frac{\left( 1 - \frac{RH_{wet\phantom{j}}}{100}\right) ^{-\gamma}}{ \left( 1 - \frac{RH_{dry}}{100}\right) ^{-\gamma}}
+
+    References:
+        Kasten, F., 1969. Visibility forecast in the phase of pre-condensation. Tellus 21, 631–635. doi:10.3402/tellusa.v21i5.10112
+
     """
     # f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
     f_RH = ((100 - RH0) / (100 - RH))**(g)
@@ -1172,7 +1184,7 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
         self._fit_results
         return self._mixing_state
 
-    def plot(hgfd, growth_modes=True, **kwargs):
+    def plot(hgfd, growth_modes=True, scatter_kw = {}, **kwargs):
         f, a, pc, cb = super().plot(**kwargs)
         #             pc_kwargs={
         #         #                                 'cmap': plt_tools.get_colorMap_intensity_r(),
@@ -1182,6 +1194,7 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
         #         cols = plt_tools.color_cycle[1]
         if growth_modes:
             a.scatter(hgfd.growth_modes_gf.index, hgfd.growth_modes_gf.gf, s=hgfd.growth_modes_gf.ratio * 200,
-                      color=_plt_tools.color_cycle[1]
+                      **scatter_kw
+                      # color=_plt_tools.color_cycle[1]
                       )
         return f, a, pc, cb
