@@ -1551,8 +1551,10 @@ class TimeSeries(object):
             txt = '''This error is most likely related to the fact that the index of the timeseries is not in order.
                   Run the sort_index() attribute of the DataFrame'''
             raise KeyError(txt)
-
-        housek._start_time = housek.data.index[0]
+        try:
+            housek._start_time = housek.data.index[0]
+        except IndexError:
+            pass
 
         if copy:
             return housek
