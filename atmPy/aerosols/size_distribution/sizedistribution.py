@@ -1752,11 +1752,20 @@ class SizeDist_TS(SizeDist):
         med = _np.median(dt)
         mad = _robust.mad(dt)
 
-        hist, edges = _np.histogram(dt[_np.logical_and((med - mad) < dt, dt < (med + mad))], bins=100)
-        period = int(round((edges[hist.argmax()] + edges[hist.argmax() + 1]) / 2))
-        noofgaps = dt[dt > toleranz * period].shape[0]
+        if mad == 0:
+            noofgaps = 0
+            dt = 0
+            period = med
+        else:
+            hist, edges = _np.histogram(dt[_np.logical_and((med - mad) < dt, dt < (med + mad))], bins=100)
+            period = int(round((edges[hist.argmax()] + edges[hist.argmax() + 1]) / 2))
+            noofgaps = dt[dt > toleranz * period].shape[0]
+
         if return_all:
-            return idx, noofgaps, dt, period
+                return {'index':idx,
+                        'number of gaps':noofgaps,
+                        'dt': dt,
+                        'period (s)': period}
         else:
             return noofgaps
 
