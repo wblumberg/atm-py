@@ -429,7 +429,7 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     return pear_r_ts
 
 
-def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=None, normalize=True, **kwargs):
+def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=None, min_good_ratio = 0, normalize=True, **kwargs):
     """
     Parameters
     ----------
@@ -437,7 +437,11 @@ def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=Non
         first arg of tuple can be int or array-like of dtype int. Second arg is unit. if array-like no_of... is ignored
     direction: bool or string
         if direction is set the center parameter will be ignored
-        p for positive, n for negative"""
+        p for positive, n for negative
+    min_good_ratio: float
+        the minimum ratio of points that are not nan and the total number of data points. E.g. if there is a section of
+        spotty data (lots of nan). The few resulting valid points would give a poor correlation which would be excluded"""
+
 
     if other.data.columns.shape[0] == 1:
         other_column = other.data.columns[0]
@@ -474,12 +478,16 @@ def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=Non
 
     # if center:
     #     dt_array += int(center)
-    out = _pd.DataFrame(index = dt_array, columns=['pearson_r'])
+    out = _pd.DataFrame(index = dt_array, columns=['pearson_r'], dtype=float)
     for dtt in dt_array:
         tst = other.copy()
         tst.data.index += _np.timedelta64(int(dtt), dt[1])
         corr = ts.correlate_to(tst)
-        out.loc[dtt] = corr.pearson_r[0]
+        minshape = _np.array([tst.data.shape[0], ts.data.shape[0]]).min()
+        if corr._data.shape[0] < (min_good_ratio * minshape):
+            out.loc[dtt] = _np.nan
+        else:
+            out.loc[dtt] = corr.pearson_r[0]
         # if not out:
         #     out = corr
         #     import pdb
@@ -868,7 +876,7 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
             col_no = 0
         else:
             col_no = 0 #not sure what that is good for ... but is needed ;-)
-    bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.8], ec="black", lw=0.5 * _plt.rcParams['axes.linewidth'])
+    bbox_props = dict(boxstyle="round,pad=0.3", fc=[1,1,1,0.4], ec="black", lw=0.5 * _plt.rcParams['axes.linewidth'])
 
     if twin_x:
         if not hasattr(a,'twins_x'):
@@ -940,9 +948,13 @@ def plot_wrapped(ts,periods = 1, frequency = 'h', ylabel = 'auto', max_wraps = 1
             tst.data.index = _pd.to_datetime(tst.data.index + _np.datetime64('1900'))
             if 'TimeSeries' in (tst.__class__.__bases__[0].__name__ , type(tst).__name__):
                 if twin_x:
-                    plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], **plot_kwargs)
+                    plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate,
+                                       # color=_plt_tools.color_cycle[col_no],
+                                       **plot_kwargs)
                 else:
-                    plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate, color = _plt_tools.color_cycle[col_no], **plot_kwargs)
+                    plt_out = tst.plot(ax=at, autofmt_xdate = autofmt_xdate,
+                                       # color = _plt_tools.color_cycle[col_no],
+                                       **plot_kwargs)
                     # plt_out = tst.plot(ax=at)
             elif 'TimeSeries_2D' in (tst.__class__.__bases__[0].__name__, type(tst).__name__):
                 plt_out = tst.plot(ax=at, autofmt_xdate=autofmt_xdate, color=_plt_tools.color_cycle[col_no], cb_kwargs = False, **plot_kwargs)
