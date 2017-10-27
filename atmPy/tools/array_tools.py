@@ -196,7 +196,10 @@ class Correlation(object):
         return self.__orthogonal_distance_regression
 
     def plot_regression(self, reg_type = 'simple',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
-                     ylim=None, colorbar=False, ax=None, aspect='auto', fit_res=(0.1, 0.9), vmin=0.001, **kwargs):
+                        ylim=None, colorbar=False, ax=None, aspect='auto',
+                        fit_res_kwargs = {'pos':(0.1, 0.9),
+                                          'show_params': ['r','r2','p','m', 'c', 's']},
+                        vmin=0.001, hexbin_kwargs = {}, plot_kwargs = {}):
         """
 
         Parameters
@@ -239,8 +242,8 @@ class Correlation(object):
 
         if cm == 'auto':
             cm = _plt.cm.copper_r
+            cm.set_under('w')
 
-        cm.set_under('w')
 
         if xlim:
             if type(xlim).__name__ in ['int', 'float']:
@@ -277,7 +280,7 @@ class Correlation(object):
 
         # import pdb
         # pdb.set_trace()
-        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, cmap=cm, vmin=vmin, **kwargs)
+        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, **hexbin_kwargs)
 
         if xlim:
             a.set_xlim(xlim)
@@ -303,38 +306,58 @@ class Correlation(object):
                 intersect = self.linear_regression.intercept
                 # std = self.linear_regression.stderr
                 std = (self._correlant - self.linear_regression_function(self._data)).std()
-            a.plot(x_reg_func, y_reg_func, lw=2)
+            a.plot(x_reg_func, y_reg_func, **plot_kwargs)
 
         if 'odr' in reg_type:
             x_reg_func = _np.array([self._data.min(), self._data.max()])
             y_reg_func = self.orthogonla_distance_regression['function'](x_reg_func)
             slope = self.orthogonla_distance_regression['output'].beta[0]
             intersect = self.orthogonla_distance_regression['output'].beta[1]
-            std = self.orthogonla_distance_regression['output'].res_var
-            a.plot(x_reg_func, y_reg_func, lw=2)
+            std = _np.sqrt(self.orthogonla_distance_regression['output'].res_var)
+            a.plot(x_reg_func, y_reg_func, **plot_kwargs)
             a.set_xlim((self._data.min(), self._data.max()))
             a.set_ylim((self._correlant.min(), self._correlant.max()))
 
         # color = _plt_tools.color_cycle[2]
 
+        if fit_res_kwargs:
+            txt_r = '$r = %0.2f$' % (self.pearson_r[0])
+            txt_r2= '$r^2 = %0.2f$' % ((self.pearson_r[0]) ** 2)
+            # if p_value:
+            txt_p= '$p = %0.2f$' % (self.pearson_r[1])
+            txt_m= '$m = %0.2f$' % (slope)
+            txt_c= '$c = %0.2f$' % (intersect)
+            txt_s= '$s = %0.2f$' % (std)
 
-        txt = '$r = %0.2f$' % (self.pearson_r[0])
-        txt += '\n$r^2 = %0.2f$' % ((self.pearson_r[0]) ** 2)
-        # if p_value:
-        txt += '\n$p = %0.2f$' % (self.pearson_r[1])
-        txt += '\n$m = %0.2f$' % (slope)
-        txt += '\n$c = %0.2f$' % (intersect)
-        txt += '\n$std = %0.2f$' % (std)
+            txtl = []
+            for fr in fit_res_kwargs['show_params']:
+                if fr == 'r':
+                    txtl.append(txt_r)
+                elif fr == 'r2':
+                    txtl.append(txt_r2)
+                elif fr == 'p':
+                    txtl.append(txt_p)
+                elif fr == 'm':
+                    txtl.append(txt_m)
+                elif fr == 'c':
+                    txtl.append(txt_c)
+                elif fr == 's':
+                    txtl.append(txt_s)
+                else:
+                    raise
 
-        props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-        if fit_res:
-            a.text(fit_res[0], fit_res[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
+            txt = '\n'.join(txtl)
+
+            props = dict(boxstyle='round',
+                         facecolor=[1,1,1,0.5])
+            pos = fit_res_kwargs['pos']
+            a.text(pos[0], pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
 
         if aspect != 'auto':
             x0, x1 = a.get_xlim()
             y0, y1 = a.get_ylim()
             a.set_aspect(aspect * (abs(x1 - x0) / abs(y1 - y0)))
-        return a
+        return a, hb
 
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
     def plot_pearson(self, zero_intersect = False, gridsize = 100, cm = 'auto', xlim = None,
@@ -479,9 +502,9 @@ class Correlation(object):
         a.set_xlabel(self._x_label_orig)
 
         if type(self._index) != bool:
-            a.plot(self._index, self._data, linewidth = 2, color = _plt_tools.color_cycle[0], **kwargs)
+            a.plot(self._index, self._data, color = _plt_tools.color_cycle[0], **kwargs)
         else:
-            a.plot(self._data, linewidth = 2, color = _plt_tools.color_cycle[0], **kwargs)
+            a.plot(self._data, color = _plt_tools.color_cycle[0], **kwargs)
 
         g = a.get_lines()[-1]
         g.set_marker('.')
