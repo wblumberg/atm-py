@@ -1755,7 +1755,7 @@ class SizeDist_TS(SizeDist):
         if mad == 0:
             noofgaps = 0
             dt = 0
-            period = med
+            period = int(med)
         else:
             hist, edges = _np.histogram(dt[_np.logical_and((med - mad) < dt, dt < (med + mad))], bins=100)
             period = int(round((edges[hist.argmax()] + edges[hist.argmax() + 1]) / 2))
@@ -1770,7 +1770,12 @@ class SizeDist_TS(SizeDist):
             return noofgaps
 
     def fill_gaps_with(self, what=0, toleranz=1.95):
-        idx, noofgaps, dt, period = self.detect_gaps(toleranz=toleranz, return_all=True)
+        gaps = self.detect_gaps(toleranz=toleranz, return_all=True)
+        idx = gaps['index']
+        noofgaps = gaps['number of gaps']
+        dt = gaps['dt']
+        period = gaps['period (s)']
+        print(type(toleranz),toleranz, type(period), period)
         for idxf, idxn, dtt in zip(idx[:-1][dt > toleranz * period], idx[1:][dt > toleranz * period],
                                    dt[dt > toleranz * period]):
             #     print(idxf, idxn, dtt)
