@@ -286,8 +286,8 @@ class ArmDataset(object):
             elif which_type == 'SizeDist_TS':
                 # value = _AMS.AMS_Timeseries_lev01(pd.concat([getattr(i, att).data for i in arm_data_objs]))
                 data = _pd.concat([getattr(i, att).data for i in arm_data_objs])
-                value = _sizedistribution.SizeDist_TS(data, getattr(arm_data_objs[0], att).bins,
-                                             'dNdlogDp')
+                value = _sizedistribution.SizeDist_TS(data, getattr(arm_data_objs[0], att).bins, 'dNdlogDp',
+                                                      ignore_data_gap_error=True,)
             elif which_type == 'TimeSeries_3D':
                 value = _timeseries.TimeSeries_3D(_pd.concat([getattr(i, att).data for i in arm_data_objs]))
             else:
