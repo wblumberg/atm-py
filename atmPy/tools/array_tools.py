@@ -197,9 +197,12 @@ class Correlation(object):
 
     def plot_regression(self, reg_type = 'simple',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
                         ylim=None, colorbar=False, ax=None, aspect='auto',
-                        fit_res_kwargs = {'pos':(0.1, 0.9),
-                                          'show_params': ['r','r2','p','m', 'c', 's']},
-                        vmin=0.001, hexbin_kwargs = {}, plot_kwargs = {}):
+                        fit_res_kwargs = {},
+                        # 'pos':(0.1, 0.9),
+                        #                   'show_params': ['r','r2','p','m', 'c', 's']
+                        #                   },
+                        # vmin=0.001,
+                        hexbin_kwargs = {}, plot_kwargs = {}):
         """
 
         Parameters
@@ -220,8 +223,13 @@ class Correlation(object):
         colorbar: bool
         ax: bool or matplotlib.Axes instance
             If desired to plot on another axes.
-        kwargs
-
+        fit_res_kwargs: dict ... allowed keys
+            pos: tuple of len=2
+            show_params: ['r','r2','p','m', 'c', 's']
+                list of fit-parameters to show
+            bb_fc: color of box face color
+            bb_ec: color of box edge color
+            bb_lw: line width of box
         Returns
         -------
 
@@ -274,9 +282,13 @@ class Correlation(object):
             xratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
             gridsize_y = int(gridsize * xratio)
         else:
-            gridsize_y = int(gridsize * ratio)
+            if type(gridsize) != tuple:
+                gridsize_y = int(gridsize * ratio)
 
-        gridsize_new = (gridsize_x, gridsize_y)
+        if type(gridsize) == tuple:
+            gridsize_new = gridsize
+        else:
+            gridsize_new = (gridsize_x, gridsize_y)
 
         # import pdb
         # pdb.set_trace()
@@ -330,6 +342,22 @@ class Correlation(object):
             txt_s= '$s = %0.2f$' % (std)
 
             txtl = []
+
+            if 'show_params' not in fit_res_kwargs.keys():
+                fit_res_kwargs['show_params'] = ['r', 'r2', 'p', 'm', 'c', 's']
+
+            if 'pos' not in fit_res_kwargs.keys():
+                fit_res_kwargs['pos'] = (0.1, 0.9),
+
+            if 'bb_fc' not in fit_res_kwargs.keys():
+                fit_res_kwargs['bb_fc'] = [1,1,1,0.5]
+
+            if 'bb_ec' not in fit_res_kwargs.keys():
+                fit_res_kwargs['bb_ec'] = [0,0,0,1]
+
+            if 'bb_lw' not in fit_res_kwargs.keys():
+                fit_res_kwargs['bb_lw'] = _plt.rcParams['axes.linewidth']
+
             for fr in fit_res_kwargs['show_params']:
                 if fr == 'r':
                     txtl.append(txt_r)
@@ -348,8 +376,13 @@ class Correlation(object):
 
             txt = '\n'.join(txtl)
 
+
+
             props = dict(boxstyle='round',
-                         facecolor=[1,1,1,0.5])
+                         facecolor=fit_res_kwargs['bb_fc'],
+                         edgecolor = fit_res_kwargs['bb_ec'],
+                         lw = fit_res_kwargs['bb_lw']
+                         )
             pos = fit_res_kwargs['pos']
             a.text(pos[0], pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
 
