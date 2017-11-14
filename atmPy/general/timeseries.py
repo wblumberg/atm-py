@@ -26,6 +26,7 @@ from matplotlib.dates import MonthLocator as _MonthLocator
 import os as _os
 from matplotlib import dates as _dates
 
+
 _unit_time = 'days since 1900-01-01'
 
 def load_csv(fname):
@@ -92,38 +93,6 @@ def save_netCDF(ts,fname, leave_open = False):
         ni.close()
 
 #### Tools
-def close_gaps(ts, verbose = False):
-    ts = ts.copy()
-    ts.data = ts.data.sort_index()
-    if type(ts.data).__name__ == 'Panel':
-        data = ts.data.items.values
-        index = ts.data.items
-    else:
-        data = ts.data.index.values
-        index = ts.data.index
-    index_df = _pd.DataFrame(index = index)
-
-    dt = data[1:] - data[:-1]
-    dt = dt / _np.timedelta64(1,'s')
-
-    median = _np.median(dt)
-    if median > (1.1 * ts._data_period) or median < (0.9 * ts._data_period):
-        _warnings.warn('There is a periode and median missmatch (%0.1f,%0.1f), this is either due to an error in the assumed period or becuase there are too many gaps in the _timeseries.'%(median,ts._data_period))
-
-    point_dist = (index.values[1:] - index.values[:-1]) / _np.timedelta64(1, 's')
-    where = point_dist > 2 * ts._data_period
-    off_periods = _np.array([index[:-1][where], index[1:][where]]).transpose()
-    if verbose:
-        print('found %i gaps'%(off_periods.shape[0]))
-    for i, op in enumerate(off_periods):
-        no_periods = round((op[1] - op[0])/ _np.timedelta64(1,'s')) / ts._data_period
-        out = _pd.date_range(start = op[0], periods= no_periods, freq= '%i s'%ts._data_period)
-        out = out[1:]
-        out = _pd.DataFrame(index = out)
-        index_df = _pd.concat([index_df, out])
-    index_df.sort_index(inplace=True)
-    ts.data = ts.data.reindex(index_df.index)
-    return ts
 
 
 def align_to(ts, ts_other, verbose= False):
