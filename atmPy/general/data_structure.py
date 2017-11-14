@@ -2,7 +2,7 @@ import pandas as _pd
 import numpy as _np
 import warnings as _warnings
 from statsmodels import robust as _robust
-
+from functools import wraps as _wraps
 
 def close_gaps(ts, verbose = False):
     """This is an older version to deal with gaps ... rather consider using the ones below"""
@@ -65,7 +65,7 @@ def detect_gaps(ts, toleranz=1.95, return_all=False):
 def fill_gaps_with(ts, what=0, toleranz=1.95):
     # if type(ts).__name__ == 'DataStructure':
     #     ts = ts.parent_ts
-    gaps = ts.detect_gaps(toleranz=toleranz, return_all=True)
+    gaps = ts.data_structure.detect_gaps(toleranz=toleranz, return_all=True)
     idx = gaps['index']
     # noofgaps = gaps['number of gaps']
     dt = gaps['dt']
@@ -80,19 +80,23 @@ def fill_gaps_with(ts, what=0, toleranz=1.95):
     ts.data.sort_index(inplace=True)
     return
 
+def estimate_sampling_period(ts, toleranz=1.95):
+    gaps = ts.data_structure.detect_gaps(toleranz=toleranz, return_all=True)
+    return gaps['period (s)']
+
 def _adjusttype(fkt):
+    @_wraps(fkt)
     def wrapper(ts, *args, **kwargs):
         if type(ts).__name__ == 'DataStructure':
             ts = ts.parent_ts
         return fkt(ts, *args, **kwargs)
     return wrapper
 
-def estimate_data_period(ts, toleranz=1.95):
-    gaps = ts.detect_gaps(toleranz=toleranz, return_all=True)
-    return gaps['period (s)']
 
 class DataStructure(object):
     def __init__(self, ts):
         self.parent_ts = ts
 
     detect_gaps = _adjusttype(detect_gaps)
+    fill_gaps_with = _adjusttype(fill_gaps_with)
+    estimate_sampling_period = _adjusttype(estimate_sampling_period)
