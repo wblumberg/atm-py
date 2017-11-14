@@ -732,6 +732,7 @@ class SizeDist(object):
         self.__particle_mass_concentration = None
         self.__particle_surface_concentration = None
         self.__particle_volume_concentration = None
+        self._submicron_volume_ratio = None
         self.__housekeeping = None
 
         self.distributionType = distType
@@ -974,7 +975,11 @@ class SizeDist(object):
             self._uptodate_particle_surface_concentration = True
         return self.__particle_surface_concentration
 
-
+    @property
+    def submicron_volume_ratio(self):
+        if not self._submicron_volume_ratio:
+            self._submicron_volume_ratio = self.zoom_diameter(end=1000).particle_volume_concentration / self.particle_volume_concentration
+        return self._submicron_volume_ratio
 
     def reduce2temp_press_ambient(self, tmp_is = 'auto', tmp_is_column = 'Temperature_instrument', press_is_column = 'Pressure_Pa'):
         """tmp in C
@@ -1687,6 +1692,7 @@ class SizeDist(object):
         self._uptodate_particle_surface_concentration = False
         self._uptodate_particle_volume_concentration = False
         self._particle_mean_diameter = None
+        self._submicron_volume_ratio = None
 
 
 
