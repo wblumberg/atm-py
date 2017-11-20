@@ -433,6 +433,36 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     return pear_r_ts
 
 
+def add_time_of_interest2axes(ax, times_of_interest):
+    if type(times_of_interest) == dict:
+        times_of_interest = [times_of_interest]
+    for toi in times_of_interest:
+        ts = toi.pop('datetime')
+        if 'color' not in toi.keys():
+            toi['color'] = 'black'
+        try:
+            annotate = toi.pop('annotate')
+            annotate_kwargs = toi.pop('annotate_kwargs')
+        except:
+            annotate = None
+
+        if 'vline_kwargs' not in toi.keys():
+            toi['vline_kwargs'] = {}
+
+        if 'color' not in toi['vline_kwargs'].keys():
+            toi['vline_kwargs']['color'] = toi['color']
+
+        ax.vlines(ts, -300, 40000, **toi['vline_kwargs'])
+
+        if annotate:
+
+            if 'bbox' not in annotate_kwargs:
+                annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
+            if 'ha' not in annotate_kwargs:
+                annotate_kwargs['ha'] = 'center'
+            # pos_y = annotate_kwargs.pop('pos_y')
+            ax.annotate(annotate[0], (ts, annotate[1]), **annotate_kwargs)
+
 def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=None, min_good_ratio = 0, normalize=True, **kwargs):
     """
     Parameters
@@ -1447,9 +1477,15 @@ class TimeSeries(object):
         """Plot each parameter separately versus time
         Arguments
         ---------
-        same as pandas.plot
+        times_of_interest: dict or list of dicts
+            excepted keys for each dict:
+                datetime: e.g. '2017-04-02 23:50:00'
+                annotate: (str, float)
+                    This is the text and the yposition
+                annotate_kwargs: dict of annotation kwargs
+                vline_kwargs: dict of vline kwargs
 
-        **kwargs
+        kwargs: keyword argurments passed to matplotlib plot function e.g.:
         picker: float
             in addition to the normal behaviour this will add text with the position to the plot and append the
             timeseries attribute plot_click_position. Matplotlib has to be in some kind of interactive backend.
@@ -1512,23 +1548,32 @@ class TimeSeries(object):
                 f.autofmt_xdate()
 
         if times_of_interest:
-            for toi in times_of_interest:
-                ts = toi.pop('datetime')
-
-                try:
-                    annotate = toi.pop('annotate')
-                    annotate_kwargs = toi.pop('annotate_kwargs')
-                except:
-                    annotate = None
-                ax.vlines(ts, -300, 40000, **toi)
-
-                if annotate:
-                    if 'bbox' not in annotate_kwargs:
-                        annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
-                    if 'ha' not in annotate_kwargs:
-                        annotate_kwargs['ha'] = 'center'
-                    pos_y = annotate_kwargs.pop('pos_y')
-                    ax.annotate(annotate, (ts, pos_y), **annotate_kwargs)
+            add_time_of_interest2axes(ax, times_of_interest)
+            # if type(times_of_interest) == dict:
+            #     times_of_interest = [times_of_interest]
+            # for toi in times_of_interest:
+            #     ts = toi.pop('datetime')
+            #     if 'color' not in toi.keys():
+            #         toi['color'] = 'black'
+            #     try:
+            #         annotate = toi.pop('annotate')
+            #         annotate_kwargs = toi.pop('annotate_kwargs')
+            #     except:
+            #         annotate = None
+            #
+            #     if 'vline_kwargs' not in toi.keys():
+            #         toi['vline_kwargs'] ={}
+            #
+            #     ax.vlines(ts, -300, 40000, **toi['vline_kwargs'])
+            #
+            #     if annotate:
+            #
+            #         if 'bbox' not in annotate_kwargs:
+            #             annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
+            #         if 'ha' not in annotate_kwargs:
+            #             annotate_kwargs['ha'] = 'center'
+            #         # pos_y = annotate_kwargs.pop('pos_y')
+            #         ax.annotate(annotate[0], (ts, annotate[1]), **annotate_kwargs)
 
         return ax
 
@@ -1678,23 +1723,8 @@ class TimeSeries_2D(TimeSeries):
             f.autofmt_xdate()
 
         if times_of_interest:
-            for toi in times_of_interest:
-                ts = toi.pop('datetime')
+            add_time_of_interest2axes(a,times_of_interest)
 
-                try:
-                    annotate = toi.pop('annotate')
-                    annotate_kwargs = toi.pop('annotate_kwargs')
-                except:
-                    annotate = None
-                a.vlines(ts, -300, 40000, **toi)
-
-                if annotate:
-                    if 'bbox' not in annotate_kwargs:
-                        annotate_kwargs['bbox'] = dict(boxstyle="round,pad=0.3", fc=[1, 1, 1, 0.8], ec=toi['color'], lw=1)
-                    if 'ha' not in annotate_kwargs:
-                        annotate_kwargs['ha'] = 'center'
-                    pos_y = annotate_kwargs.pop('pos_y')
-                    a.annotate(annotate, (ts, pos_y), **annotate_kwargs)
         return f, a, pc, cb
 
     def _del_all_columns_but(self, keep, inplace = False):
