@@ -88,6 +88,37 @@ def reverse_binary(variable, no_bits):
     return variable
 
 
+def weighted_quantile(values, quantiles, sample_weight=None, values_sorted=False, old_style=False):
+    """ Very close to numpy.percentile, but supports weights.
+    NOTE: quantiles should be in [0, 1]!
+    :param values: numpy.array with data
+    :param quantiles: array-like with many quantiles needed
+    :param sample_weight: array-like of the same length as `array`
+    :param values_sorted: bool, if True, then will avoid sorting of initial array
+    :param old_style: if True, will correct output to be consistent with numpy.percentile.
+    :return: numpy.array with computed quantiles.
+    """
+    values = _np.array(values)
+    quantiles = _np.array(quantiles)
+    if sample_weight is None:
+        sample_weight = _np.ones(len(values))
+    sample_weight = _np.array(sample_weight)
+    assert _np.all(quantiles >= 0) and _np.all(quantiles <= 1), 'quantiles should be in [0, 1]'
+
+    if not values_sorted:
+        sorter = _np.argsort(values)
+        values = values[sorter]
+        sample_weight = sample_weight[sorter]
+
+    weighted_quantiles = _np.cumsum(sample_weight) - 0.5 * sample_weight
+    if old_style:
+        # To be convenient with _np.percentile
+        weighted_quantiles -= weighted_quantiles[0]
+        weighted_quantiles /= weighted_quantiles[-1]
+    else:
+        weighted_quantiles /= _np.sum(sample_weight)
+    return _np.interp(quantiles, weighted_quantiles, values)
+
 class Correlation(object):
     def __init__(self, data, correlant, remove_zeros = True, index = False, odr_function = 'linear', sx = 1, sy = 1):
         """This object is for testing correlation in two two data sets.
@@ -191,7 +222,8 @@ class Correlation(object):
                 raise('only "linear" allowed at this point, programming required!')
             myodr = _odr.ODR(mydata, _odr.unilinear, beta0=[0.2, 2])
             myoutput = myodr.run()
-            self.__orthogonal_distance_regression = {'output': myoutput,
+            self.__orthogonal_distance_regression = {'model': myodr,
+                                                     'output': myoutput,
                                                      'function': lambda x: _odr.unilinear.fcn(myoutput.beta, x)}
         return self.__orthogonal_distance_regression
 
@@ -332,7 +364,7 @@ class Correlation(object):
 
         # color = _plt_tools.color_cycle[2]
 
-        if fit_res_kwargs:
+        if type(fit_res_kwargs) == dict:
             txt_r = '$r = %0.2f$' % (self.pearson_r[0])
             txt_r2= '$r^2 = %0.2f$' % ((self.pearson_r[0]) ** 2)
             # if p_value:
@@ -347,7 +379,7 @@ class Correlation(object):
                 fit_res_kwargs['show_params'] = ['r', 'r2', 'p', 'm', 'c', 's']
 
             if 'pos' not in fit_res_kwargs.keys():
-                fit_res_kwargs['pos'] = (0.1, 0.9),
+                fit_res_kwargs['pos'] = (0.1, 0.9)
 
             if 'bb_fc' not in fit_res_kwargs.keys():
                 fit_res_kwargs['bb_fc'] = [1,1,1,0.5]

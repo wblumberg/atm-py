@@ -94,8 +94,11 @@ def fit_normal_dist(sd, log=True, p0=[10, 180, 0.2]):
         bound_l.append(0.1)
         bound_h.append(0.3)
 
-    param, cm = optimize.curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
-
+    try:
+        param, cm = optimize.curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
+    except RuntimeError:
+        print('Runtime error!')
+        return False
     y_fit = multi_gauss(x, *param)
 
     param = param.reshape(len(peak_args), 3).transpose()

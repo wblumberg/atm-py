@@ -6,10 +6,169 @@ import numpy as _np
 from atmPy.tools import decorators
 from atmPy.aerosols.physics import hygroscopicity as hygrow
 from atmPy.aerosols.physics import hygroscopicity
+import atmPy.aerosols.instruments.nephelometer.nephelometer as nephelometer
+import atmPy.aerosols.instruments.photometer.photometer as photometer
+
+import xarray as _xr
+import os as _os
+from atmPy.data_archives.arm import _tools
+# data_archives.arm._tools as _tools
 
 # import pdb as _pdb
 
 
+def read_noaaaos(fname, in_time_window = None, keep_xr_dataset = False, verbose = False):
+    noaaaos = Noaaaos()
+
+    noaaaos.nephelometer_1um = nephelometer.Nephelometer()
+    noaaaos.nephelometer_10um = nephelometer.Nephelometer()
+    noaaaos.psap_1um = photometer.Photometer()
+    noaaaos.psap_10um = photometer.Photometer()
+
+
+    def get_scatt_coeff(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_1um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_1um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_1um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_10um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_10um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_10um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    def get_scatt_coeff_variability(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_1um_PSAP1W_1_std.to_pandas()
+        df['550 nm'] = ds.Bs_G_1um_PSAP1W_1_std.to_pandas()
+        df['700 nm'] = ds.Bs_R_1um_PSAP1W_1_std.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_10um_PSAP1W_1_std.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_10um_PSAP1W_1_std.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_10um_PSAP1W_1_std.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    def get_hembackscatt(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bbs_B_Dry_1um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bbs_G_Dry_1um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bbs_R_Dry_1um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bbs_B_Dry_10um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bbs_G_Dry_10um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bbs_R_Dry_10um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    if type(fname) == str:
+        if _os.path.isdir(fname):
+            # fname = fname + _os.listdir(fname)
+            fname = [fname + i for i in _os.listdir(fname)]
+        elif _os.path.isfile(fname):
+            fname = [fname]
+
+    neph_scatt_coeff_1um = []
+    neph_scatt_coeff_10um = []
+    neph_scatt_coeff_1um_std = []
+    neph_scatt_coeff_10um_std = []
+    neph_back_scatt_coeff_1um = []
+    neph_back_scatt_coeff_10um = []
+    neph_RH = []
+    psap_abs_1um = []
+    psap_abs_10um = []
+
+    for fn in fname:
+        if verbose:
+            print('reading: {}'.format(fn))
+        if in_time_window:
+            if not _tools.is_in_time_window(fn, in_time_window, verbose = verbose):
+                continue
+        ds = _xr.open_dataset(fn)
+        sc1, sc10 = get_scatt_coeff(ds)
+        neph_scatt_coeff_1um.append(sc1)
+        neph_scatt_coeff_10um.append(sc10)
+
+        sc1, sc10 = get_scatt_coeff_variability(ds)
+        neph_scatt_coeff_1um_std.append(sc1)
+        neph_scatt_coeff_10um_std.append(sc10)
+
+        sc1, sc10 = get_hembackscatt(ds)
+        neph_back_scatt_coeff_1um.append(sc1)
+        neph_back_scatt_coeff_10um.append(sc10)
+
+        df = _pd.DataFrame()
+        df['565 nm'] = ds.Ba_G_Dry_1um_PSAP1W_1.to_pandas()
+        psap_abs_1um.append(df)
+
+        df = _pd.DataFrame()
+        df['565 nm'] = ds.Ba_G_Dry_10um_PSAP1W_1.to_pandas()
+        psap_abs_10um.append(df)
+
+    noaaaos.nephelometer_1um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um).sort_index())
+    noaaaos.nephelometer_10um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um).sort_index())
+    noaaaos.nephelometer_1um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um_std).sort_index())
+    noaaaos.nephelometer_10um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um_std).sort_index())
+
+    noaaaos.nephelometer_1um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_1um).sort_index())
+    noaaaos.nephelometer_10um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_10um).sort_index())
+
+    noaaaos.psap_1um.absorbtion_coeff = _timeseries.TimeSeries(_pd.concat(psap_abs_1um).sort_index())
+    noaaaos.psap_10um.absorbtion_coeff = _timeseries.TimeSeries(_pd.concat(psap_abs_10um).sort_index())
+    if keep_xr_dataset:
+        noaaaos.xr_dataset = ds
+    return noaaaos
+
+
+class Noaaaos(object):
+    def __init__(self):
+        self._nephelometer_1um = None
+        self._nephelometer_10um = None
+        self._psap_1um = None
+        self._psap_10um = None
+        self._cpc = None
+
+    @property
+    def psap_1um(self):
+        return self._psap_1um
+
+    @psap_1um.setter
+    def psap_1um(self, value):
+        self._psap_1um = value
+
+    @property
+    def psap_10um(self):
+        return self._psap_10um
+
+    @psap_10um.setter
+    def psap_10um(self, value):
+        self._psap_10um = value
+
+    @property
+    def cpc(self):
+        return self._cpc
+
+    @cpc.setter
+    def cpc(self, value):
+        self._cpc = value
+
+#######################################################################################
+######## Older stuff
+#######################################################################################
 def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
     """
 

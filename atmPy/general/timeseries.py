@@ -26,6 +26,7 @@ from matplotlib.dates import DayLocator as _DayLocator
 from matplotlib.dates import MonthLocator as _MonthLocator
 import os as _os
 from matplotlib import dates as _dates
+import atmPy.general.statistics as _statistics
 
 
 _unit_time = 'days since 1900-01-01'
@@ -1076,6 +1077,8 @@ class TimeSeries(object):
 
         self.data = data
         self.info = info
+        self.statistics = _statistics.Statistics(self)
+
         self._y_label = ''
         self._x_label = 'Time'
         self._time_format = 'datetime' #'timedelta'
@@ -1473,7 +1476,7 @@ class TimeSeries(object):
             self.data[which] = data_ft
         return data_ft
 
-    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, **kwargs):
+    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'pandas', **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -1484,7 +1487,9 @@ class TimeSeries(object):
                     This is the text and the yposition
                 annotate_kwargs: dict of annotation kwargs
                 vline_kwargs: dict of vline kwargs
-
+        plot_engine: str, (['pandas'], 'matplotlib')
+            Depending on the pandas version plotting through pandas (its still matplotlib of course) can resultin errors
+            or be beneficial ... decide for yourself.
         kwargs: keyword argurments passed to matplotlib plot function e.g.:
         picker: float
             in addition to the normal behaviour this will add text with the position to the plot and append the
@@ -1518,24 +1523,31 @@ class TimeSeries(object):
 
             f.canvas.mpl_connect('pick_event', onclick)
 
+        if plot_engine == 'pandas':
+            self.data.plot(ax = ax, **kwargs)
 
-        did_plot = False  # had to implement that since matploglib cept crashing when all where nan
-        for k in self.data.keys():
-            if not label:
-                label_t = k
-            else:
-                label_t = label
+        elif plot_engine == 'matplotlib':
+            did_plot = False  # had to implement that since matploglib cept crashing when all where nan
+            for k in self.data.keys():
+                if not label:
+                    label_t = k
+                else:
+                    label_t = label
 
-            if _np.all(_np.isnan(self.data[k].values)):
-                continue
+                if _np.all(_np.isnan(self.data[k].values)):
+                    continue
 
-            ax.plot(self.data.index, self.data[k].values, label = label_t, **kwargs)
+                ax.plot(self.data.index.values, self.data[k].values, label = label_t, **kwargs)
 
-            if self._time_format == 'timedelta':
-                formatter = _FuncFormatter(timeTicks)
-                ax.xaxis.set_major_formatter(formatter)
+                if self._time_format == 'timedelta':
+                    formatter = _FuncFormatter(timeTicks)
+                    ax.xaxis.set_major_formatter(formatter)
 
-            did_plot = True
+                did_plot = True
+
+            if did_plot:
+                if autofmt_xdate:
+                    f.autofmt_xdate()
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
@@ -1543,9 +1555,7 @@ class TimeSeries(object):
             if len(self.data.keys()) > 1:
                 ax.legend()
 
-        if did_plot:
-            if autofmt_xdate:
-                f.autofmt_xdate()
+
 
         if times_of_interest:
             add_time_of_interest2axes(ax, times_of_interest)
