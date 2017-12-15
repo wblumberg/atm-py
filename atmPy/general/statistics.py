@@ -103,6 +103,17 @@ class Climatology(object):
                 avg = _np.average(values,weights = weights)
                 return avg
 
+            def median(x):
+                x = x.dropna()
+                cols = list(x.columns)
+                # print(cols)
+                cols.pop(cols.index('weights'))
+                x.sort_values(cols[0], inplace=True)
+                cumsum = x.weights.cumsum()
+                cutoff = x.weights.sum() / 2.0
+                median = x[cols[0]][cumsum >= cutoff].iloc[0]
+                return median
+
             def number_of_valid_data_points(x):
                 x = x.dropna()
                 return x.shape[0]
@@ -110,10 +121,12 @@ class Climatology(object):
             out = _pd.DataFrame()
             if data.shape[1] == 1:
                 out['mean'] = rs.mean().iloc[:, 0]
+                out['median'] = rs.median().iloc[:,0]
             elif data.shape[1] == 2:
                 if 'weights' not in data.columns:
                     raise KeyError('If two columns are given one of them must have the label "weights"')
                 out['mean'] = rs.apply(average)
+                out['median'] = rs.apply(median)
 
             perc_list = [5, 25, 50, 75, 95]
             for perc in perc_list:
@@ -125,7 +138,7 @@ class Climatology(object):
             self._percentiles = out
         return self._percentiles
 
-    def plot_percentiles(self, ax=None, box_width=0.2, wisker_size=20, mean_size=10, line_width=1.5, xoffset=0,
+    def plot_percentiles(self, ax=None, box_width=0.2, wisker_size=20, mean_size=10, median_size = 10 , line_width=1.5, xoffset=0,
                          color=0, tickbase = 1):
         """
 
@@ -165,7 +178,8 @@ class Climatology(object):
             xordinal.append(x)
 
             # box
-            y = (row[1][75] + row[1][25]) / 2
+            # y = (row[1][75] + row[1][25]) / 2
+            y = row[1][25]
             height = row[1][75] - row[1][25]
             box = _plt.Rectangle((x - box_width / 2, y), box_width, height,
                                  #                         ha = 'center'
@@ -215,6 +229,16 @@ class Climatology(object):
             g.set_markeredgecolor(color)
             mean = g
 
+        median = None
+        if median_size:
+            g, = a.plot(xordinal, self.percentiles['median'], ls='')
+            g.set_marker('_')
+            g.set_markersize(median_size)
+            g.set_zorder(20)
+            g.set_markeredgewidth(line_width)
+            g.set_markeredgecolor(color)
+            median = g
+
         # a.xaxis.set_major_locator(_MonthLocator())
         # a.xaxis.set_major_formatter(_DateFormatter('%b'))
 
@@ -231,7 +255,7 @@ class Climatology(object):
         # a.relim()
         # a.autoscale_view(tight=True)
         # f.autofmt_xdate()
-        return f, a, boxes, vlines, wisker_tips, mean
+        return f, a, boxes, vlines, wisker_tips, mean, median
 
             # def plot_percentiles(self, ax=None, box_width=10, wisker_size=20, mean_size = 10, line_width = 1.5, xoffset = 0, color=0):
     #     """
