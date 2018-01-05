@@ -39,11 +39,48 @@ class Kazr(object):
         self._reflectivity = None
         self._signal2noise_ratio = None
 
+    def average_time(self, window):
+        """
+        Averages each of the relevant properties. See timeseries.TimeSeries.average_time for details.
+        Parameters
+        ----------
+        window: tuple
+            e.g. (1,'m')
+
+        Returns
+        -------
+        Kazr instances with changes applied
+        """
+
+        kzr = self.copy()
+        kzr.reflectivity = kzr.reflectivity.average_time(window)
+        return kzr
+
+
     def zoom_time(self, start=None, end=None, copy=True):
         kazrnew = self.copy()
         kazrnew.reflectivity = self.reflectivity.zoom_time(start=start, end=end, copy=copy)
         kazrnew.signal2noise_ratio = self.signal2noise_ratio.zoom_time(start=start, end=end, copy=copy)
         return kazrnew
+
+    def discriminate_by_signal2noise_ratio(self, minimu_snr):
+        """I know there is that kwarg in the plot function which allows me to do this. This was necessary in order to
+        average over time and still be able to discriminate through the snr. After averaging over time the snr is
+        useless.
+
+        Parameters
+        ----------
+        minimu_snr: float
+            All values of reflectivity where the snr is smaller then that value are set to nan.
+
+        Returns
+        -------
+        Kazr instance with changes applied
+        """
+
+        kzr = self.copy()
+        kzr.reflectivity.data[self.signal2noise_ratio.data < minimu_snr] = _np.nan
+        return  kzr
 
     @property
     def reflectivity(self):
