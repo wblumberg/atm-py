@@ -1476,7 +1476,7 @@ class TimeSeries(object):
             self.data[which] = data_ft
         return data_ft
 
-    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'pandas', **kwargs):
+    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'matplotlib', **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -1487,7 +1487,7 @@ class TimeSeries(object):
                     This is the text and the yposition
                 annotate_kwargs: dict of annotation kwargs
                 vline_kwargs: dict of vline kwargs
-        plot_engine: str, (['pandas'], 'matplotlib')
+        plot_engine: str, ('pandas', ['matplotlib'])
             Depending on the pandas version plotting through pandas (its still matplotlib of course) can resultin errors
             or be beneficial ... decide for yourself.
         kwargs: keyword argurments passed to matplotlib plot function e.g.:
