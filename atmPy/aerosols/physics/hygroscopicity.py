@@ -627,11 +627,27 @@ def apply_growth2sizedist(sd, gf):
             data.iloc[:, :] = _np.nan
             return data, bins.copy()
 
+        # In case gf smaller then
+        inverted = False
+        if gf < 1:
+            inverted = True
+            gf = 1 / gf
+            binst = bins[::-1]
+            data = data.iloc[:, ::-1]
+            dividx = binst.shape[0] // 2
+            binslog = _np.log10(binst)
+            tmp = binslog.max() + binslog.min()
+            transform = lambda x: -1 * (x - tmp)
+            binslogn = transform(binslog)
+            binsn = 10 ** binslogn
+            bins = binsn
+
         gfp = gf - 1
         width = bins[1:] - bins[:-1]
         widthlog = _np.log10(bins[1:]) - _np.log10(bins[:-1])
         width_in_percent_of_low_bin_edge = width / bins[:-1]
         no_extra_bins = int(_np.ceil(gfp / width_in_percent_of_low_bin_edge[-1]))
+
 
         # new / extra bins
         extra_bins = _np.zeros(no_extra_bins)
@@ -686,7 +702,12 @@ def apply_growth2sizedist(sd, gf):
         data_t = _pd.concat([df, dffsb])
         data_new = _pd.DataFrame(data_t)
         data_new.index = data.index
-        return data_new.astype(float), bins_new
+        data_new = data_new.astype(float)
+
+        if inverted:
+            bins_new = 10 ** transform(_np.log10(bins_new))[::-1]
+            data_new = data_new.iloc[:, ::-1]
+        return data_new, bins_new
 
     sd = sd.convert2numberconcentration()
 
@@ -728,7 +749,7 @@ def apply_growth2sizedist(sd, gf):
         sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', sd.layerbounderies)
 
     else:
-        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration')
+        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', ignore_data_gap_error = True)
 
     sd_grown.optical_properties.parameters.wavelength = sd.parameters4reductions.wavelength.value
 
