@@ -57,20 +57,25 @@ def align2sizedist(sizedist, other):
             raise ValueError(txt)
     return other
 
-def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2], test = False):
+def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2], test = False, curve_fit_kwargs = None):
     """Fits a normal distribution to a """
+
+    if type(curve_fit_kwargs) == type(None):
+        curve_fit_kwargs = {}
+
     param = p0[:]
     x = x[~ _np.isnan(y)]
     y = y[~ _np.isnan(y)]
 
+
     if log:
         x = _np.log10(x)
         param[1] = _np.log10(param[1])
-    # todo: write a bug report for the fact that I have to call the y.max() function to make the fit to work!!!!!
-    y.max()
-    ############
+        if 'bounds' in curve_fit_kwargs.keys():
+            curve_fit_kwargs['bounds'][0][1] = _np.log10(curve_fit_kwargs['bounds'][0][1])
+            curve_fit_kwargs['bounds'][1][1] = _np.log10(curve_fit_kwargs['bounds'][1][1])
 
-    para = optimization.curve_fit(math_functions.gauss, x, y, p0=param)
+    para = optimization.curve_fit(math_functions.gauss, x.astype(float), y.astype(float), p0=param, **curve_fit_kwargs)
 
     amp = para[0][0]
     sigma = para[0][2]
@@ -850,21 +855,14 @@ class SizeDist(object):
 
     @bins.setter
     def bins(self,array):
-        bins_st = array.astype(int).astype(str)
-        col_names = []
-        # for e,i in enumerate(bins_st):
-        #     if e == len(bins_st) - 1:
-        #         break
-        #     col_names.append(bins_st[e] + '-' + bins_st[e+1])
-
-
-
+        # bins_st = array.astype(int).astype(str)
+        # col_names = []
         self.__bins = array
         self.__bincenters = (array[1:] + array[:-1]) / 2.
         self.__binwidth = (array[1:] - array[:-1])
         # self.data.columns = _np.round(self.bincenters, 0).astype(_np.float32)
         self.data.columns = self.bincenters
-        self.data.columns.name = 'bincenters_(nm)'
+        self.data.columns.name = 'bincenters'
 
     @property
     def bincenters(self):
@@ -1249,14 +1247,26 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-    def fit_normal(self, log=True, p0=[10, 180, 0.2]):
+    def fit_normal(self, log=True, p0=[10, 180, 0.2], show_error = False, curve_fit_kwargs = None):
         """ Fits a single normal distribution to each line in the data frame.
+
+        Parameters
+        ----------
+        p0: array-like
+            fit initiation parameters [amp, pos, width(log-width)]
+        curve_fit_kwargs: dict
+            Additional kwargs that are  passed to the fit routine
+
+        log: not really working
 
         Returns
         -------
         pandas DataFrame instance (also added to namespace as data_fit_normal)
 
         """
+        if type(curve_fit_kwargs) == type(None):
+            curve_fit_kwargs = {}
+
         sd = self.copy()
 
         if sd.distributionType != 'dNdlogDp':
@@ -1274,10 +1284,13 @@ class SizeDist(object):
         sigma_high = _np.zeros(n_lines)
         sigma_low = _np.zeros(n_lines)
         for e, lay in enumerate(sd.data.values):
-            try:
-                fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0)
-            except (ValueError, RuntimeError):
-                fit_res = [_np.nan, _np.nan, _np.nan, _np.nan, _np.nan]
+            if show_error:
+                fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs=curve_fit_kwargs)
+            else:
+                try:
+                    fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs = curve_fit_kwargs)
+                except (ValueError, RuntimeError):
+                    fit_res = [_np.nan, _np.nan, _np.nan, _np.nan, _np.nan]
             amp[e] = fit_res[0]
             pos[e] = fit_res[1]
             sigma[e] = fit_res[2]
@@ -1381,6 +1394,57 @@ class SizeDist(object):
 
     def copy(self):
         return deepcopy(self)
+
+    def extend_bin_range(self, newlimit):
+        """Extends the bin range. This will only work if bins are log-equally spaced. Only tested for SizeDist (not for TS or LS). Currently works on the small
+        diameter side only ... easy programming will allow for larger diameters too
+
+        Parameters
+        ----------
+        newlimit: float
+            The new lower diameter limit.
+
+        Returns
+        -------
+        size distribution instance with extra bins. Data filled with nan."""
+
+        self = self.copy()
+        newmin = newlimit
+        lbins = _np.log10(self.bins)
+        lbinsdist = _np.unique(lbins[1:] - lbins[:-1])
+        if lbinsdist.shape[0] != 1:
+            raise ValueError(
+                'The binwidth should be identical thus this value should be one ... programming needed to deal with exceptions')
+        while lbins[0] > _np.log10(newmin):
+            lbins = _np.append(_np.array([lbins[0] - lbinsdist]), lbins)
+            newbins = 10 ** lbins
+            newcenter = (newbins[1] + newbins[0]) / 2.
+            self.data[newcenter] = _np.nan
+
+        self.data = self.data.transpose().sort_index().transpose()
+
+        self.bins = newbins
+        return self
+
+    def extrapolate_size_dist(self, newlimit):
+        """Extrapolates the size distribution range assuming a nomal distributed aerosol mode. This will only work if bins are log-equally spaced. Only tested for SizeDist (not for TS or LS). Currently works on the small
+        diameter side only ... easy programming will allow for larger diameters too
+
+        Parameters
+        ----------
+        newlimit: float
+            The new lower diameter limit.
+
+        Returns
+        -------
+        size distribution instance with extra bins. Data filled with results from fitting with normal distribution."""
+
+        self = self.copy()
+        self = self.extend_bin_range(self, newlimit)
+        amp, pos, sigma = self.data_fit_normal.values[0, :3]
+        normal_dist = math_functions.gauss(_np.log10(self.bincenters), amp, _np.log10(pos), sigma)
+        self.data.loc[0, :][_np.isnan(self.data.loc[0, :])] = normal_dist[_np.isnan(self.data.loc[0, :])]
+        return self
 
     def save_csv(self, fname, header=True):
         if header:

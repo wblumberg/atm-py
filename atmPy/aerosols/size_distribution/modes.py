@@ -29,7 +29,6 @@ def fit_normal_dist(sd, log=True, p0=[10, 180, 0.2]):
         med = np.median(x[1:] - x[:-1])
 
         low = np.floor((start_w * (1 - tol)) / med)
-        cent = int(start_w / med)
         top = np.ceil((start_w * (1 + tol)) / med)
 
         widths = np.arange(low, top)
