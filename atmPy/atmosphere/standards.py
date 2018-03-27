@@ -144,6 +144,7 @@ def standard_atmosphere(value, quantity='altitude', standard='international', re
         out = press_n
 
     elif quantity == 'pressure':
+        value.loc[value < pressure.min()] = pressure.min()
         alt_int = interp1d(np.log(pressure), alt, kind='cubic')
         alt_n = alt_int(np.log(value))
         out = alt_n

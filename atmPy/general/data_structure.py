@@ -39,7 +39,10 @@ def close_gaps(ts, verbose = False):
     return ts
 
 def detect_gaps(ts, toleranz=1.95, return_all=False):
-    idx = ts.data.index
+    if type(ts.data).__name__ == "Panel":
+        idx = ts.data.items
+    else:
+        idx = ts.data.index
     dt = (idx[1:] - idx[:-1]) / _np.timedelta64(1, 's')
 
     med = _np.median(dt)
