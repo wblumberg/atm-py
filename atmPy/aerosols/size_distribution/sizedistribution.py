@@ -20,6 +20,9 @@ from atmPy.aerosols.size_distribution import moments
 from atmPy.gases import physics as _gas_physics
 from . import modes
 from statsmodels import robust as _robust
+import xarray as _xr
+from matplotlib.ticker import MultipleLocator
+from matplotlib import gridspec
 # from atmPy import atmosphere
 
 
@@ -1440,7 +1443,7 @@ class SizeDist(object):
         size distribution instance with extra bins. Data filled with results from fitting with normal distribution."""
 
         self = self.copy()
-        self = self.extend_bin_range(self, newlimit)
+        self = self.extend_bin_range(newlimit)
         amp, pos, sigma = self.data_fit_normal.values[0, :3]
         normal_dist = math_functions.gauss(_np.log10(self.bincenters), amp, _np.log10(pos), sigma)
         self.data.loc[0, :][_np.isnan(self.data.loc[0, :])] = normal_dist[_np.isnan(self.data.loc[0, :])]
@@ -1455,6 +1458,49 @@ class SizeDist(object):
             raus.write('#\n')
             raus.close()
         self.data.to_csv(fname, mode='a')
+        return
+
+    def save_netcdf(self, fname, binunit='nm', tags=[], test=False):
+        """Save to netCDF format
+
+        Parameters
+        ----------
+        fname: str
+        binunit: str
+            The units of the diameter of the binedges and centers
+        tags: list
+        test: bool
+            If true the xarray.Dataset is not saved but retured instead.
+        """
+
+        self.data.columns.name = 'bincenters'
+        self = self.convert2dNdlogDp()
+        distdict = {}
+
+        if type(self).__name__ == 'SizeDist':
+            distdict['sizedistribution'] = self.data.loc[0, :]
+        else:
+            raise KeyError('not implemented yet... fix it')
+
+        ps = pd.Series(self.bins, name='diameter')
+        ps.index.name = 'idx'
+        distdict['binedges'] = ps
+        ps = pd.Series({'type': type(self).__name__})
+        ps.index.name = '_atmPy_value'
+        distdict['_atmPy'] = ps
+
+        ds = _xr.Dataset(distdict)
+
+        ds.attrs[
+            'info'] = """Aerosol size distribution data generated with atmPy. For information on variables, e.g. units etc., check the variables attributes."""
+        ds.attrs['tags'] = ', '.join(tags)
+        ds.binedges.attrs['unit'] = binunit
+        ds.bincenters.attrs['unit'] = binunit
+        ds.sizedistribution.attrs['moment'] = self.distributionType
+
+        if test:
+            return ds
+        ds.to_netcdf(fname)
         return
 
     def save_hdf(self, hdf, variable_name = None, info = '', force = False):
@@ -2805,60 +2851,62 @@ class SizeDist_LS(SizeDist):
 
         return f, a, pc, cb
 
-    #todo: when you want to plot one plot on existing one it will rotated it twice!
-    def plot_particle_concentration(self, ax=None, label=None):
-        """Plots the particle concentration as a function of altitude.
+    def plot_overview(self, layers=None):
+        num_g = 10
+        smallx = 3
+        smally = 3
 
-        Parameters
-        ----------
-        ax: matplotlib.axes instance, optional
-            perform plot on these axes.
-        rotate: bool.
-            When True the y-axes is the Altitude.
-        Returns
-        -------
-        matplotlib.axes instance
+        gs = gridspec.GridSpec(num_g, num_g)
+        gs.update(hspace=0.0)
+        gs.update(wspace=0.0)
+        f = plt.figure()
+        f.set_figwidth(f.get_figwidth() * 1.3)
+        f.set_figheight(f.get_figheight() * 1.3)
 
-        """
+        a_top = f.add_subplot(gs[:smally, :num_g - smallx])
+        a_center = f.add_subplot(gs[smally:, :num_g - smallx], sharex=a_top)
+        a_right = f.add_subplot(gs[smally:, num_g - smallx:], sharey=a_center)
 
-        # ax = SizeDist_TS.plot_particle_concetration(self, ax=ax, label=label)
-        # ax.set_xlabel('Altitude (m)')
-        #
-        # if rotate:
-        #     g = ax.get_lines()[-1]
-        #     x, y = g.get_xydata().transpose()
-        #     xlim = ax.get_xlim()
-        #     ylim = ax.get_ylim()
-        #     ax.set_xlim(ylim)
-        #     ax.set_ylim(xlim)
-        #     g.set_xdata(y)
-        #     g.set_ydata(x)
-        #     xlabel = ax.get_xlabel()
-        #     ylabel = ax.get_ylabel()
-        #     ax.set_xlabel(ylabel)
-        #     ax.set_ylabel(xlabel)
+        ####
+        ## TOP plot
+        if layers:
+            for ln, lb in sorted(layers.items(), key=lambda x: x[1], reverse=True):
+                dist_avg = self.zoom_altitude(*lb).average_overAllAltitudes().convert2dNdlogDp()
+                dist_avg.plot(ax=a_top, label='{}-{}'.format(*lb))
 
-
-        if type(ax).__name__ in _axes_types:
-            color = plt_tools.color_cycle[len(ax.get_lines())]
-            f = ax.get_figure()
+            leg = a_top.legend(fontsize='x-small')
+            leg.set_title('Altitude (m)')
         else:
-            f, ax = plt.subplots()
-            color = plt_tools.color_cycle[0]
+            dist_avg = self.average_overAllAltitudes()
+            dist_avg.plot(ax=a_top, label='average')
 
-        # layers = self.convert2numberconcentration()
+        a_top.set_yscale('log')
+        # a_top.set_xlim((140, 3000))
+        a_top.grid(False)
 
-        particles = self.get_particle_concentration().dropna()
+        a_top.set_yscale('log')
 
-        ax.plot(particles.Count_rate.values, particles.index.values, color=color, linewidth=2)
+        ###############
+        out = self.plot(ax=a_center, colorbar=False)
+        pc = out[2]
 
-        if label:
-            ax.get_lines()[-1].set_label(label)
-            ax.legend()
+        #################
+        self.particle_number_concentration.plot(ax=a_right)
+        a_right.set_ylabel('')
+        plt.setp(a_right.get_yticklabels(), visible=False)
+        ma_loc = MultipleLocator(20)
+        mi_loc = MultipleLocator(10)
+        a_right.xaxis.set_major_locator(ma_loc)
+        a_right.xaxis.set_minor_locator(mi_loc)
+        a_right.set_xlabel('Concentration (cm$^{-3}$)')
+        a_right.xaxis.set_tick_params(which='major', pad=8)
+        a_right.grid(False)
+        a_right.set_xlim(left=5)
 
-        ax.set_ylabel('Altitude (m)')
-        ax.set_xlabel('Particle number concentration (cm$^{-3})$')
-        return ax
+        cb = f.colorbar(pc)
+        cb.set_label('$\\mathrm{d}N\\,/\\,\\mathrm{d}log(D_{P})$ (cm$^{-3}$)')
+        return f, (a_top, a_center, a_right)
+
 
     def plot_fitres(self, amp=True, rotate=True):
         """ Plots the results from fit_normal
