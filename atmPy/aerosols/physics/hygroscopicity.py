@@ -538,6 +538,8 @@ def _fit_normals(sd):
         bound_h.append(wult)
 
     # sometimes fits don't work, following tries to fix it
+    x = x.astype(float)
+    y = y.astype(float)
     try:
         param, pcov = _curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
     except RuntimeError:
@@ -1098,7 +1100,7 @@ class SizeDistGrownByGrowthDistribution(object):
         #         break
 
         # import pdb; pdb.set_trace()
-        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sd.distributionType)
+        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sd.distributionType, ignore_data_gap_error = True)
         out = {}
         out['grown_size_dists_sum'] = sdtsout
         self._sum_of_all_sizeditributions = sdtsout
