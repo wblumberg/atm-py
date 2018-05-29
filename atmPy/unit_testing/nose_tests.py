@@ -107,13 +107,13 @@ class SizeDistTest(TestCase):
         # sd_dVdDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
         # sd_dVdlogDp.save_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
 
-        sd_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd.nc')
-        sd_dNdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dNdDp.nc')
-        sd_dNdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dNdlogDp.nc')
-        sd_dSdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dSdDp.nc')
-        sd_dSdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dSdlogDp.nc')
-        sd_dVdDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
-        sd_dVdlogDp_soll = size_distribution.sizedistribution.read_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
+        sd_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd.nc')
+        sd_dNdDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dNdDp.nc')
+        sd_dNdlogDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dNdlogDp.nc')
+        sd_dSdDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dSdDp.nc')
+        sd_dSdlogDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dSdlogDp.nc')
+        sd_dVdDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dVdDp.nc')
+        sd_dVdlogDp_soll = size_distribution.sizedistribution.open_csv(folder + 'aerosols_size_dist_moments_sd_dVdlogDp.nc')
 
         threshold = 1e-10
         msg = '\nthreshold: {}\nisnan: {}\nisnotnan: {}'.format((sd.data.values.max() * threshold),
@@ -142,7 +142,7 @@ class SizeDistTest(TestCase):
         sd.optical_properties.parameters.wavelength = 515
 
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_optprop.nc')
-        sdl = atmPy.read_file.netCDF(fname)
+        sdl = atmPy.file_io.open_netCDF(fname)
 
         self.sizedistributionLS = sd
 
@@ -169,7 +169,7 @@ class SizeDistTest(TestCase):
 
         # load the test data
         fname = os.path.join(test_data_folder, 'aerosols_size_dist_LS_hyg_growth_optprop.nc')
-        aodcs = atmPy.read_file.netCDF(fname)
+        aodcs = atmPy.file_io.open_netCDF(fname)
 
         threshold = distg.optical_properties.aod_cumulative.data.values.sum() * 1e-9
 
@@ -221,9 +221,10 @@ class PhysicsHygroscopicityTest(TestCase):
         sd.optical_properties.parameters.refractive_index = 1.5
 
         fname = './test_data/aerosols_physics_hygroscopicity_fRH_kappa.csv'
-        fRHk_soll = atmPy.read_file.netCDF(fname)
+        fRHk_soll = atmPy.file_io.open_netCDF(fname)
 
-        threshold = sd.hygroscopicity.f_RH_85_40.data.sum().values[0] * 1e-10
+        threshold = sd.hygroscopicity.f_RH_85_40.data.sum().values[0] * 1e-7
+        # return sd.hygroscopicity.f_RH_85_40.data, fRHk_soll.data
         self.assertLess(np.abs(sd.hygroscopicity.f_RH_85_40.data - fRHk_soll.data).sum().values[0], threshold)
 
     def test_fRH_growthdist(self):
@@ -244,7 +245,7 @@ class PhysicsHygroscopicityTest(TestCase):
         sd.optical_properties.parameters.wavelength = 550
 
         fname = './test_data/aerosol_fRH_from_size_dist_and_growthdistribution.cdf'
-        fRH_gd_soll = atmPy.read_file.netCDF(fname)
+        fRH_gd_soll = atmPy.file_io.open_netCDF(fname)
 
         threshold = sd.hygroscopicity.f_RH_85_40.data.sum().values[0] * 1e-5
         # np.abs(sd.hygroscopicity.f_RH_85_40.data - fRH_gd_soll.data).sum().values[0] < threshold

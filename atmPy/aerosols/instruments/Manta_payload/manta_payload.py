@@ -27,7 +27,7 @@ def read_csv(fname, temperature_limits=(-20, -0.5)):
     _pandas_tools.ensure_column_exists(df, 'Temperature', _temp_alt)
     _pandas_tools.ensure_column_exists(df, 'Relative_humidity', _RH_alt)
     _pandas_tools.ensure_column_exists(df, 'Temperature_instrument', _temp_payload_alt, raise_error=False)
-    _pandas_tools.ensure_column_exists(df, 'CN_concentration', _cn_concentration_alt)
+    _pandas_tools.ensure_column_exists(df, 'CN_concentration', _cn_concentration_alt, raise_error=False)
     try:
         # df.Temperature_payload = df.Temperature_payload.astype(float)
         df.Temperature_instrument = _pd.to_numeric(df.Temperature_instrument, errors='coerce')

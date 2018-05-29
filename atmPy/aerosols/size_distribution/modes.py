@@ -207,9 +207,12 @@ class ModeAnalysis(object):
         boundary_aiken_accu = 100
 
         sdts_aiken = sizedist.copy()
+        sdts_aiken._update()
         sdts_aiken.data[:] = np.nan
         sdts_accu = sdts_aiken.copy()
+        sdts_accu._update()
         sdts_coarse = sdts_aiken.copy()
+        sdts_coarse._update()
 
         fit_res_all = pd.DataFrame(columns=['amp', 'pos', 'sig', 'area'])
 

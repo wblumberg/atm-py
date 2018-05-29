@@ -1,8 +1,9 @@
 from copy import deepcopy
 
 import numpy as _np
-import matplotlib.pylab as plt
+import matplotlib.pylab as _plt
 from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator as _MaxNLocator
 
 from atmPy.tools import plt_tools, math_functions, array_tools
 from atmPy.tools import pandas_tools as _panda_tools
@@ -21,7 +22,7 @@ from atmPy.gases import physics as _gas_physics
 from . import modes
 from statsmodels import robust as _robust
 import xarray as _xr
-from matplotlib.ticker import MultipleLocator
+# from matplotlib.ticker import MultipleLocator
 from matplotlib import gridspec
 # from atmPy import atmosphere
 
@@ -37,6 +38,7 @@ from matplotlib import gridspec
 
 _axes_types = ('AxesSubplot', 'AxesHostAxes')
 
+_colors = _plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 def align2sizedist(sizedist, other):
     if type(other).__name__ in ('int', 'float'):
@@ -60,44 +62,146 @@ def align2sizedist(sizedist, other):
             raise ValueError(txt)
     return other
 
-def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2], test = False, curve_fit_kwargs = None):
-    """Fits a normal distribution to a """
+def merge_size_distributions(dist_self, dist_other, fill_value = 0, round_dec = 5):
+    """
+    Experimental!!! Merges (adds) two sizedistributions that have different length. Currently this is only working if the
+    overlapping section of the size distributions is aligned (bins are exactly the same where overlapping)
+
+    Parameters
+    ----------
+    dist_self
+    dist_other
+    fill_value: float [0]
+        When adding a value to nan the result is nan. Therefore all the nans are replaced with this value.
+    round_dec: int [5]
+        sometimes the bins are not equal due to rounding issue in the 10 or so digit. Rounding to the 5th digit ususally
+        takes care of that without introducing an error
+
+    Returns
+    -------
+    size distribution
+
+    """
+    assert(dist_self.distributionType == dist_other.distributionType)
+
+    dist_self.bins = _np.round(dist_self.bins, round_dec)
+    dist_other.bins = _np.round(dist_other.bins, round_dec)
+    dist_self.data[_np.isnan(dist_self.data)] = 0
+    dist_other.data[_np.isnan(dist_other.data)] = 0
+    data =pd.DataFrame.add(dist_self.data, dist_other.data, fill_value=fill_value)
+    bins_merged = _np.unique(_np.sort(_np.append(dist_self.bins, dist_other.bins)))
+    dist_out = SizeDist(data, bins_merged, dist_self.distributionType)
+    return dist_out
+
+def fit_normal_distribution2sizedist(sizedist, log=True, p0=[10, 180, 0.2], show_error = False, curve_fit_kwargs = None):
+    """ Fits a single normal distribution to each line in the data frame.
+
+    Parameters
+    ----------
+    p0: array-like
+        fit initiation parameters [amp, pos, width(log-width)]
+    curve_fit_kwargs: dict
+        Additional kwargs that are  passed to the fit routine
+
+    log: not really working
+
+    Returns
+    -------
+    pandas DataFrame instance (also added to namespace as data_fit_normal)
+
+    """
+
+    def fit_normal_dist(x, y, log=True, p0=[10, 180, 0.2], test=False, curve_fit_kwargs=None):
+        """Fits a normal distribution to a """
+
+        if type(curve_fit_kwargs) == type(None):
+            curve_fit_kwargs = {}
+
+        param = p0[:]
+        x = x[~ _np.isnan(y)]
+        y = y[~ _np.isnan(y)]
+        if x.shape == (0,):
+            return [_np.nan] * 5
+
+        if log:
+            x = _np.log10(x)
+            param[1] = _np.log10(param[1])
+            if 'bounds' in curve_fit_kwargs.keys():
+                curve_fit_kwargs['bounds'][0][1] = _np.log10(curve_fit_kwargs['bounds'][0][1])
+                curve_fit_kwargs['bounds'][1][1] = _np.log10(curve_fit_kwargs['bounds'][1][1])
+
+        # try:
+        para = optimization.curve_fit(math_functions.gauss, x.astype(float), y.astype(float), p0=param,
+                                      **curve_fit_kwargs)
+        # except:
+        #     para = optimization.curve_fit(math_functions.gauss, x.astype(float), y.astype(float), p0=param,
+        #                                   **curve_fit_kwargs)
+
+        amp = para[0][0]
+        sigma = para[0][2]
+        if log:
+            pos = 10 ** para[0][1]
+            sigma_high = 10 ** (para[0][1] + para[0][2])
+            sigma_low = 10 ** (para[0][1] - para[0][2])
+        else:
+            pos = para[0][1]
+            sigma_high = (para[0][1] + para[0][2])
+            sigma_low = (para[0][1] - para[0][2])
+        if test:
+            return [amp, pos, sigma, sigma_high, sigma_low], para
+        else:
+            return [amp, pos, sigma, sigma_high, sigma_low]
 
     if type(curve_fit_kwargs) == type(None):
         curve_fit_kwargs = {}
 
-    param = p0[:]
-    x = x[~ _np.isnan(y)]
-    y = y[~ _np.isnan(y)]
+    sd = sizedist.copy()
 
+    if sd.distributionType != 'dNdlogDp':
+        if sd.distributionType == 'calibration':
+            pass
+        else:
+            _warnings.warn(
+                "Size distribution is not in 'dNdlogDp'. I temporarily converted the distribution to conduct the fitting. If that is not what you want, change the code!")
+            sd = sd.convert2dNdlogDp()
 
-    if log:
-        x = _np.log10(x)
-        param[1] = _np.log10(param[1])
-        if 'bounds' in curve_fit_kwargs.keys():
-            curve_fit_kwargs['bounds'][0][1] = _np.log10(curve_fit_kwargs['bounds'][0][1])
-            curve_fit_kwargs['bounds'][1][1] = _np.log10(curve_fit_kwargs['bounds'][1][1])
+    n_lines = sd.data.shape[0]
+    amp = _np.zeros(n_lines)
+    pos = _np.zeros(n_lines)
+    sigma = _np.zeros(n_lines)
+    sigma_high = _np.zeros(n_lines)
+    sigma_low = _np.zeros(n_lines)
+    for e, lay in enumerate(sd.data.values):
+        if show_error:
+            fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs=curve_fit_kwargs)
+        else:
+            try:
+                fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs = curve_fit_kwargs)
+            except (ValueError, RuntimeError):
+                fit_res = [_np.nan, _np.nan, _np.nan, _np.nan, _np.nan]
+        amp[e] = fit_res[0]
+        pos[e] = fit_res[1]
+        sigma[e] = fit_res[2]
+        sigma_high[e] = fit_res[3]
+        sigma_low[e] = fit_res[4]
 
-    para = optimization.curve_fit(math_functions.gauss, x.astype(float), y.astype(float), p0=param, **curve_fit_kwargs)
-
-    amp = para[0][0]
-    sigma = para[0][2]
-    if log:
-        pos = 10 ** para[0][1]
-        sigma_high = 10 ** (para[0][1] + para[0][2])
-        sigma_low = 10 ** (para[0][1] - para[0][2])
+    df = pd.DataFrame()
+    df['Amp'] = pd.Series(amp)
+    df['Pos'] = pd.Series(pos)
+    df['Sigma'] = pd.Series(sigma)
+    df['Sigma_high'] = pd.Series(sigma_high)
+    df['Sigma_low'] = pd.Series(sigma_low)
+    df.index = sd.data.index
+    # sizedist.data_fit_normal = df
+    if type(sizedist).__name__ == 'SizeDist_TS':
+        out = _NormalDistributionFitRes_TS(sizedist, df, sampling_period=sizedist._data_period)
+    elif type(sizedist).__name__ == 'SizeDist_LS':
+        out = _NormalDistributionFitRes_VP(sizedist, df)
     else:
-        pos = para[0][1]
-        sigma_high = (para[0][1] + para[0][2])
-        sigma_low = (para[0][1] - para[0][2])
-    if test:
-        return [amp, pos, sigma, sigma_high, sigma_low], para
-    else:
-        return [amp, pos, sigma, sigma_high, sigma_low]
+        out = df
+    return out
 
-
-
-def read_csv(fname,fill_data_gaps_with = None, ignore_data_gap_error = False,
+def open_csv(fname, fill_data_gaps_with = None, ignore_data_gap_error = False,
              # fixGaps=False
              ):
     """
@@ -151,41 +255,53 @@ def read_csv(fname,fill_data_gaps_with = None, ignore_data_gap_error = False,
         raise TypeError('not a valid object type')
     return distRein
 
-def read_hdf(f_name, keep_open = False, populate_namespace = False):
-    hdf = pd.HDFStore(f_name)
 
-    content = hdf.keys()
-    out = []
-    for i in content:
-        storer = hdf.get_storer(i)
-        attrs = storer.attrs.atmPy_attrs
-        if not attrs:
-            continue
-        elif attrs['type'].__name__ == 'SizeDist_TS':
-            dist_new = SizeDist_TS(hdf[i], attrs['bins'], attrs['distributionType'])
-        elif attrs['type'].__name__ == 'SizeDist':
-            dist_new = SizeDist(hdf[i], attrs['bins'], attrs['distributionType'])
-        elif attrs['type'].__name__ == 'SizeDist_LS':
-            dist_new = SizeDist_LS(hdf[i], attrs['bins'], attrs['distributionType'], attrs['layerbounderies'])
-        else:
-            txt = 'Unknown data type: %s'%attrs['type'].__name__
-            raise TypeError(txt)
+def open_netcdf(fname):
+    ds = _xr.open_dataset(fname, autoclose=True)
+    data = ds.sizedistribution.to_pandas()
+    binedges = ds.binedges.data
+    moment = ds.sizedistribution.moment
+    disttype = ds._atmPy.to_pandas().loc['type']
 
-        fit_res = i+'/data_fit_normal'
-        if fit_res in content:
-            dist_new.data_fit_normal = hdf[fit_res]
-
-        if populate_namespace:
-            if attrs['variable_name']:
-                populate_namespace[attrs['variable_name']] = dist_new
-
-        out.append(dist_new)
-
-    if keep_open:
-        return hdf,out
+    if 'normal_distribution_fits' in ds.variables.keys():
+        normfitres = ds.normal_distribution_fits.to_pandas()
     else:
-        hdf.close()
-        return out
+        normfitres = None
+
+    if 'housekeeping' in ds.variables.keys():
+        hk = ds.housekeeping.to_pandas()
+    else:
+        hk = None
+
+    if  disttype == 'SizeDist_TS':
+        dist = SizeDist_TS(data, binedges, moment, ignore_data_gap_error=True)
+        dist._data_period = float(ds._atmPy.loc['data_period'].values)
+        if type(hk) != type(None):
+            dist.housekeeping = _timeseries.TimeSeries(hk,
+                                                       sampling_period=dist._data_period)
+        if type(normfitres) != type(None):
+            dist.normal_distribution_fits = _NormalDistributionFitRes_TS(dist, normfitres,
+                                                                   sampling_period=dist._data_period)
+
+    elif  disttype == 'SizeDist_LS':
+        dist = SizeDist_LS(data, binedges, moment, ds.layer_boundaries.to_pandas().values)
+        if type(hk) != type(None):
+            dist.housekeeping = _vertical_profile.VerticalProfile(hk)
+        if type(normfitres) != type(None):
+            dist.normal_distribution_fits = _NormalDistributionFitRes_VP(dist, normfitres)
+
+    else:
+        raise ValueError('open_netcdf is not defined for type {} yet ... programming requried'.format(disttype))
+
+    ## corrections
+    corrections = ds.applied_corrections.split(', ')
+
+    if 'flow_in_LFE4temp_difference' in corrections:
+        dist._correct4ambient_LFE_tmp_difference = True
+    if 'flow_rate' in corrections:
+        dist._correct4fowrate = True
+
+    return dist
 
 def get_label(distType):
     """ Return the appropriate label for a particular distribution type
@@ -245,6 +361,84 @@ def get_settings():
                 }
     return settings.copy()
 
+def save_netcdf(sizedist, fname, housekeeping = True, value_added_products = True, binunit='nm', tags=[], test=False):
+    """Save to netCDF format
+
+    Parameters
+    ----------
+    fname: str
+    housekeeping: bool [True]
+        If housekeeping is saved
+    value_added_products: bool [True]
+        If value added products (currently, norm_fitresults) are going to be saved
+    binunit: str
+        The units of the diameter of the binedges and centers
+    tags: list
+    test: bool
+        If true the xarray.Dataset is not saved but retured instead.
+    """
+
+    sizedist.data.columns.name = 'bincenters'
+    sizedist = sizedist.convert2dNdlogDp()
+    distdict = {}
+
+    ps = pd.Series(sizedist.bins, name='diameter')
+    ps.index.name = 'idx'
+    distdict['binedges'] = ps
+
+    atmpy_ps = pd.Series({'type': type(sizedist).__name__})
+    atmpy_ps.index.name = '_atmPy_value'
+
+    if type(sizedist).__name__ == 'SizeDist':
+        distdict['sizedistribution'] = sizedist.data.loc[0, :]
+    elif type(sizedist).__name__ == 'SizeDist_TS':
+        distdict['sizedistribution'] = sizedist.data
+        atmpy_ps.loc['data_period'] = sizedist._data_period
+    elif type(sizedist).__name__ == 'SizeDist_LS':
+        sizedist.data.index.name = 'altitude'
+        distdict['sizedistribution'] = sizedist.data
+        df = pd.DataFrame(sizedist.layerbounderies, index=sizedist.layercenters, columns=['low_lim', 'upper_lim'])
+        df.index.name = 'altitude'
+        distdict['layer_boundaries'] = df
+    else:
+        raise KeyError('not implemented yet... fix it')
+
+    distdict['_atmPy'] = atmpy_ps
+
+    ds = _xr.Dataset(distdict)
+
+    ds.attrs['info'] = """Aerosol size distribution data generated with atmPy. For information on variables, e.g. units etc., check the variables attributes."""
+    ds.attrs['tags'] = ', '.join(tags)
+    ds.binedges.attrs['unit'] = binunit
+    ds.bincenters.attrs['unit'] = binunit
+    ds.sizedistribution.attrs['moment'] = sizedist.distributionType
+
+    ## Housekeeping
+    if housekeeping:
+        if sizedist.housekeeping:
+            sizedist.housekeeping.data.columns.name = 'hk_columns'
+            ds['housekeeping'] = sizedist.housekeeping.data
+
+    ## Normal fit results
+    if value_added_products:
+        if sizedist._normal_distribution_fits:
+            sizedist.normal_distribution_fits.data.columns.name = 'normfit_colums'
+            ds['normal_distribution_fits'] = sizedist.normal_distribution_fits.data
+
+    ## Applied corrections
+    applied_corrections = []
+    if type(sizedist._correct4ambient_LFE_tmp_difference) != type(None):
+        applied_corrections.append('flow_in_LFE4temp_difference')
+
+    if type(sizedist._correct4fowrate) != type(None):
+        applied_corrections.append('flow_rate')
+
+    ds.attrs['applied_corrections'] = ', '.join(applied_corrections)
+
+    if test:
+        return ds
+    ds.to_netcdf(fname)
+    return
 
 class _Parameter(object):
     def __init__(self, parent, what):
@@ -681,6 +875,95 @@ class _Properties(object):
         self._parent._settings['particle_density']['value'] = value
 
 
+class _NormalDistributionFitRes_VP(_vertical_profile.VerticalProfile):
+    def __init__(self, parent_dist, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent_dist = parent_dist
+
+    def plot_fitres(self, show_width = True, show_amplitude = True, ax = None, **kwargs):
+        """ Plots the results from fit_normal
+
+        Arguments
+        ---------
+        amp: bool.
+            if the amplitude is to be plotted
+        """
+        if ax == None:
+            f, a = _plt.subplots()
+        else:
+            a = ax
+            f = a.get_figure()
+
+        if show_width:
+            a.fill_betweenx(self.data.index, self.data.Sigma_high, self.data.Sigma_low,
+                           color=_colors[0],
+                           alpha=0.5,
+                           )
+
+        a.plot(self.data.Pos, self.data.index, **kwargs)
+        g = a.get_lines()[-1]
+        g.set_label('Center')
+        a.legend(loc=2)
+
+        a.set_xlabel('Particle diameter (nm)')
+        a.set_ylabel('Altitude (m)')
+
+
+        if show_amplitude:
+            a2 = a.twiny()
+            a2.plot(self.data.Amp, self.data.index)
+            # self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
+            g = a2.get_lines()[-1]
+            g.set_color(_colors[1])
+            g.set_label('Amplitude of norm. dist.')
+            a2.legend()
+            a2.set_ylabel('Amplitude - %s' % (get_label(self.parent_dist.distributionType)))
+            a2.set_xscale('log')
+        else:
+            a2 = None
+        return f, a, a2
+
+
+
+class _NormalDistributionFitRes_TS(_timeseries.TimeSeries):
+    def __init__(self, parent_dist, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent_dist = parent_dist
+
+    def plot_fitres(self, show_width = True, show_amplitude = True, ax = None, **kwargs):
+        """ Plots the results from fit_normal"""
+
+        if ax:
+            a = ax
+            f = a.get_figure()
+        else:
+            f, a = _plt.subplots()
+        data = self.data.dropna()
+        if show_width:
+            a.fill_between(data.index, data.Sigma_high, data.Sigma_low,
+                           color=plt_tools.color_cycle[0],
+                           alpha=0.5,
+                           )
+        a.plot(data.index.values, data.Pos.values, **kwargs)
+        # data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+        a.legend(loc=2)
+        a.set_ylabel('Particle diameter (nm)')
+        a.set_xlabel('')
+
+        if show_amplitude:
+            a2 = a.twinx()
+            # data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+            a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+            a2.legend()
+            a2.set_ylabel('Amplitude - %s' % (get_label(self.parent_dist.distributionType)))
+            a2.set_yscale('log')
+        else:
+            a2 = None
+        f.autofmt_xdate()
+        return f, a, a2
+
+
+
 class SizeDist(object):
     """
     Object defining a log normal aerosol size distribution
@@ -741,7 +1024,7 @@ class SizeDist(object):
         self.__particle_surface_concentration = None
         self.__particle_volume_concentration = None
         self._submicron_volume_ratio = None
-        self.__housekeeping = None
+        self._housekeeping = None
 
         self.distributionType = distType
         self._sup_opt_wl = None #todo: deprecated?!?
@@ -750,6 +1033,11 @@ class SizeDist(object):
         self._update()
         self._is_reduced_to_pt = False
         self._mode_analysis = None
+        self._normal_distribution_fits = None
+
+        self._correct4ambient_LFE_tmp_difference = None
+        self._correct4fowrate = None
+
 
         # if fixGaps:
         #     self.fillGaps()
@@ -846,11 +1134,14 @@ class SizeDist(object):
 
     @property
     def housekeeping(self):
-        return self.__housekeeping
+        return self._housekeeping
 
     @housekeeping.setter
     def housekeeping(self, value):
-        self.__housekeeping = value.align_to(self)
+        if value:
+            self._housekeeping = value.align_to(self)
+        else:
+            self._housekeeping = value
 
     @property
     def bins(self):
@@ -874,6 +1165,16 @@ class SizeDist(object):
     @property
     def binwidth(self):
         return self.__binwidth
+
+    @property
+    def normal_distribution_fits(self):
+        if type(self._normal_distribution_fits) == type(None):
+            self._normal_distribution_fits = fit_normal_distribution2sizedist(self)
+        return self._normal_distribution_fits
+
+    @normal_distribution_fits.setter
+    def normal_distribution_fits(self,value):
+        self._normal_distribution_fits = value
 
     @property
     def sup_optical_properties_wavelength(self):
@@ -921,9 +1222,9 @@ class SizeDist(object):
         #     If you really want to change the value do it by setting the __index_of_refraction attribute."""%self.index_of_refraction
         #     raise ValueError(txt)
 
-    @property
-    def growth_factor(self):
-        return self._growth_factor
+    # @property
+    # def growth_factor(self):
+    #     return self._growth_factor
 
     @property
     def particle_number_concentration(self):
@@ -1027,158 +1328,190 @@ class SizeDist(object):
         dist._is_reduced_to_pt = True
         return dist
 
-    def deprecated_apply_hygro_growth(self, kappa, RH, how ='shift_bins', adjust_refractive_index = True):
-        """Note kappa values are !!NOT!! aligned to self in case its timesersies
-        how: string ['shift_bins', 'shift_data']
-            If the shift_bins the growth factor has to be the same for all lines in
-            data (important for timeseries and vertical profile.
-            If gf changes (as probably the case in TS and LS) you want to use
-            'shift_data'
-        """
+    def correct4flowrate(self, flowrate):
+        """This simply normalizes to to provided flow rate. In principle this could be the flow rate reported in the
+        the housekeeping file ... and in other instruments then POPS it probably shoud... However in POPS this value is
+        questionable and the set_point is a more usefull value"""
 
-        self.parameters4reductions._check_growth_parameters_exist()
-
-
-        dist_g = self.convert2numberconcentration()
-        # dist_g = dist_g.copy()
-        # pdb.set_trace()
-
-        if type(kappa).__name__ == 'TimeSeries':
-            kappa = kappa.data.iloc[:, 0].values
-        # gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
-        gf,n_mix = hygroscopicity.kappa_simple(kappa, RH, refractive_index= dist_g.parameters4reductions.refractive_index)
-        # pdb.set_trace()
-
-        if how == 'shift_bins':
-            if not isinstance(gf, (float,int)):
-                txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
-                It is %s'''%(type(RH).__name__)
-                raise TypeError(txt)
-        if type(self).__name__ == 'SizeDist_LS':
-            if type(gf) in (float, int):
-                nda = _np.zeros(self.data.index.shape)
-                nda[:] = gf
-                gf = nda
-            gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
-
-        elif type(self).__name__ == 'SizeDist_TS':
-            if type(gf).__name__ in ('float', 'int', 'float64'):
-                nda = _np.zeros(self.data.index.shape)
-                nda[:] = gf
-                gf = nda
-            # import pdb; pdb.set_trace()
-            gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
-            gf._data_period = self._data_period
-        # pdb.set_trace()
-        dist_g = dist_g.deprecated_apply_growth(gf, how = how)
-
-        # pdb.set_trace()
-        if how == 'shift_bins':
-            dist_g.parameters4reductions.refractive_index = n_mix
-        elif how == 'shift_data':
-            if adjust_refractive_index:
-                if type(n_mix).__name__ in ('float', 'int', 'float64'):
-                    nda = _np.zeros(self.data.index.shape)
-                    nda[:] = n_mix
-                    n_mix = nda
-                # import pdb;
-                # pdb.set_trace()
-                df = pd.DataFrame(n_mix)
-                df.columns = ['index_of_refraction']
-                df.index = dist_g.data.index
-                # pdb.set_trace()
-                dist_g.parameters4reductions.refractive_index = df
-            else:
-                # print('no')
-                dist_g.parameters4reductions.refractive_index = self.parameters4reductions.refractive_index
-
-        # pdb.set_trace()
-        # dist_g._growth_factor = pd.DataFrame(gfsdf, index = dist_g.data.index, columns = ['Growth_factor'])
-        # pdb.set_trace()
-        return dist_g
-
-
-    def deprecated_apply_growth(self, growth_factor, how ='auto'):
-        """Note this does not adjust the refractive index according to the dilution!!!!!!!"""
-        # pdb.set_trace()
-        if how == 'auto':
-            if isinstance(growth_factor, (float, int)):
-                how = 'shift_bins'
-            else:
-                how = 'shift_data'
-        # pdb.set_trace()
-        dist_g = self.convert2numberconcentration()
-        # pdb.set_trace()
-        if how == 'shift_bins':
-            if not isinstance(growth_factor, (float, int)):
-                txt = '''If how is equal to 'shift_bins' the growth factor has to be of type int or float.
-                It is %s'''%(type(growth_factor).__name__)
-                raise TypeError(txt)
-            dist_g.bins = dist_g.bins * growth_factor
-
-        elif how == 'shift_data':
-            if isinstance(growth_factor, (float, int)):
-                pass
-            # elif type(growth_factor).__name__ == 'ndarray':
-            #     growth_factor = _timeseries.TimeSeries(growth_factor)
-
-            # elif type(growth_factor).__name__ == 'Series':
-            #     growth_factor = _timeseries.TimeSeries(pd.DataFrame(growth_factor))
-            #
-            # elif type(growth_factor).__name__ == 'DataFrame':
-            #     growth_factor = _timeseries.TimeSeries(growth_factor)
-
-            elif type(growth_factor).__name__ == 'VerticalProfile':
-                pass
-
-            elif type(growth_factor).__name__ == 'TimeSeries':
-                if growth_factor._data_period == None:
-                    growth_factor._data_period = self._data_period
-                growth_factor = growth_factor.align_to(dist_g)
-            else:
-                txt = 'Make sure type of growthfactor is int,float,TimeSeries, or Series. It currently is: %s.'%(type(growth_factor).__name__)
-                raise TypeError(txt)
-            try:
-                growth_max = float(_np.nanmax(growth_factor.data))
-            except AttributeError:
-                growth_max = growth_factor
-
-            test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, growth_max, ignore_data_nan = True)
-            bin_num = test['data'].shape[0]
-            data_new = _np.zeros((dist_g.data.shape[0],bin_num), dtype= object) # this has to be of type object, so the sum is nan when all are nan, otherwise it would be 0
-            data_new[:] = _np.nan
-            #todo: it would be nicer to have _hygro_growht_shift_data take the TimeSeries directly
-            gf = growth_factor.data.values.transpose()[0]
-            for e,i in enumerate(dist_g.data.values):
-                out = dist_g._hygro_growht_shift_data(i, dist_g.bins, gf[e])
-                dt = out['data']
-                diff = bin_num - dt.shape[0]
-                diff_nans = _np.zeros(diff, dtype= object)
-                diff_nans[:] = _np.nan
-                dt = _np.append(dt, diff_nans)
-                data_new[e] = dt
-            df = pd.DataFrame(data_new)
-            df.index = dist_g.data.index
-
-            # if type(dist_g)
-
-            # pdb.set_trace()
-            dist_g_new = SizeDist(df, test['bins'], dist_g.distributionType)
-            # pdb.set_trace()
-            dist_g_new.parameters4reductions.refractive_index = dist_g.parameters4reductions.refractive_index
-            # pdb.set_trace()
-            dist_g_new.parameters4reductions.wavelength =       dist_g.parameters4reductions.wavelength
-            # pdb.set_trace()
-            # dist_g_new.optical_properties_settings.wavelength =       dist_g.optical_properties_settings.wavelength
-            # if type(growth_factor).__name__ == 'TimeSeries':
-            #     dp = dist_g._data_period
-            #     dist_g._data_period = dp
-
+        sizedist = self.copy()
+        if type(sizedist._correct4fowrate) == type(None):
+            sizedist *= 1/flowrate
+            sizedist._correct4fowrate = flowrate
         else:
-            txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
+            txt = "You can't apply this correction twice!"
             raise ValueError(txt)
+            # _warnings.warn(txt)
+        return sizedist
 
-        return dist_g_new
+    def correct4ambient_LFE_tmp_difference(self):
+        """corrects for temperature differences between ambient and instrument.
+        The Problem is that the instrument samples at a constant flow at the temperature of
+        the laminar flow element not the ambient temperatrue ... this corrects for it
+        Make sure your housekeeping has a column named Temperature and one named Temperature_instrument"""
+        sizedist = self.copy()
+        if type(sizedist._correct4ambient_LFE_tmp_difference) == type(None):
+            tcorr = (sizedist.housekeeping.data.Temperature_instrument + 273.15) / (sizedist.housekeeping.data.Temperature + 273.15)
+            sizedist.data = sizedist.data.apply(lambda x: x * tcorr, axis=0)
+            sizedist._update()
+            sizedist._correct4ambient_LFE_tmp_difference = tcorr
+        else:
+            txt = "You can't apply this correction twice!"
+            raise ValueError(txt)
+            # _warnings.warn(txt)
+        return sizedist
+
+    # def deprecated_apply_hygro_growth(self, kappa, RH, how ='shift_bins', adjust_refractive_index = True):
+    #     """Note kappa values are !!NOT!! aligned to self in case its timesersies
+    #     how: string ['shift_bins', 'shift_data']
+    #         If the shift_bins the growth factor has to be the same for all lines in
+    #         data (important for timeseries and vertical profile.
+    #         If gf changes (as probably the case in TS and LS) you want to use
+    #         'shift_data'
+    #     """
+    #
+    #     self.parameters4reductions._check_growth_parameters_exist()
+    #
+    #
+    #     dist_g = self.convert2numberconcentration()
+    #     # dist_g = dist_g.copy()
+    #     # pdb.set_trace()
+    #
+    #     if type(kappa).__name__ == 'TimeSeries':
+    #         kappa = kappa.data.iloc[:, 0].values
+    #     # gf,n_mix = hg.kappa_simple(kappa, RH, refractive_index= dist_g.index_of_refraction)
+    #     gf,n_mix = hygroscopicity.kappa_simple(kappa, RH, refractive_index= dist_g.parameters4reductions.refractive_index)
+    #     # pdb.set_trace()
+    #
+    #     if how == 'shift_bins':
+    #         if not isinstance(gf, (float,int)):
+    #             txt = '''If how is equal to 'shift_bins' RH has to be of type int or float.
+    #             It is %s'''%(type(RH).__name__)
+    #             raise TypeError(txt)
+    #     if type(self).__name__ == 'SizeDist_LS':
+    #         if type(gf) in (float, int):
+    #             nda = _np.zeros(self.data.index.shape)
+    #             nda[:] = gf
+    #             gf = nda
+    #         gf = _vertical_profile.VerticalProfile(pd.DataFrame(gf, index = self.data.index))
+    #
+    #     elif type(self).__name__ == 'SizeDist_TS':
+    #         if type(gf).__name__ in ('float', 'int', 'float64'):
+    #             nda = _np.zeros(self.data.index.shape)
+    #             nda[:] = gf
+    #             gf = nda
+    #         # import pdb; pdb.set_trace()
+    #         gf = _timeseries.TimeSeries(pd.DataFrame(gf, index = self.data.index))
+    #         gf._data_period = self._data_period
+    #     # pdb.set_trace()
+    #     dist_g = dist_g.deprecated_apply_growth(gf, how = how)
+    #
+    #     # pdb.set_trace()
+    #     if how == 'shift_bins':
+    #         dist_g.parameters4reductions.refractive_index = n_mix
+    #     elif how == 'shift_data':
+    #         if adjust_refractive_index:
+    #             if type(n_mix).__name__ in ('float', 'int', 'float64'):
+    #                 nda = _np.zeros(self.data.index.shape)
+    #                 nda[:] = n_mix
+    #                 n_mix = nda
+    #             # import pdb;
+    #             # pdb.set_trace()
+    #             df = pd.DataFrame(n_mix)
+    #             df.columns = ['index_of_refraction']
+    #             df.index = dist_g.data.index
+    #             # pdb.set_trace()
+    #             dist_g.parameters4reductions.refractive_index = df
+    #         else:
+    #             # print('no')
+    #             dist_g.parameters4reductions.refractive_index = self.parameters4reductions.refractive_index
+    #
+    #     # pdb.set_trace()
+    #     # dist_g._growth_factor = pd.DataFrame(gfsdf, index = dist_g.data.index, columns = ['Growth_factor'])
+    #     # pdb.set_trace()
+    #     return dist_g
+    #
+    #
+    # def deprecated_apply_growth(self, growth_factor, how ='auto'):
+    #     """Note this does not adjust the refractive index according to the dilution!!!!!!!"""
+    #     # pdb.set_trace()
+    #     if how == 'auto':
+    #         if isinstance(growth_factor, (float, int)):
+    #             how = 'shift_bins'
+    #         else:
+    #             how = 'shift_data'
+    #     # pdb.set_trace()
+    #     dist_g = self.convert2numberconcentration()
+    #     # pdb.set_trace()
+    #     if how == 'shift_bins':
+    #         if not isinstance(growth_factor, (float, int)):
+    #             txt = '''If how is equal to 'shift_bins' the growth factor has to be of type int or float.
+    #             It is %s'''%(type(growth_factor).__name__)
+    #             raise TypeError(txt)
+    #         dist_g.bins = dist_g.bins * growth_factor
+    #
+    #     elif how == 'shift_data':
+    #         if isinstance(growth_factor, (float, int)):
+    #             pass
+    #         # elif type(growth_factor).__name__ == 'ndarray':
+    #         #     growth_factor = _timeseries.TimeSeries(growth_factor)
+    #
+    #         # elif type(growth_factor).__name__ == 'Series':
+    #         #     growth_factor = _timeseries.TimeSeries(pd.DataFrame(growth_factor))
+    #         #
+    #         # elif type(growth_factor).__name__ == 'DataFrame':
+    #         #     growth_factor = _timeseries.TimeSeries(growth_factor)
+    #
+    #         elif type(growth_factor).__name__ == 'VerticalProfile':
+    #             pass
+    #
+    #         elif type(growth_factor).__name__ == 'TimeSeries':
+    #             if growth_factor._data_period == None:
+    #                 growth_factor._data_period = self._data_period
+    #             growth_factor = growth_factor.align_to(dist_g)
+    #         else:
+    #             txt = 'Make sure type of growthfactor is int,float,TimeSeries, or Series. It currently is: %s.'%(type(growth_factor).__name__)
+    #             raise TypeError(txt)
+    #         try:
+    #             growth_max = float(_np.nanmax(growth_factor.data))
+    #         except AttributeError:
+    #             growth_max = growth_factor
+    #
+    #         test = dist_g._hygro_growht_shift_data(dist_g.data.values[0], dist_g.bins, growth_max, ignore_data_nan = True)
+    #         bin_num = test['data'].shape[0]
+    #         data_new = _np.zeros((dist_g.data.shape[0],bin_num), dtype= object) # this has to be of type object, so the sum is nan when all are nan, otherwise it would be 0
+    #         data_new[:] = _np.nan
+    #         #todo: it would be nicer to have _hygro_growht_shift_data take the TimeSeries directly
+    #         gf = growth_factor.data.values.transpose()[0]
+    #         for e,i in enumerate(dist_g.data.values):
+    #             out = dist_g._hygro_growht_shift_data(i, dist_g.bins, gf[e])
+    #             dt = out['data']
+    #             diff = bin_num - dt.shape[0]
+    #             diff_nans = _np.zeros(diff, dtype= object)
+    #             diff_nans[:] = _np.nan
+    #             dt = _np.append(dt, diff_nans)
+    #             data_new[e] = dt
+    #         df = pd.DataFrame(data_new)
+    #         df.index = dist_g.data.index
+    #
+    #         # if type(dist_g)
+    #
+    #         # pdb.set_trace()
+    #         dist_g_new = SizeDist(df, test['bins'], dist_g.distributionType)
+    #         # pdb.set_trace()
+    #         dist_g_new.parameters4reductions.refractive_index = dist_g.parameters4reductions.refractive_index
+    #         # pdb.set_trace()
+    #         dist_g_new.parameters4reductions.wavelength =       dist_g.parameters4reductions.wavelength
+    #         # pdb.set_trace()
+    #         # dist_g_new.optical_properties_settings.wavelength =       dist_g.optical_properties_settings.wavelength
+    #         # if type(growth_factor).__name__ == 'TimeSeries':
+    #         #     dp = dist_g._data_period
+    #         #     dist_g._data_period = dp
+    #
+    #     else:
+    #         txt = '''How has to be either 'shift_bins' or 'shift_data'.'''
+    #         raise ValueError(txt)
+    #
+    #     return dist_g_new
 
 
     # def grow_particles(self, shift=1):
@@ -1250,67 +1583,6 @@ class SizeDist(object):
             self.data = self.data.sort_index()
         return
 
-    def fit_normal(self, log=True, p0=[10, 180, 0.2], show_error = False, curve_fit_kwargs = None):
-        """ Fits a single normal distribution to each line in the data frame.
-
-        Parameters
-        ----------
-        p0: array-like
-            fit initiation parameters [amp, pos, width(log-width)]
-        curve_fit_kwargs: dict
-            Additional kwargs that are  passed to the fit routine
-
-        log: not really working
-
-        Returns
-        -------
-        pandas DataFrame instance (also added to namespace as data_fit_normal)
-
-        """
-        if type(curve_fit_kwargs) == type(None):
-            curve_fit_kwargs = {}
-
-        sd = self.copy()
-
-        if sd.distributionType != 'dNdlogDp':
-            if sd.distributionType == 'calibration':
-                pass
-            else:
-                _warnings.warn(
-                    "Size distribution is not in 'dNdlogDp'. I temporarily converted the distribution to conduct the fitting. If that is not what you want, change the code!")
-                sd = sd.convert2dNdlogDp()
-
-        n_lines = sd.data.shape[0]
-        amp = _np.zeros(n_lines)
-        pos = _np.zeros(n_lines)
-        sigma = _np.zeros(n_lines)
-        sigma_high = _np.zeros(n_lines)
-        sigma_low = _np.zeros(n_lines)
-        for e, lay in enumerate(sd.data.values):
-            if show_error:
-                fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs=curve_fit_kwargs)
-            else:
-                try:
-                    fit_res = fit_normal_dist(sd.bincenters, lay, log=log, p0=p0, curve_fit_kwargs = curve_fit_kwargs)
-                except (ValueError, RuntimeError):
-                    fit_res = [_np.nan, _np.nan, _np.nan, _np.nan, _np.nan]
-            amp[e] = fit_res[0]
-            pos[e] = fit_res[1]
-            sigma[e] = fit_res[2]
-            sigma_high[e] = fit_res[3]
-            sigma_low[e] = fit_res[4]
-
-        df = pd.DataFrame()
-        df['Amp'] = pd.Series(amp)
-        df['Pos'] = pd.Series(pos)
-        df['Sigma'] = pd.Series(sigma)
-        df['Sigma_high'] = pd.Series(sigma_high)
-        df['Sigma_low'] = pd.Series(sigma_low)
-        # df.index = self.layercenters
-        self.data_fit_normal = df
-        return self.data_fit_normal
-
-
 
     def plot(self,
              showMinorTickLabels=True,
@@ -1346,7 +1618,7 @@ class SizeDist(object):
             a = ax
             f = a.get_figure()
         else:
-            f, a = plt.subplots()
+            f, a = _plt.subplots()
 
         g, = a.plot(self.bincenters, self.data.iloc[0,:], **kwargs)
         g.set_drawstyle('steps-mid')
@@ -1442,12 +1714,16 @@ class SizeDist(object):
         -------
         size distribution instance with extra bins. Data filled with results from fitting with normal distribution."""
 
-        self = self.copy()
-        self = self.extend_bin_range(newlimit)
-        amp, pos, sigma = self.data_fit_normal.values[0, :3]
-        normal_dist = math_functions.gauss(_np.log10(self.bincenters), amp, _np.log10(pos), sigma)
-        self.data.loc[0, :][_np.isnan(self.data.loc[0, :])] = normal_dist[_np.isnan(self.data.loc[0, :])]
-        return self
+        sizedist = self.copy()
+        sizedist._update()
+        sizedist = sizedist.extend_bin_range(newlimit)
+        amp, pos, sigma = sizedist.data_fit_normal.values[0, :3]
+        normal_dist = math_functions.gauss(_np.log10(sizedist.bincenters), amp, _np.log10(pos), sigma)
+        sizedist.data.loc[0, :][_np.isnan(sizedist.data.loc[0, :])] = normal_dist[_np.isnan(sizedist.data.loc[0, :])]
+        return sizedist
+
+    def grow_sizedistribution(self, growthfactor):
+        return hygroscopicity.apply_growth2sizedist(self, growthfactor)
 
     def save_csv(self, fname, header=True):
         if header:
@@ -1460,48 +1736,7 @@ class SizeDist(object):
         self.data.to_csv(fname, mode='a')
         return
 
-    def save_netcdf(self, fname, binunit='nm', tags=[], test=False):
-        """Save to netCDF format
-
-        Parameters
-        ----------
-        fname: str
-        binunit: str
-            The units of the diameter of the binedges and centers
-        tags: list
-        test: bool
-            If true the xarray.Dataset is not saved but retured instead.
-        """
-
-        self.data.columns.name = 'bincenters'
-        self = self.convert2dNdlogDp()
-        distdict = {}
-
-        if type(self).__name__ == 'SizeDist':
-            distdict['sizedistribution'] = self.data.loc[0, :]
-        else:
-            raise KeyError('not implemented yet... fix it')
-
-        ps = pd.Series(self.bins, name='diameter')
-        ps.index.name = 'idx'
-        distdict['binedges'] = ps
-        ps = pd.Series({'type': type(self).__name__})
-        ps.index.name = '_atmPy_value'
-        distdict['_atmPy'] = ps
-
-        ds = _xr.Dataset(distdict)
-
-        ds.attrs[
-            'info'] = """Aerosol size distribution data generated with atmPy. For information on variables, e.g. units etc., check the variables attributes."""
-        ds.attrs['tags'] = ', '.join(tags)
-        ds.binedges.attrs['unit'] = binunit
-        ds.bincenters.attrs['unit'] = binunit
-        ds.sizedistribution.attrs['moment'] = self.distributionType
-
-        if test:
-            return ds
-        ds.to_netcdf(fname)
-        return
+    save_netcdf = save_netcdf
 
     def save_hdf(self, hdf, variable_name = None, info = '', force = False):
 
@@ -1803,6 +2038,7 @@ class SizeDist(object):
         self._uptodate_particle_volume_concentration = False
         self._particle_mean_diameter = None
         self._submicron_volume_ratio = None
+        self._normal_distribution_fits = None
 
 
 
@@ -1845,7 +2081,6 @@ class SizeDist_TS(SizeDist):
         self.__particle_mass_concentration = None
         self.__particle_mass_mixing_ratio = None
         self.__particle_number_mixing_ratio = None
-        self.__correct4ambient_LFE_tmp_difference = None
         self._update()
         if not self.data.index.name:
             self.data.index.name = 'Time'
@@ -1902,20 +2137,22 @@ class SizeDist_TS(SizeDist):
         self.data.sort_index(inplace=True)
         return
 
-    def correct4ambient_LFE_tmp_difference(self):
-        """corrects for temperature differences between ambient and instrument.
-        The Problem is that the instrument samples at a constant flow at the temperature of
-        the laminar flow element not the ambient temperatrue ... this corrects for it
-        Make sure your housekeeping has a column named Temperature and one named Temperature_instrument"""
-        if not _np.any(self.__correct4ambient_LFE_tmp_difference):
-            tcorr = (self.housekeeping.data.Temperature_instrument + 273.15) / (self.housekeeping.data.Temperature + 273.15)
-            self.data = self.data.apply(lambda x: x * tcorr, axis=0)
-            self._update()
-            self.__correct4ambient_LFE_tmp_difference = tcorr
-        else:
-            txt = "You can't apply this correction twice!"
-            # raise ValueError(txt)
-            _warnings.warn(txt)
+    # def correct4ambient_LFE_tmp_difference(self):
+    #     """corrects for temperature differences between ambient and instrument.
+    #     The Problem is that the instrument samples at a constant flow at the temperature of
+    #     the laminar flow element not the ambient temperatrue ... this corrects for it
+    #     Make sure your housekeeping has a column named Temperature and one named Temperature_instrument"""
+    #     sizedist = self.copy()
+    #     if type(sizedist._correct4ambient_LFE_tmp_difference) != type(None):
+    #         tcorr = (sizedist.housekeeping.data.Temperature_instrument + 273.15) / (sizedist.housekeeping.data.Temperature + 273.15)
+    #         sizedist.data = sizedist.data.apply(lambda x: x * tcorr, axis=0)
+    #         sizedist._update()
+    #         sizedist._correct4ambient_LFE_tmp_difference = tcorr
+    #     else:
+    #         txt = "You can't apply this correction twice!"
+    #         # raise ValueError(txt)
+    #         _warnings.warn(txt)
+    #     return sizedist
 
     # todo: declared deprecated on 2016-04-29
     def dprecated_convert2layerseries(self, hk, layer_thickness=10, force=False):
@@ -2102,7 +2339,7 @@ class SizeDist_TS(SizeDist):
              showMinorTickLabels=True,
              # removeTickLabels=["700", "900"],
              ax=None,
-             fit_pos=True,
+             fit_pos=False,
              cmap=plt_tools.get_colorMap_intensity(),
              colorbar=True):
 
@@ -2132,7 +2369,7 @@ class SizeDist_TS(SizeDist):
             a = ax
             f = a.get_figure()
         else:
-            f, a = plt.subplots()
+            f, a = _plt.subplots()
             f.autofmt_xdate()
 
         if norm == 'log':
@@ -2173,35 +2410,39 @@ class SizeDist_TS(SizeDist):
                 #         i.label.set_visible(False)
 
         if fit_pos:
-            if 'data_fit_normal' in dir(self):
-                a.plot(self.data.index, self.data_fit_normal.Pos, color='m', linewidth=2, label='normal dist. center')
-                leg = a.legend(fancybox=True, framealpha=0.5)
-                leg.draw_frame(True)
+            # if 'data_fit_normal' in dir(self):
+            f,a,_ = self.normal_distribution_fits.plot_fitres(show_amplitude=False, show_width=False, ax = a)
+            g = a.get_lines()[-1]
+            g.set_color('m')
+            g.set_label('normal dist. center')
+            # a.plot(self.data.index, self.data_fit_normal.Pos, color='m', linewidth=2, label='normal dist. center')
+            leg = a.legend(loc = 1, fancybox=True, framealpha=0.5)
+            leg.draw_frame(True)
 
         return f, a, pc, cb
 
-    def plot_fitres(self):
-        """ Plots the results from fit_normal"""
-
-        f, a = plt.subplots()
-        data = self.data_fit_normal.dropna()
-        a.fill_between(data.index, data.Sigma_high, data.Sigma_low,
-                       color=plt_tools.color_cycle[0],
-                       alpha=0.5,
-                       )
-        a.plot(data.index.values, data.Pos.values, color=plt_tools.color_cycle[0], linewidth=2, label='center')
-        # data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
-        a.legend(loc=2)
-        a.set_ylabel('Particle diameter (nm)')
-        a.set_xlabel('Altitude (m)')
-
-        a2 = a.twinx()
-        # data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
-        a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
-        a2.legend()
-        a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
-        f.autofmt_xdate()
-        return f, a, a2
+    # def plot_fitres(self):
+    #     """ Plots the results from fit_normal"""
+    #
+    #     f, a = plt.subplots()
+    #     data = self.data_fit_normal.dropna()
+    #     a.fill_between(data.index, data.Sigma_high, data.Sigma_low,
+    #                    color=plt_tools.color_cycle[0],
+    #                    alpha=0.5,
+    #                    )
+    #     a.plot(data.index.values, data.Pos.values, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+    #     # data.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2, label='center')
+    #     a.legend(loc=2)
+    #     a.set_ylabel('Particle diameter (nm)')
+    #     a.set_xlabel('Altitude (m)')
+    #
+    #     a2 = a.twinx()
+    #     # data.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+    #     a2.plot(data.index.values, data.Amp.values, color=plt_tools.color_cycle[1], linewidth=2, label='amplitude')
+    #     a2.legend()
+    #     a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
+    #     f.autofmt_xdate()
+    #     return f, a, a2
 
     # def plot_particle_concentration(self, ax=None, label=None):
     #     """Plots the particle rate as a function of time.
@@ -2490,11 +2731,11 @@ class SizeDist_LS(SizeDist):
 
     @property
     def housekeeping(self):
-        return self.__housekeeping
+        return self._housekeeping
 
     @housekeeping.setter
     def housekeeping(self, value):
-        self.__housekeeping = value #had to overwrite the setter since there is no align programmed yet for verticle profiles ... do it!
+        self._housekeeping = value #had to overwrite the setter since there is no align programmed yet for verticle profiles ... do it!
 
     @property
     def layercenters(self):
@@ -2763,7 +3004,7 @@ class SizeDist_LS(SizeDist):
         Handles to the figure and axes of the plot
         """
         if not a:
-            f, a = plt.subplots()
+            f, a = _plt.subplots()
         else:
             f = None
             pass
@@ -2783,7 +3024,7 @@ class SizeDist_LS(SizeDist):
              removeTickLabels=["500", "700", "800", "900"],
              plotOnTheseAxes=False,
              cmap=plt_tools.get_colorMap_intensity(),
-             fit_pos=True,
+             fit_pos=False,
              ax=None,
              colorbar = True):
         """ plots and returns f,a,pc,cb (figure, axis, pcolormeshInstance, colorbar)
@@ -2806,7 +3047,7 @@ class SizeDist_LS(SizeDist):
             a = ax
             f = a.get_figure()
         else:
-            f, a = plt.subplots()
+            f, a = _plt.subplots()
             # f.autofmt_xdate()
 
         if scale == 'log':
@@ -2844,14 +3085,32 @@ class SizeDist_LS(SizeDist):
         #             i.label.set_visible(False)
 
         if fit_pos:
-            if 'data_fit_normal' in dir(self):
-                a.plot(self.data_fit_normal.Pos, self.layercenters, color='m', linewidth=2, label='normal dist. center')
-                leg = a.legend(fancybox=True, framealpha=0.5)
-                leg.draw_frame(True)
+            f, a, _ = self.normal_distribution_fits.plot_fitres(show_amplitude=False, show_width=False, ax=a)
+            g = a.get_lines()[-1]
+            g.set_color('m')
+            g.set_label('normal dist. center')
+            # a.plot(self.data.index, self.data_fit_normal.Pos, color='m', linewidth=2, label='normal dist. center')
+            leg = a.legend(loc=1, fancybox=True, framealpha=0.5)
+            leg.draw_frame(True)
+            # if 'data_fit_normal' in dir(self):
+            #     a.plot(self.data_fit_normal.Pos, self.layercenters, color='m', linewidth=2, label='normal dist. center')
+            #     leg = a.legend(loc = 1, fancybox=True, framealpha=0.5)
+            #     leg.draw_frame(True)
 
         return f, a, pc, cb
 
-    def plot_overview(self, layers=None):
+    def plot_overview(self, layers=None, show_center_of_layers = True, fit_pos = True):
+        """Plot 3 plots: Size distribution Vertical profile, average size distribution, particle concentration.
+         Optional layers can be defined that show up in the average plot instead of the overall average.
+
+         Parameters
+         ----------
+         layers: dict, e.g. {'bottom': [0, 300]}
+            define layers do average over here
+         show_center_of_layers: bool
+            if to show the centers of thelayers in the other plots
+
+        """
         num_g = 10
         smallx = 3
         smally = 3
@@ -2859,7 +3118,7 @@ class SizeDist_LS(SizeDist):
         gs = gridspec.GridSpec(num_g, num_g)
         gs.update(hspace=0.0)
         gs.update(wspace=0.0)
-        f = plt.figure()
+        f = _plt.figure()
         f.set_figwidth(f.get_figwidth() * 1.3)
         f.set_figheight(f.get_figheight() * 1.3)
 
@@ -2873,9 +3132,16 @@ class SizeDist_LS(SizeDist):
             for ln, lb in sorted(layers.items(), key=lambda x: x[1], reverse=True):
                 dist_avg = self.zoom_altitude(*lb).average_overAllAltitudes().convert2dNdlogDp()
                 dist_avg.plot(ax=a_top, label='{}-{}'.format(*lb))
+                g = a_top.get_lines()[-1]
+                col = g.get_color()
+                if show_center_of_layers:
+                    a_center.axhline((lb[0] + lb[1]) / 2, color = col, ls = '--')
+                    a_right.axhline((lb[0] + lb[1]) / 2, color=col, ls = '--')
 
-            leg = a_top.legend(fontsize='x-small')
+            leg = a_top.legend(loc = 'upper left', bbox_to_anchor=(1, 1), fontsize='x-small')
             leg.set_title('Altitude (m)')
+
+
         else:
             dist_avg = self.average_overAllAltitudes()
             dist_avg.plot(ax=a_top, label='average')
@@ -2887,17 +3153,18 @@ class SizeDist_LS(SizeDist):
         a_top.set_yscale('log')
 
         ###############
-        out = self.plot(ax=a_center, colorbar=False)
+        out = self.plot(ax=a_center, colorbar=False, fit_pos=fit_pos)
         pc = out[2]
 
         #################
         self.particle_number_concentration.plot(ax=a_right)
         a_right.set_ylabel('')
-        plt.setp(a_right.get_yticklabels(), visible=False)
-        ma_loc = MultipleLocator(20)
-        mi_loc = MultipleLocator(10)
-        a_right.xaxis.set_major_locator(ma_loc)
-        a_right.xaxis.set_minor_locator(mi_loc)
+        _plt.setp(a_right.get_yticklabels(), visible=False)
+        # ma_loc = MultipleLocator(20)
+        # mi_loc = MultipleLocator(10)
+        a_right.xaxis.set_major_locator(_MaxNLocator(4, prune='both'))
+        # a_right.xaxis.set_major_locator(ma_loc)
+        # a_right.xaxis.set_minor_locator(mi_loc)
         a_right.set_xlabel('Concentration (cm$^{-3}$)')
         a_right.xaxis.set_tick_params(which='major', pad=8)
         a_right.grid(False)
@@ -2908,45 +3175,45 @@ class SizeDist_LS(SizeDist):
         return f, (a_top, a_center, a_right)
 
 
-    def plot_fitres(self, amp=True, rotate=True):
-        """ Plots the results from fit_normal
-
-        Arguments
-        ---------
-        amp: bool.
-            if the amplitude is to be plotted
-        """
-
-        f, a = plt.subplots()
-        a.fill_between(self.layercenters, self.data_fit_normal.Sigma_high, self.data_fit_normal.Sigma_low,
-                       color=plt_tools.color_cycle[0],
-                       alpha=0.5,
-                       )
-
-        self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2)
-        g = a.get_lines()[-1]
-        g.set_label('Center of norm. dist.')
-        a.legend(loc=2)
-
-        a.set_ylabel('Particle diameter (nm)')
-        a.set_xlabel('Altitude (m)')
-
-        if amp:
-            a2 = a.twinx()
-            self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
-            g = a2.get_lines()[-1]
-            g.set_label('Amplitude of norm. dist.')
-            a2.legend()
-            a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
-        else:
-            a2 = False
-        return f, a, a2
+    # def plot_fitres(self, amp=True, rotate=True):
+    #     """ Plots the results from fit_normal
+    #
+    #     Arguments
+    #     ---------
+    #     amp: bool.
+    #         if the amplitude is to be plotted
+    #     """
+    #
+    #     f, a = plt.subplots()
+    #     a.fill_between(self.layercenters, self.data_fit_normal.Sigma_high, self.data_fit_normal.Sigma_low,
+    #                    color=plt_tools.color_cycle[0],
+    #                    alpha=0.5,
+    #                    )
+    #
+    #     self.data_fit_normal.Pos.plot(ax=a, color=plt_tools.color_cycle[0], linewidth=2)
+    #     g = a.get_lines()[-1]
+    #     g.set_label('Center of norm. dist.')
+    #     a.legend(loc=2)
+    #
+    #     a.set_ylabel('Particle diameter (nm)')
+    #     a.set_xlabel('Altitude (m)')
+    #
+    #     if amp:
+    #         a2 = a.twinx()
+    #         self.data_fit_normal.Amp.plot(ax=a2, color=plt_tools.color_cycle[1], linewidth=2)
+    #         g = a2.get_lines()[-1]
+    #         g.set_label('Amplitude of norm. dist.')
+    #         a2.legend()
+    #         a2.set_ylabel('Amplitude - %s' % (get_label(self.distributionType)))
+    #     else:
+    #         a2 = False
+    #     return f, a, a2
 
     def plot_angstromex_fit(self):
         if 'angstromexp_fit' not in dir(self):
             raise ValueError('Execute function calculate_angstromex first!')
 
-        f, a = plt.subplots()
+        f, a = _plt.subplots()
         a.plot(self.angstromexp_fit.index, self.angstromexp_fit.data, 'o', color=plt_tools.color_cycle[0],
                label='exp. data')
         a.plot(self.angstromexp_fit.index, self.angstromexp_fit.fit, color=plt_tools.color_cycle[1], label='fit',
@@ -2956,15 +3223,15 @@ class SizeDist_LS(SizeDist):
         a.set_xlabel('Wavelength (nm)')
         a.set_ylabel('AOD')
         a.loglog()
-        a.xaxis.set_minor_formatter(plt.FormatStrFormatter("%i"))
-        a.yaxis.set_minor_formatter(plt.FormatStrFormatter("%.2f"))
+        a.xaxis.set_minor_formatter(_plt.FormatStrFormatter("%i"))
+        a.yaxis.set_minor_formatter(_plt.FormatStrFormatter("%.2f"))
         return a
 
     def plot_angstromex_LS(self, corr_coeff=False, std=False):
         if 'angstromexp_fit' not in dir(self):
             raise ValueError('Execute function calculate_angstromex first!')
 
-        f, a = plt.subplots()
+        f, a = _plt.subplots()
         a.plot(self.angstromexp_LS.index, self.angstromexp_LS.ang_exp, color=plt_tools.color_cycle[0], linewidth=2,
                label='Angstrom exponent')
         a.set_xlabel('Altitude (m)')
@@ -2994,7 +3261,7 @@ class SizeDist_LS(SizeDist):
         """'2014-11-24 16:02:30'"""
         dist = self.copy()
         dist.data = dist.data.truncate(before=bottom, after=top)
-        where = _np.where(_np.logical_and(dist.layercenters < top, dist.layercenters > bottom))
+        where = _np.where(_np.logical_and(dist.layercenters <= top, dist.layercenters >= bottom))
         # dist.layercenters = dist.layercenters[where]
         dist.layerbounderies = dist.layerbounderies[where]
         if 'data_fit_normal' in dir(dist):
@@ -3063,7 +3330,7 @@ def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, center
     bins = _np.linspace(_np.log10(start), _np.log10(end), noOfD)
     binwidth = bins[1:] - bins[:-1]
     bincenters = (bins[1:] + bins[:-1]) / 2.
-    dNDlogDp = plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)
+    dNDlogDp = _plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)
     extraScale = 1
     scale = 1
     while 1:
@@ -3155,7 +3422,7 @@ def generate_aerosolLayer(diameter=[.01, 2.5], numberOfDiameters=30, centerOfAer
     bins = _np.linspace(_np.log10(start), _np.log10(end), noOfD)
     binwidth = bins[1:] - bins[:-1]
     bincenters = (bins[1:] + bins[:-1]) / 2.
-    dNDlogDp = plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)
+    dNDlogDp = _plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)
     extraScale = 1
     scale = 1
     while 1:
@@ -3194,12 +3461,12 @@ def test_generate_numberConcentration():
     nc = generate_aerosolLayer(diameter=[0.01, 10], centerOfAerosolMode=0.8, widthOfAerosolMode=0.3,
                                numberOfDiameters=100, numberOfParticsInMode=1000, layerBoundery=[0.0, 10000])
 
-    plt.plot(nc.bincenters, nc.data.values[0].transpose() * nc.binwidth, label='numberConc')
-    plt.plot(nc.bincenters, nc.data.values[0].transpose(), label='numberDist')
+    _plt.plot(nc.bincenters, nc.data.values[0].transpose() * nc.binwidth, label='numberConc')
+    _plt.plot(nc.bincenters, nc.data.values[0].transpose(), label='numberDist')
     ncLN = nc.convert2dNdlogDp()
-    plt.plot(ncLN.bincenters, ncLN.data.values[0].transpose(), label='LogNormal')
-    plt.legend()
-    plt.semilogx()
+    _plt.plot(ncLN.bincenters, ncLN.data.values[0].transpose(), label='LogNormal')
+    _plt.legend()
+    _plt.semilogx()
 
 
 

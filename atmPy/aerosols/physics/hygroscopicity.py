@@ -619,7 +619,6 @@ def calc_mixing_state(growth_modes):
     return ms
 
 
-#### try to make this work with changin gf
 def apply_growth2sizedist(sd, gf):
     def apply_growth_factor_gf_const(data, gf, bins):
         if gf == 1.:
@@ -749,7 +748,8 @@ def apply_growth2sizedist(sd, gf):
 
     if type(sd).__name__ == "SizeDist_LS":
         sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', sd.layerbounderies)
-
+    elif type(sd).__name__ == "SizeDist":
+        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration')
     else:
         sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', ignore_data_gap_error = True)
 

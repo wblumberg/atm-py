@@ -6,7 +6,9 @@ from .general import timeseries as _timeseries
 from atmPy.aerosols.instruments.miniSASP import _miniSASP
 from atmPy.general import vertical_profile as _vertical_profile
 from atmPy.aerosols.instruments.POPS import housekeeping as _pops_hk
-import warnings as _warnings
+import atmPy.aerosols.size_distribution.sizedistribution as _sizedistribution
+import xarray as _xr
+# import warnings as _warnings
 
 importable_types = {#########
                     ### Time series
@@ -19,7 +21,18 @@ importable_types = {#########
                     ### Vertical profiles
                     'VerticalProfile':      {'call': _vertical_profile.VerticalProfile, 'category': 'verticalprofile'}
                     }
-def netCDF(fname, data_type = None, error_unknown_type = True,verbose = False):
+
+def open_atmpy(fname):
+    sd = _xr.open_dataset(fname)
+    data_type = sd._atmPy.to_pandas().loc['type']
+    if data_type in ['SizeDist_LS', 'SizeDist_TS', 'SizeDist']:
+        out = _sizedistribution.open_netcdf(fname)
+    else:
+        raise ValueError('This file opener is not capable yet to open the data type {}. Try the other options!!'.format(data_type))
+
+    return out
+
+def open_netCDF(fname, data_type = None, error_unknown_type = True, verbose = False):
     """
 
     Parameters

@@ -414,7 +414,8 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
 
     min_good = window * min_good_ratio
     size = merged.data.shape[0]-window + 1
-    timestamps = _pd.TimeSeries(_pd.to_datetime(_pd.Series(_np.zeros(size))))
+    # timestamps = _pd.DataFrame(_pd.to_datetime(_pd.Series(_np.zeros(size))))
+    timestamps = _pd.to_datetime(_pd.Series(_np.zeros(size)))
     pear_r = _np.zeros(size)
     for i in range(size):
         secment = TimeSeries(merged.data.iloc[i:i+window,:])
