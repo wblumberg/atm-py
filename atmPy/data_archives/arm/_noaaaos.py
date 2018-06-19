@@ -351,8 +351,8 @@ class ArmDatasetSub(_ArmDataset):
                 raise IndexError(
                     "The indeces doe not seam to match, that should not be possible!")
 
-            bdf = self.back_scatt.data
-            sdf = self.scatt_coeff.data
+            bdf = self.back_scatt.data.copy()
+            sdf = self.scatt_coeff.data.copy()
 
             bk = [i.replace('Bbs_', '') for i in bdf.keys()]
             sk = [i.replace('Bs_', '') for i in sdf.keys()]
