@@ -7,6 +7,8 @@ from atmPy.tools import plt_tools as _plt_tools
 import scipy.odr as _odr
 import warnings as _warnings
 
+_colors = _plt.rcParams['axes.prop_cycle'].by_key()['color']
+
 def find_closest(array, value, how = 'closest'):
     """Finds the element of an array which is the closest to a given number and returns its index
 
@@ -120,7 +122,11 @@ def weighted_quantile(values, quantiles, sample_weight=None, values_sorted=False
     return _np.interp(quantiles, weighted_quantiles, values)
 
 class Correlation(object):
-    def __init__(self, data, correlant, remove_zeros = True, index = False, odr_function = 'linear', sx = 1, sy = 1):
+    def __init__(self, data, correlant, remove_zeros = True, index = False, odr_function = 'linear',
+                 # sx = 1, sy = 1,
+                 weights = 'scaled',
+                 poly_order = 1
+                 ):
         """This object is for testing correlation in two two data sets.
 
         Parameters
@@ -131,9 +137,22 @@ class Correlation(object):
             If zeros ought to be deleted. Datasets often contain zeros that are the
             result of invalid data. If there is the danger that this introduces a
             bias set it to False
-
         odr_function: string
             currently 'linear' only (odr only)
+        weights: 'str' ([scaled], constant)
+            odr only!
+            scaled: the weights will scale with the x-data. Since we usually assume uncertainties to be relative to
+                    the data rather then absolute this is the standard setting
+            constant:   bsically this means not weighted ... in principle you could apply different for x and y ... not
+                        implemented yet
+        poly_order: int [1]
+            odr only
+            for the orthogonal distance regression (odr) the polynomial function is used. poly_order gives the order of
+            the polynomial. Default is 1 which results in a linear regression.
+
+
+        Deprecated
+        ----------
         sx, sy: float
             covarience estimates (odr only)"""
 
@@ -170,10 +189,14 @@ class Correlation(object):
 
         self._data = data
         self._correlant = correlant
+        self._maxvalue = max([data.max(),correlant.max()])
+        self._minvalue = min([data.min(), correlant.min()])
         self._index = index
         self.odr_function = odr_function
-        self.sy = sy
-        self.sx = sx
+        self.weights = weights
+        self.poly_order = poly_order
+        # self.sy = sy
+        # self.sx = sx
 
         self._x_label_correlation = 'Data'
         self._y_label_correlation = 'Correlant'
@@ -217,19 +240,30 @@ class Correlation(object):
     @property
     def orthogonla_distance_regression(self):
         if not self.__orthogonal_distance_regression:
-            mydata = _odr.Data(self._data, self._correlant, wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            if self.weights == 'scaled':
+                std = 0.1
+                mydata = _odr.RealData(self._data, self._correlant, sx=self._data * std,
+                                         sy=self._correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            elif self.weights == 'constant':
+                mydata = _odr.Data(self._data, self._correlant, wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            else:
+                raise ValueError('weights has to be scalar or constant')
             if self.odr_function!= 'linear':
                 raise('only "linear" allowed at this point, programming required!')
-            myodr = _odr.ODR(mydata, _odr.unilinear, beta0=[0.2, 2])
+            model = _odr.polynomial(self.poly_order)
+            myodr = _odr.ODR(mydata, model)
             myoutput = myodr.run()
             self.__orthogonal_distance_regression = {'model': myodr,
                                                      'output': myoutput,
-                                                     'function': lambda x: _odr.unilinear.fcn(myoutput.beta, x)}
+                                                     'function': _np.polynomial.Polynomial(myoutput.beta)
+#lambda x: _odr.unilinear.fcn(myoutput.beta, x)
+                                                     }
         return self.__orthogonal_distance_regression
 
-    def plot_regression(self, reg_type = 'simple',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
-                        ylim=None, colorbar=False, ax=None, aspect='auto',
+    def plot_regression(self, reg_type = 'odr',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
+                        ylim=None, colorbar=False, ax=None, aspect='equal',
                         fit_res_kwargs = {},
+                        show_slope_1 = True,
                         # 'pos':(0.1, 0.9),
                         #                   'show_params': ['r','r2','p','m', 'c', 's']
                         #                   },
@@ -250,6 +284,8 @@ class Correlation(object):
             adjusts the gridsize so hexagons are not getting streched
         ylim: int or float
             as xlim just for y-axis
+        show_slope_1: bool [True]
+            if the 1:1 line is to be shown
         p_value: bool
             if the p-value is given in the text box
         colorbar: bool
@@ -274,6 +310,8 @@ class Correlation(object):
 
         if aspect == 'auto':
             ratio = 14 / 20  # at this ratio hexagons look symmetric at the particular setting
+        elif aspect == 'equal':
+            pass
         else:
             ratio = aspect * 20 / 14
 
@@ -281,8 +319,9 @@ class Correlation(object):
         a.set_ylabel(self._y_label_correlation)
 
         if cm == 'auto':
-            cm = _plt.cm.copper_r
-            cm.set_under('w')
+            cm = _plt.cm.gnuplot
+            cm.set_under([1,1,1,0])
+            hexbin_kwargs['cmap'] = cm
 
 
         if xlim:
@@ -295,11 +334,14 @@ class Correlation(object):
             elif type(xlim).__name__ == 'tuple''':
                 xmax = xlim[1]
                 xmin = xlim[0]
-
-            xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
-            gridsize_x = int(gridsize * xratio)
         else:
-            gridsize_x = gridsize
+            xmax = self._maxvalue
+            xmin = self._minvalue
+
+        xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
+        gridsize_x = int(gridsize * xratio)
+        # else:
+        #     gridsize_x = gridsize
 
         if ylim:
             if type(ylim).__name__ in ['int', 'float']:
@@ -311,11 +353,14 @@ class Correlation(object):
             elif type(ylim).__name__ == 'tuple''':
                 ymax = ylim[1]
                 ymin = ylim[0]
-            xratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
-            gridsize_y = int(gridsize * xratio)
         else:
-            if type(gridsize) != tuple:
-                gridsize_y = int(gridsize * ratio)
+            ymax = self._maxvalue
+            ymin = self._minvalue
+        yratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
+        gridsize_y = int(gridsize * yratio)
+        # else:
+        #     if type(gridsize) != tuple:
+        #         gridsize_y = int(gridsize * ratio)
 
         if type(gridsize) == tuple:
             gridsize_new = gridsize
@@ -325,18 +370,15 @@ class Correlation(object):
         # import pdb
         # pdb.set_trace()
         hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, **hexbin_kwargs)
-
-        if xlim:
-            a.set_xlim(xlim)
-        if ylim:
-            a.set_ylim(ylim)
+        hb.set_clim(0.01) # this is so every empty bin results to get the color defined in cm.set_under() -> transparent
 
         if colorbar:
             f.colorbar(hb, ax=a)
             #         linreg_func = lambda x: x * linreg.slope + linreg.intercept
         # data.min()
 
-
+        if 'color' not in plot_kwargs.keys():
+            plot_kwargs['color'] =  _colors[2]
         if 'simple' in reg_type:
             x_reg_func = _np.array([self._data.min(), self._data.max()])
             if zero_intersect:
@@ -353,14 +395,14 @@ class Correlation(object):
             a.plot(x_reg_func, y_reg_func, **plot_kwargs)
 
         if 'odr' in reg_type:
-            x_reg_func = _np.array([self._data.min(), self._data.max()])
+            x_reg_func = self._data #_np.array([self._data.min(), self._data.max()])
             y_reg_func = self.orthogonla_distance_regression['function'](x_reg_func)
-            slope = self.orthogonla_distance_regression['output'].beta[0]
-            intersect = self.orthogonla_distance_regression['output'].beta[1]
+            slope = self.orthogonla_distance_regression['output'].beta[1]
+            intersect = self.orthogonla_distance_regression['output'].beta[0]
             std = _np.sqrt(self.orthogonla_distance_regression['output'].res_var)
-            a.plot(x_reg_func, y_reg_func, **plot_kwargs)
-            a.set_xlim((self._data.min(), self._data.max()))
-            a.set_ylim((self._correlant.min(), self._correlant.max()))
+            a.plot(x_reg_func, y_reg_func, label = 'odr fit', **plot_kwargs)
+            # a.set_xlim((self._data.min(), self._data.max()))
+            # a.set_ylim((self._correlant.min(), self._correlant.max()))
 
         # color = _plt_tools.color_cycle[2]
 
@@ -418,10 +460,28 @@ class Correlation(object):
             pos = fit_res_kwargs['pos']
             a.text(pos[0], pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
 
-        if aspect != 'auto':
+        if xlim:
+            a.set_xlim(xlim)
+        else:
+            a.set_xlim(self._minvalue, self._maxvalue)
+
+        if ylim:
+            a.set_ylim(ylim)
+        else:
+            a.set_ylim(self._minvalue, self._maxvalue)
+
+        if show_slope_1:
+            a.plot([self._minvalue, self._maxvalue], [self._minvalue, self._maxvalue], ls='--', color = _colors[1], label = '1:1')
+
+        if aspect == 'auto':
+            pass
+        elif aspect == 'equal':
+            a.set_aspect('equal')
+        else:
             x0, x1 = a.get_xlim()
             y0, y1 = a.get_ylim()
             a.set_aspect(aspect * (abs(x1 - x0) / abs(y1 - y0)))
+        a.legend()
         return a, hb
 
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
@@ -614,3 +674,38 @@ class Correlation(object):
         a1 = self.plot_regression(reg_type = reg_type, zero_intersect = zero_intersect, gridsize=gridsize, cm = cm, xlim = xlim, ylim = ylim, ax = a_corr, **corr_kwargs)
         a2,a3 = self.plot_original_data(ax = a_orig, **orig_kwargs)
         return a1, a2, a3
+
+
+    def plot_residual(self, gridsize = 100, norm = 'relative', ax = False):
+        """Plots the residual from the odr!!! odr only!!
+
+        Parameters
+        ----------
+        gridsize: int
+        norm: str ([relative], absolute)
+            if the residual is to be normalized to the data -> relative deviation ... or not
+        ax: axes instance to plot on
+
+        Returns
+        -------
+        matplotlib.axes._subplots.AxesSubplot
+        matplotlib.collections.PolyCollection
+        """
+        if not ax:
+            f,a = _plt.subplots()
+        else:
+            a = ax
+            f = ax.get_figure()
+
+        cm = _plt.cm.gnuplot
+        cm.set_under([1, 1, 1, 0])
+        if norm == 'relative':
+            scale = self._data
+        elif norm == 'absolute':
+            scale = 1
+        else:
+            raise ValueError('norm has to be absolute or relative')
+        pc = a.hexbin(self._data, self.orthogonla_distance_regression['output'].delta / scale, gridsize=gridsize)
+        pc.set_clim(0.01)
+        pc.set_cmap(cm)
+        return a,pc

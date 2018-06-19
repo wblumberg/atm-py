@@ -1546,9 +1546,9 @@ class TimeSeries(object):
 
                 did_plot = True
 
-            if did_plot:
-                if autofmt_xdate:
-                    f.autofmt_xdate()
+            # if did_plot:
+            #     if autofmt_xdate:
+            #         f.autofmt_xdate()
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)

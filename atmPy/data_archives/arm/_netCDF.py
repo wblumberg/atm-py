@@ -258,6 +258,7 @@ class ArmDataset(object):
     def __init__(self, fname, data_quality = 'good', data_quality_flag_max = None, error_bad_file = True):
         # self._data_period = None
         self._error_bad_file = error_bad_file
+        self._fname = fname
         if fname:
             self.netCDF = Dataset(fname)
             self.data_quality_flag_max = data_quality_flag_max
@@ -359,7 +360,10 @@ class ArmDataset(object):
         Examples
         --------
         self.temp = self.read_variable(ti"""
-        var = self.netCDF.variables[variable]
+        try:
+            var = self.netCDF.variables[variable]
+        except:
+            var = self.netCDF.variables[variable]
         data = var[:]
 
         variable_qc = "qc_" + variable
@@ -395,7 +399,10 @@ class ArmDataset(object):
         # else:
             # print('no quality flag found')
         if type(data).__name__ == 'MaskedArray':
-            data.data[data.mask] = np.nan
+            try:
+                data.data[data.mask] = np.nan
+            except:
+                data.data[data.mask] = np.nan
             data = data.data
         # data.availability = availability
         # data.availability_type = availability_type
