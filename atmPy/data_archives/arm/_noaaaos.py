@@ -92,20 +92,26 @@ def read_noaaaos(fname, in_time_window = None, keep_xr_dataset = False, verbose 
     psap_abs_1um = []
     psap_abs_10um = []
 
+    found_one_in_window = False
     for fn in fname:
         if verbose:
             print('reading: {}'.format(fn))
         if in_time_window:
             if not _tools.is_in_time_window(fn, in_time_window, verbose = verbose):
                 continue
+            else:
+                found_one_in_window = True
         ds = _xr.open_dataset(fn)
+        version = ds.attrs['zeb_platform']
+
         sc1, sc10 = get_scatt_coeff(ds)
         neph_scatt_coeff_1um.append(sc1)
         neph_scatt_coeff_10um.append(sc10)
 
-        sc1, sc10 = get_scatt_coeff_variability(ds)
-        neph_scatt_coeff_1um_std.append(sc1)
-        neph_scatt_coeff_10um_std.append(sc10)
+        if version in []:
+            sc1, sc10 = get_scatt_coeff_variability(ds)
+            neph_scatt_coeff_1um_std.append(sc1)
+            neph_scatt_coeff_10um_std.append(sc10)
 
         sc1, sc10 = get_hembackscatt(ds)
         neph_back_scatt_coeff_1um.append(sc1)
@@ -119,10 +125,15 @@ def read_noaaaos(fname, in_time_window = None, keep_xr_dataset = False, verbose 
         df['565 nm'] = ds.Ba_G_Dry_10um_PSAP1W_1.to_pandas()
         psap_abs_10um.append(df)
 
+    if in_time_window and not found_one_in_window:
+        raise KeyError('No file found in defind time window (in_time_window = {})'.format(in_time_window))
+
     noaaaos.nephelometer_1um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um).sort_index())
     noaaaos.nephelometer_10um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um).sort_index())
-    noaaaos.nephelometer_1um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um_std).sort_index())
-    noaaaos.nephelometer_10um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um_std).sort_index())
+
+    if version in []:
+        noaaaos.nephelometer_1um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um_std).sort_index())
+        noaaaos.nephelometer_10um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um_std).sort_index())
 
     noaaaos.nephelometer_1um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_1um).sort_index())
     noaaaos.nephelometer_10um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_10um).sort_index())
