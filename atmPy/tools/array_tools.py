@@ -323,41 +323,43 @@ class Correlation(object):
             cm.set_under([1,1,1,0])
             hexbin_kwargs['cmap'] = cm
 
-
-        if xlim:
-            if type(xlim).__name__ in ['int', 'float']:
-                # xratio = self._data.max() / xlim
-                # gridsize_x = int(gridsize * xratio)
-                xmax = xlim
-                xmin = self._data.min()
-                xlim = (xmin, xmax)
-            elif type(xlim).__name__ == 'tuple''':
-                xmax = xlim[1]
-                xmin = xlim[0]
+        if type(gridsize) == tuple:
+            gridsize_x, gridsize_y = gridsize
         else:
-            xmax = self._maxvalue
-            xmin = self._minvalue
+            if xlim:
+                if type(xlim).__name__ in ['int', 'float']:
+                    # xratio = self._data.max() / xlim
+                    # gridsize_x = int(gridsize * xratio)
+                    xmax = xlim
+                    xmin = self._data.min()
+                    xlim = (xmin, xmax)
+                elif type(xlim).__name__ == 'tuple''':
+                    xmax = xlim[1]
+                    xmin = xlim[0]
+            else:
+                xmax = self._maxvalue
+                xmin = self._minvalue
 
-        xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
-        gridsize_x = int(gridsize * xratio)
-        # else:
-        #     gridsize_x = gridsize
+            xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
+            gridsize_x = int(gridsize * xratio)
+            # else:
+            #     gridsize_x = gridsize
 
-        if ylim:
-            if type(ylim).__name__ in ['int', 'float']:
-                # yratio = self._correlant.max() / ylim
-                # gridsize_y = int(ratio * gridsize * yratio)
-                ymax = ylim
-                ymin = self._correlant.min()
-                ylim = (ymin, ymax)
-            elif type(ylim).__name__ == 'tuple''':
-                ymax = ylim[1]
-                ymin = ylim[0]
-        else:
-            ymax = self._maxvalue
-            ymin = self._minvalue
-        yratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
-        gridsize_y = int(gridsize * yratio)
+            if ylim:
+                if type(ylim).__name__ in ['int', 'float']:
+                    # yratio = self._correlant.max() / ylim
+                    # gridsize_y = int(ratio * gridsize * yratio)
+                    ymax = ylim
+                    ymin = self._correlant.min()
+                    ylim = (ymin, ymax)
+                elif type(ylim).__name__ == 'tuple''':
+                    ymax = ylim[1]
+                    ymin = ylim[0]
+            else:
+                ymax = self._maxvalue
+                ymin = self._minvalue
+            yratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
+            gridsize_y = int(gridsize * yratio)
         # else:
         #     if type(gridsize) != tuple:
         #         gridsize_y = int(gridsize * ratio)
