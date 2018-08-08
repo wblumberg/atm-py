@@ -65,23 +65,44 @@ def detect_gaps(ts, toleranz=1.95, return_all=False):
     else:
         return noofgaps
 
-def fill_gaps_with(ts, what=0, toleranz=1.95):
+def fill_gaps_with(ts, what=0, toleranz=1.95, inplace = True):
     # if type(ts).__name__ == 'DataStructure':
     #     ts = ts.parent_ts
     gaps = ts.data_structure.detect_gaps(toleranz=toleranz, return_all=True)
     idx = gaps['index']
     # noofgaps = gaps['number of gaps']
     dt = gaps['dt']
-    period = gaps['period (s)']
-    print(type(toleranz),toleranz, type(period), period)
+    # period = gaps['period (s)']
+    period = ts._data_period
+    # print(type(toleranz),toleranz, type(period), period)
+    gap_data_list = [ts.data]
     for idxf, idxn, dtt in zip(idx[:-1][dt > toleranz * period], idx[1:][dt > toleranz * period],
                                dt[dt > toleranz * period]):
         no2add = int(round(((idxn - idxf) / _np.timedelta64(1, 's')) / period)) - 1
-        for i in range(no2add):
-            newidx = idxf + _np.timedelta64((i + 1) * period, 's')
-            ts.data.loc[newidx, :] = what
-    ts.data.sort_index(inplace=True)
-    return
+
+
+        # print(no2add)
+        newidx = _pd.to_datetime((_np.arange(no2add) + 1) * _np.timedelta64(period, 's') + idxf.to_datetime64())
+        dft = _pd.DataFrame(index=newidx, columns=ts.data.columns)
+        if what != _np.nan:
+            dft[:] = what
+        gap_data_list.append(dft)
+
+
+        # return ts, no2add, idxf, period, what
+        # for i in range(no2add):
+        #     newidx = idxf + _np.timedelta64((i + 1) * period, 's')
+        #     ts.data.loc[newidx, :] = what
+    new_data = _pd.concat(gap_data_list)
+    new_data.sort_index(inplace=True)
+    if inplace:
+        ts.data = new_data
+        # ts.data.sort_index(inplace=True)
+        return
+    else:
+        tst = ts.copy()
+        tst.data = new_data
+        return tst
 
 def estimate_sampling_period(ts, toleranz=1.95):
     gaps = ts.data_structure.detect_gaps(toleranz=toleranz, return_all=True)
