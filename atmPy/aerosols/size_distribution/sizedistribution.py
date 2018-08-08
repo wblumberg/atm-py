@@ -1284,7 +1284,10 @@ class SizeDist(object):
         return self._submicron_volume_ratio
 
     def reduce2temp_press_ambient(self, tmp_is = 'auto', tmp_is_column = 'Temperature_instrument', press_is_column = 'Pressure_Pa'):
-        """tmp in C
+        """This function corrects the particles concentrations to ambient conditions. This is necessary if the
+        temperature of the instrument is different then ambient. When the instrument is adjusting the flow to a constant
+        rate it will be at the instrument temperature not ambient -> correction required
+        tmp in C
         press in hPa"""
         dist = self.copy()
         if dist._is_reduced_to_pt:

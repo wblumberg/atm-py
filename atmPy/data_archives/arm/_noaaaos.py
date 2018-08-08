@@ -265,6 +265,8 @@ class ArmDatasetSub(_ArmDataset):
         self.__sup_kappa_sizedist = None
         self.__sup_kappa_wavelength = None
         self.__hygroscopicity = None
+        self.__hygroscopicity_red = None
+        self.__hygroscopicity_blue = None
 
 
 
@@ -439,6 +441,26 @@ class ArmDatasetSub(_ArmDataset):
                                                                                  self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
                                                                                  return_fits = False)
         return self.__hygroscopicity
+
+    @property
+    def hygroscopicity_10um_red(self):
+        if not self.__hygroscopicity_red:
+            self.__hygroscopicity_red = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_R_Dry_10um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_R_Wet_10um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits = False)
+        return self.__hygroscopicity_red
+
+    @property
+    def hygroscopicity_10um_blue(self):
+        if not self.__hygroscopicity_blue:
+            self.__hygroscopicity_blue = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_B_Dry_10um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_B_Wet_10um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits = False)
+        return self.__hygroscopicity_blue
 
     @property
     def hygroscopicity_1um(self):

@@ -1,3 +1,6 @@
+# This module was written under the assumption that the arm data is extremely uniform ... whell its not, so its bett
+# to write an opener for each separately
+#
 # from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
 from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1, _aipfitrh1ogrenC1

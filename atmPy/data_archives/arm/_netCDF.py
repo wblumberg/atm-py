@@ -401,7 +401,8 @@ class ArmDataset(object):
         if type(data).__name__ == 'MaskedArray':
             try:
                 data.data[data.mask] = np.nan
-            except:
+            except ValueError:
+                data = data.astype(float)
                 data.data[data.mask] = np.nan
             data = data.data
         # data.availability = availability
