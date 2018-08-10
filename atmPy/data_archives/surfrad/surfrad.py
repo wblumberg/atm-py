@@ -82,7 +82,7 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
             (lambda x: '{0:0>4}'.format(x)) + 'UTC'  # '+0000'
         df.index = _pd.to_datetime(datetimestr, format="%Y%m%d%H%M%Z")
         if UTC:
-            timezone = [l for l in locations if header['site'] in l['abbriviations']][0]['timezone']
+            timezone = [l for l in locations if header['site'] in l['name']][0]['timezone']
             df.index += _pd.to_timedelta(timezone, 'h')
             df.index.name = 'Time (UTC)'
         else:
@@ -98,7 +98,8 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
             print('\t{}'.format(fname), end=' ... ')
         header = _read_header(folder, fname)
         # make sure that all the headers are identical
-        assert (header_first == header)
+        if header_first['site'] != header['site']:
+            raise ValueError('The site name changed from {} to {}!'.format(header_first['site'], header['site']))
         data = read_data(folder, fname, UTC = UTC, header=header)
         data_list.append(data)
         if verbose:
