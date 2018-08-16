@@ -131,9 +131,14 @@ def close_gaps(ts, verbose = False):
     return ts
 
 
-def align_to(ts, ts_other, verbose= False):
-    """
-    Main change, timestamp at beginning!
+def align_to(ts, ts_other, how = 'linear_avg', tolerance = (5,'m'), verbose= False):
+    """Similar to merge but without having all columns together. Also the function is more sufisticated with respect
+    to up an downsampling (a rolling mean is used ... see how argument). Two different alignment methods are
+    distinguished (see how argument). One that interpolates and averages, which assumes the data to be interpolated
+    over the time periods. And that finds the closest value, which should be used if the the data is measured exactly
+    at the given Timestamp.
+
+
     Align the TimeSeries ts to another time_series by interpolating (linearly). If
     data periods differe by at least a factor of 2 a rolling mean is calculated
     with a window size equal to the ratio (if ratio is positive !!!).
@@ -147,6 +152,15 @@ def align_to(ts, ts_other, verbose= False):
     ----------
     ts: original time series
     ts_other: timeseries to align to
+    how: string ['linear_avg', 'find_closest']
+        linear_avg: Align the TimeSeries ts to another by interpolating (linearly). If data periods differe by at least
+            a factor of 2 a rolling mean is calculated with a window size equal to the ratio (if ratio is positive !!!).
+        find_closest: the closest index in the timestamp is used as long as it is within the tolerance (see tolerance
+            kwarg). This can be see as down sampling of a higher frequency data to a lower frequency data, by picking
+            the closest value rather then interpolating as done by the align function.
+    tolerance: tuple of value and unit
+        Ignored if how is not find_closest. This is the maximum time difference that is allowed when finding the closest
+        value. For details see pandas.Timedelta.
 
     Returns
     -------
@@ -163,37 +177,44 @@ def align_to(ts, ts_other, verbose= False):
             print('indeces are identical, returning original time series.')
         return ts
 
-    window = ts_other._data_period / ts._data_period
-    if window < 0.5:
-        _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
-                      'align the other time series with this one instead?'%window)
-    window = int(round(window))
+    if how == 'linear_avg':
+        window = ts_other._data_period / ts._data_period
+        if window < 0.5:
+            _warnings.warn('Time period of other time series is smaller (ratio: %s). You might want '
+                          'align the other time series with this one instead?'%window)
+        window = int(round(window))
 
-    if window > 2:
+        if window > 2:
+            if verbose:
+                print('Data period difference larger than a factor of 2 -> performing rolling mean')
+
+            roll = ts.data.rolling(window,
+                                   min_periods=1,
+                                   # center=True
+                                   )
+            dfrm = roll.mean()
+            dfrm = dfrm.shift( - window) # rolling puts the timestamp to the end of the window, this shifts it to the beginning of the window
+            tsrm = TimeSeries(_pd.DataFrame(dfrm))
+            # tsrm._data_period = ts._data_period
+        else:
+            if verbose:
+                print('Data period difference smaller than a factor of 2 -> do nothing')
+            tsrm = ts
+
+        ts_other.data = ts_other.data.loc[:,[]]
+        ts_other.data.columns.name = None # if this is not empty it will give an error
         if verbose:
-            print('Data period difference larger than a factor of 2 -> performing rolling mean')
+            print('performing merge with empty index of other time series')
+        ts_t =  merge(ts_other, tsrm, verbose = verbose)
+        tsrm.data = ts_t.data
 
-        roll = ts.data.rolling(window,
-                               min_periods=1,
-                               # center=True
-                               )
-        dfrm = roll.mean()
-        dfrm = dfrm.shift( - window) # rolling puts the timestamp to the end of the window, this shifts it to the beginning of the window
-        tsrm = TimeSeries(_pd.DataFrame(dfrm))
-        # tsrm._data_period = ts._data_period
-    else:
-        if verbose:
-            print('Data period difference smaller than a factor of 2 -> do nothing')
-        tsrm = ts
+        tsrm._data_period = ts_other._data_period
+    elif how == 'find_closest':
+        ts_other.data = ts_other.data.iloc[:,[]]
+        ts_other.data.columns.name = None
+        # ts.data.columns = ['dummy']
+        tsrm = merge(ts_other, ts, how = how, tolerance = tolerance)
 
-    ts_other.data = ts_other.data.loc[:,[]]
-    ts_other.data.columns.name = None # if this is not empty it will give an error
-    if verbose:
-        print('performing merge with empty index of other time series')
-    ts_t =  merge(ts_other, tsrm, verbose = verbose)
-    tsrm.data = ts_t.data
-
-    tsrm._data_period = ts_other._data_period
     if verbose:
         print('=====  alignment done ========')
         print('=================================')
@@ -267,9 +288,11 @@ def align_to_old(ts, ts_other, verbose= False):
     return tsrm
 
 
-def merge(ts, ts_other, recognize_gaps = True, verbose = False):
+def merge(ts, ts_other, how = 'interpolate_linear', tolerance = (5,'m'), recognize_gaps = True, verbose = False):
     """ Merges current with other timeseries. The returned timeseries has the same time-axes as the current
-    one (as opposed to the one merged into it). Missing or offset data points are linearly interpolated.
+    one (as opposed to the one merged into it).
+    There are two options on how the timeseries are merged. Either missing or offset data points are linearly
+    interpolated. Or the closest value is found in a certein tolerance (see how kewarg)
 
     Argument
     --------
@@ -277,9 +300,19 @@ def merge(ts, ts_other, recognize_gaps = True, verbose = False):
         will define the time stamps.
     ts_other: timeseries or one of its subclasses.
         List of TimeSeries objects.
+    how: str
+        interpolate_linear: missing or offset data is linearly interpolated. This can be seen as an upsampling of a
+            lower frequency data to a higher frequency data.
+        find_closest: the closest index in the timestamp is used as long as it is within the tolerance (see tolerance
+            kwarg). This can be see as down sampling of a higher frequency data to a lower frequency data, by picking
+            the closest value rather then interpolating as done by the align function.
+    tolerance: tuple of value and unit
+        Ignored if how is not find_closest. This is the maximum time difference that is allowed when finding the closest
+        value. For details see pandas.Timedelta.
     recognize_gaps: bool
-        If ts_other has data gaps (missing) setting recognize_gaps to True will result in an attempt to detect the gaps and fill them with nans.
-        False will lead to a linear interpolation of any type of gap (this includs streches of nan)
+        ignored if how is not interpolate_linear. If ts_other has data gaps (missing) setting recognize_gaps to True
+        will result in an attempt to detect the gaps and fill them with nans. False will lead to a linear interpolation
+        of any type of gap (this includs streches of nan)
 
     Returns
     -------
@@ -297,27 +330,35 @@ def merge(ts, ts_other, recognize_gaps = True, verbose = False):
         ts_this.data = _pd.concat([ts_this.data, ts_other.data], axis=1)
 
     else:
-        ts_data_list = [ts_this.data, ts_other.data]
-        if not recognize_gaps:
-            catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
-            merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
-            ts_this.data = merged
+        if how == 'interpolate_linear':
+            ts_data_list = [ts_this.data, ts_other.data]
+            if not recognize_gaps:
+                catsortinterp = _pd.concat(ts_data_list).sort_index().interpolate(method='index')
+                merged = catsortinterp.groupby(catsortinterp.index).mean().reindex(ts_data_list[0].index)
+                ts_this.data = merged
 
-            # ts_data_list = [data.data, correlant_nocol]
+                # ts_data_list = [data.data, correlant_nocol]
 
-        else:
-            catsort = _pd.concat(ts_data_list).sort_index()  # .interpolate(method='index')
+            else:
+                catsort = _pd.concat(ts_data_list).sort_index()  # .interpolate(method='index')
 
-            mask = catsort.copy()
-            grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
-            grp['ones'] = 1
-            for i in catsort.columns:
-                mask[i] = (grp.groupby(i)['ones'].transform('count') < 3) | catsort[i].notnull()
+                mask = catsort.copy()
+                grp = ((mask.notnull() != mask.shift().notnull()).cumsum())
+                grp['ones'] = 1
+                for i in catsort.columns:
+                    mask[i] = (grp.groupby(i)['ones'].transform('count') < 3) | catsort[i].notnull()
 
-            catsortinterp = catsort.interpolate(method='index')
-            catsortinterpmasked = catsortinterp[mask]
+                catsortinterp = catsort.interpolate(method='index')
+                catsortinterpmasked = catsortinterp[mask]
 
-            merged = catsortinterpmasked.groupby(catsortinterpmasked.index).mean().reindex(ts_data_list[0].index)
+                merged = catsortinterpmasked.groupby(catsortinterpmasked.index).mean().reindex(ts_data_list[0].index)
+                ts_this.data = merged
+        elif how == 'find_closest':
+            merged = _pd.merge_asof(ts_this.data, ts_other.data, left_index=True, right_index=True,
+                                   tolerance=_pd.Timedelta(*tolerance),
+                                   #               on = 500, right_on=498.6,
+                                   direction='nearest'
+                                   )
             ts_this.data = merged
 
     if verbose:
@@ -335,7 +376,9 @@ def concat(ts_list):
     return ts
 
 
-def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True, data_lim = None, correlant_lim = None):
+def correlate(data, correlant, data_column = False, correlant_column = False, remove_zeros=True, data_lim = None,
+              correlant_lim = None,
+              align_timeseries = True):
     """Correlates data in correlant to that in data. In the process the data in correlant
     will be aligned to that in data. Make sure that data has the lower period (less data per period of time).
 
@@ -365,7 +408,11 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
     else:
         data_values = data.data.iloc[:,0].values
 
-    correlant_aligned = correlant.align_to(data)
+    if align_timeseries:
+        correlant_aligned = correlant.align_to(data)
+    else:
+        correlant_aligned = correlant
+
     if correlant_column:
         correlant_values = correlant_aligned.data[correlant_column].values
     elif correlant.data.shape[1] > 1:
@@ -393,8 +440,9 @@ def correlate(data,correlant, data_column = False, correlant_column = False, rem
     out._x_label_orig = 'DataTime'
     return out
 
-def rolling_correlation(data, correlant, window, data_column = False, correlant_column = False,  min_good_ratio = 0.67, verbose = True):
-    "time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"
+def rolling_correlation_old(data, correlant, window, data_column = False, correlant_column = False,  min_good_ratio = 0.67, verbose = True):
+    """This is an old version ... better use rolling(...).corr(...)
+    time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"""
 
     if correlant_column:
         correlant = correlant._del_all_columns_but(correlant_column)
@@ -433,6 +481,110 @@ def rolling_correlation(data, correlant, window, data_column = False, correlant_
     pear_r_ts._data_period = merged._data_period
     pear_r_ts._y_label = 'r'
     return pear_r_ts
+
+
+def correlate_rolling(ts_data, ts_correlant,
+                         data_column=500,
+                         correlant_column=500,
+                         window=(30, 'D'),
+                         steps=30,
+                         minvalidvalues=400,
+                         what_to_calc=['r', 'odr'],
+                         ):
+    """As long as pandas still has problems to make a rolling correlation with a sliding time-window I came up with
+    this. Rolling correlation of two timeseries.
+
+    Parameters
+    ----------
+    ts_data: TimeSeries
+    ts_correlant: TimeSeries
+    data_column: str
+        name of column in the first Timeseries to use in correlation.
+    correlant_column: str
+        name of column in the second Timeseries to use in correlation.
+    window: tuple
+        Value, unit
+    steps: int
+        To increase resolution: how many Timestamps within one window
+    minvalidvalues: int
+        When number of not-nan datapoints in window is below this value nan is returned
+    what_to_calc: list of str
+        r: Pearson r
+        odr: results from a orthogonal distance regression
+
+    Returns
+    -------
+    TimeSeries
+    """
+
+
+    # translate dictionary for frequency and date units
+    freq2time = {'H': 'h',
+                 'D': 'D'}
+
+    # make one dataframe from the two inputs
+    df = _pd.DataFrame()
+    df['data'] = ts_data.data.loc[:, data_column]
+    df['correlant'] = ts_correlant.data.loc[:, correlant_column]
+
+    # dropna because we want only to count valid datapoints
+    df.dropna(inplace=True)
+
+    # the function that is applied
+
+    def fct(df):
+        if df.size < minvalidvalues:
+            return _np.nan
+        else:
+            return df.corr().values[0, 1]
+
+    def get_odr(df):
+        """function to retrieve orthogonal distance regression results"""
+        if df.size < minvalidvalues:
+            return _pd.Series((_np.nan, _np.nan), index=['c', 'm'])
+        else:
+            ts = TimeSeries(df)
+            corr = ts.correlate_to(ts, data_column='data', correlant_column='correlant')
+            odrout = corr.orthogonla_distance_regression['output']
+            return _pd.Series(odrout.beta, index=['c', 'm'])
+
+    df_list = []
+    for e in range(steps):
+        freq = '{}{}'.format(-1 * e * window[0] / (steps), window[1])
+        dft = df.shift(freq=freq)
+
+        # add a fixed value at window width below start of df to make the grouping is always at the same start
+        dft.loc[df.index[0] - _pd.Timedelta(window[0], freq2time[window[1]])] = _np.nan
+        dft.sort_index(inplace=True)
+
+        # group and apply
+        group = dft.groupby(_pd.Grouper(freq=window,
+                                       label='left',
+                                       ))
+        out = group.apply(fct)
+
+        dfout = _pd.DataFrame(out, columns=['r'])
+        dfout_list = [dfout]
+        if 'odr' in what_to_calc:
+            dfout = group.apply(get_odr)
+            dfout_list.append(dfout)
+
+        dfout = _pd.concat(dfout_list, axis=1)
+        # move label to center
+        dfout.index += _pd.Timedelta(window[0] / 2, freq2time[window[1]])
+
+        # adjust the time stamp according to the shift we applied
+        freq = '{}{}'.format(e * window[0] / (steps), window[1])
+        dfout = dfout.shift(freq=freq)
+
+        df_list.append(dfout)
+
+    # concat and sort the list of results to single dataframe
+    out = _pd.concat(df_list)
+    out.sort_index(inplace=True)
+    out = TimeSeries(out)
+
+    return out
 
 
 def add_time_of_interest2axes(ax, times_of_interest):
@@ -563,42 +715,63 @@ def corr_timelag(ts, other, dt=(5, 'm'), no_of_steps=10, center=0, direction=Non
     return out
 
 class Rolling(_pd.core.window.Rolling):
-    def __init__(self, obj, window, min_good_ratio=0.67,
-                 verbose=True,center = True,
+    def __init__(self, ts, window, min_valid_data_pts = None, min_good_ratio=None,
+                 verbose=True, center = True, use_old= False,
                  **kwargs):
-        self.data = obj
-        window = _np.timedelta64(window[0], window[1])
-        window = int(window / _np.timedelta64(int(obj._data_period), 's'))
-        min_periods = int(window * min_good_ratio)
-        if obj.data.columns.shape[0] == 1:
-            self._data_column = obj.data.columns[0]
+        """I wrote this because it was originally not included in pandas for time_windows. However, some of the
+        functions below are now available in pandas and i updated the functions to use the pandas versions. The old
+        functions should still be available though the argument use_old. For more documentation see also the doc string
+        of pd.Dataframe.rolling().
+        """
+        if min_good_ratio and not use_old:
+            raise ValueError('min_good_ration only works in combination with use_old, set min_valid_data_pts instead')
+        elif min_valid_data_pts and use_old:
+            raise ValueError('min_valid_data_pts only works if use_old is False, set min_good_ration instead.')
+
+        self._use_old = use_old
+        self.ts = ts
+        if ts.data.columns.shape[0] == 1:
+            self._data_column = ts.data.columns[0]
         else:
             txt = 'please make sure the timeseries has only one collumn'
             raise ValueError(txt)
 
-        if verbose:
-            print('Each window contains %s data points of which at least %s are not nan.' % (window,
-                                                                                             min_periods))
-        super().__init__(obj.data[self._data_column],
-                         window,
-                         min_periods=min_periods,
-                         center = center,
-                         **kwargs)
+        if self._use_old:
+            window = _np.timedelta64(window[0], window[1])
+            window = int(window / _np.timedelta64(int(ts._data_period), 's'))
+            min_periods = int(window * min_good_ratio)
 
-    #         print(self.window)
+
+            if verbose:
+                print('Each window contains %s data points of which at least %s are not nan.' % (window,
+                                                                                                 min_periods))
+            super().__init__(ts.data[self._data_column],
+                             window,
+                             min_periods=min_periods,
+                             center = center,
+                             **kwargs)
+        else:
+            super().__init__(ts.data[self._data_column],
+                             _pd.to_timedelta(window[0], window[1]),
+                             min_periods=min_valid_data_pts,
+                             # center=center,
+                             **kwargs)
 
     def corr(self, other, *args, **kwargs):
+        raise AttributeError('Sorry this function is currently not working')
         if other.data.columns.shape[0] == 1:
             other_column = other.data.columns[0]
         else:
             txt = 'please make sure the timeseries has only one collumn'
             raise ValueError(txt)
         # other_column = 'Bs_G_Dry_1um_Neph3W_1'
-        other = other.align_to(self.data)
+        if self._use_old:
+            other = other.align_to(self.ts)
+
         other = other.data[other_column]
         corr_res = super().corr(other, *args, **kwargs)
         corr_res_ts = TimeSeries(_pd.DataFrame(corr_res))
-        corr_res_ts._data_period = self.data._data_period
+        corr_res_ts._data_period = self.ts._data_period
         return corr_res_ts
 
     def corr_timelag(self, other, dt=(5, 'm'), no_of_steps=10, center=0, direction = None, normalize=True, **kwargs):
@@ -688,139 +861,6 @@ class Rolling(_pd.core.window.Rolling):
             ylt = dt[1]
         dt_max._y_label = 'Time lag (%s)' % ylt
         return out, dt_max
-
-
-class Rolling_old(object):
-    # def __init__(self, data):
-    #     self.data = data
-
-    def __init__(self, data, correlant, window, data_column=False,
-                 correlant_column=False, min_good_ratio=0.67, verbose=True):
-        "time as here: http://docs.scipy.org/doc/numpy/reference/arrays.datetime.html#datetime-units"
-
-        if correlant_column:
-            correlant = correlant._del_all_columns_but(correlant_column)
-
-        if data_column:
-            data = data._del_all_columns_but(data_column)
-
-
-        correlant = correlant.align_to(data)  # I do align before merge, because it is more suffisticated!
-        merged = data.copy()
-        merged.data.columns = ['data']
-        merged.data['correlant'] = correlant.data
-
-        #         self.data = data
-        #         self.correlant = correlant
-        self._merged = merged
-        self._data_column = data_column
-        self._correlant_column = correlant_column
-        self._min_good_ratio = min_good_ratio
-        self._verbose = verbose
-        self._data_period = _np.timedelta64(int(merged._data_period), 's')
-        window = _np.timedelta64(window[0], window[1])
-        self._window = int(window / self._data_period)
-        if verbose:
-            print('Each window contains %s data points of which at least %s are not nan.' % (self._window,
-                                                                                             int(self._window * min_good_ratio)))
-        self._min_good = self._window * min_good_ratio
-        self._size = merged.data.shape[0] - self._window + 1
-        self._timestamps = _pd.TimeSeries(_pd.to_datetime(_pd.Series(_np.zeros(self._size))))
-        # self.dt_min = dt_min
-        # self.center = center
-        # self.no_of_steps = no_of_steps
-
-    def correlation(self):
-        # self._prepare(correlant, window, data_column=data_column, correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
-        out = self._loop_over_segments_and_apply_funk('correlation')
-        out._y_label = 'r'
-        return out
-
-    def timelaps_correlation(self,
-                             # correlant, window,
-                             dt_min=10, center=0,
-                             no_of_steps=10,
-                             # data_column=False, correlant_column=False,
-                             # min_good_ratio=0.67, verbose=True
-                             # output_dimentions = 1
-                             ):
-        # """"""
-        # self._prepare(correlant, window, data_column=data_column, dt_min=dt_min, center=center,
-        #               no_of_steps=no_of_steps,
-        #               correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
-        self.dt_min = dt_min
-        self.center = center
-        self.no_of_steps = no_of_steps
-        out = self._loop_over_segments_and_apply_funk('timelaps_correlation')
-
-        return out
-
-    def _timelap_correlation(self, secment):
-        corcoeffs = _np.zeros((self.no_of_steps))
-        dataVcorr_mean = _np.zeros((self.no_of_steps))
-        dataVcorr_std = _np.zeros((self.no_of_steps))
-        for e, i in enumerate(self.timelaps_shifts):
-            datatmp = secment._del_all_columns_but('data')
-            datatmp.data.index += _pd.Timedelta('%s minutes' % i)
-            out = datatmp.correlate_to(secment._del_all_columns_but('correlant'))
-            corcoeffs[e] = out.pearson_r[0]
-            dataVcorr_mean[e] = (out._data / out._correlant).mean()
-            dataVcorr_std[e] = (out._data / out._correlant).std()
-        time_at_max = self.timelaps_shifts[corcoeffs.argmax()]
-        # corframe = _pd.DataFrame(corcoeffs, index = dt_array)
-        # corframe = corcoeffs
-        out = {'time_at_max': time_at_max,
-               'time_lapse_corr': corcoeffs / corcoeffs.max()}
-        return out
-
-    def _loop_over_segments_and_apply_funk(self, what):
-        out = _np.zeros(self._size)
-        out[:] = _np.nan
-        if what == 'correlation':
-            colname = 'pearson_r'
-        elif what == 'timelaps_correlation':
-            colname = 'dt at max correlations'
-            time_lapse_corr = _np.zeros((self._size, self.no_of_steps))
-            time_lapse_corr[:] = _np.nan
-            start_dt = (- int(self.no_of_steps / 2) + self.center) * self.dt_min
-            end_dt = (int(self.no_of_steps / 2) + self.center) * self.dt_min
-            dt_array = _np.linspace(start_dt, end_dt, self.no_of_steps)
-            self.timelaps_shifts = dt_array
-        else:
-            corname = 'blablabla'
-        for i in range(self._size):
-            secment = TimeSeries(self._merged.data.iloc[i:i + self._window, :])
-            secment._data_period = self._merged._data_period
-            #     print(secment.data.dropna().shape[0] < min_good)
-            if secment.data.dropna().shape[0] < self._min_good:
-                pass
-            else:
-                if what == 'correlation':
-                    corr = secment.correlate_to(secment, data_column=self._merged.data.columns[0],
-                                                correlant_column=self._merged.data.columns[1])
-                    out[i] = corr.pearson_r[0]
-                if what == 'timelaps_correlation':
-                    tlc = self._timelap_correlation(secment)
-                    out[i] = tlc['time_at_max']
-                    time_lapse_corr[i] = tlc['time_lapse_corr']
-
-            self._timestamps.iloc[i] = secment.data.index[0] + ((secment.data.index[-1] - secment.data.index[0]) / 2.)
-        # break
-
-        out_ts = TimeSeries(_pd.DataFrame(out, index=self._timestamps, columns=[colname]))
-        out_ts._y_label = colname
-        out_ts._data_period = self._merged._data_period
-        if what == 'timelaps_correlation':
-            time_lapse_corr_ts = TimeSeries_2D(_pd.DataFrame(time_lapse_corr, index = self._timestamps, columns=self.timelaps_shifts))
-            time_lapse_corr_ts._data_period = self._merged._data_period
-            time_lapse_corr_ts._y_label = 'Time shift (min.)'
-
-            # out = {'time_at_max': time_at_max_ts,
-            #        'time_lapse_corr': time_lapse_corr_ts}
-            return out_ts, time_lapse_corr_ts
-        else:
-            return out_ts
-
 
 class WrappedPlot(list):
     def __init__(self, axes_list):
@@ -1308,7 +1348,10 @@ class TimeSeries(object):
             keep = [keep]
 
         for k in keep:
-            all_keys.remove(k)
+            try:
+                all_keys.remove(k)
+            except ValueError:
+                pass
 
         ts.data = ts.data.drop(labels=all_keys, axis=1)
         if inplace:
@@ -1443,7 +1486,7 @@ class TimeSeries(object):
 
     corr_timelag = corr_timelag
 
-    rolling_correlation = rolling_correlation
+    correlate_rolling = correlate_rolling
 
     merge = merge
 
@@ -1451,15 +1494,25 @@ class TimeSeries(object):
 
     # rollingR = Rolling
 
-    def rolling(self, window, data_column=False,
-                 correlant_column=False, min_good_ratio=0.67, verbose=True):
-        return Rolling(self, window, data_column=data_column,
-                 correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+    def rolling(self, window,
+                # data_column=False,
+                #  correlant_column=False,
+                use_old=False,
+                min_valid_data_pts=None,
+                min_good_ratio=None,
+                verbose=True):
+        """This will hopefully work one day. Currently as of (2018-08) the rolling and then corr will create
+        unreasonable values, e.g. the result changes dramatically when with the length of the time series even if the
+        length exceeds the window width by alot. Pleas use the rolling correlation instead .... it might be possible to
+        bring that function into a similar structure as the rolling().corr() ... some time"""
 
-    def rolling_old(self, correlant, window, data_column=False,
-                correlant_column=False, min_good_ratio=0.67, verbose=True):
-        return Rolling_old(self, correlant, window, data_column=data_column,
-               correlant_column=correlant_column, min_good_ratio=min_good_ratio, verbose=verbose)
+        return Rolling(self, window,
+                       # data_column=data_column,
+                       # correlant_column=correlant_column,
+                       use_old=use_old,
+                       min_valid_data_pts=min_valid_data_pts,
+                       min_good_ratio=min_good_ratio,
+                       verbose=verbose)
 
     def remove_artefacts(self, which, sigma=1.5, window=3, verbose=False, inplace = False):
         """Removes artifacts by testing if the std is above a certain threshold"""
@@ -1546,9 +1599,9 @@ class TimeSeries(object):
 
                 did_plot = True
 
-            # if did_plot:
-            #     if autofmt_xdate:
-            #         f.autofmt_xdate()
+            if did_plot:
+                if autofmt_xdate:
+                    f.autofmt_xdate()
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
