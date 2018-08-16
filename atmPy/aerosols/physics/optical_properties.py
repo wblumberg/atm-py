@@ -155,6 +155,7 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
     out['mie_inst'] = mie
     return out
 
+
 def DEPRECATED_size_dist2optical_properties(sd, aod=False, noOfAngles=100):
     """
     !!!Tis Docstring need fixn
