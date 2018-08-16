@@ -2,7 +2,9 @@ import numpy as _np
 import pandas as _pd
 import os as _os
 from atmPy.general import timeseries as _timeseries
-from atmPy.general import measurement_site as _measurement_site
+from atmPy.aerosols.physics import column_optical_properties as _column_optical_properties
+# from atmPy.general import measurement_site as _measurement_site
+# from atmPy.radiation import solar as _solar
 
 locations = [{'name': 'Bondville',
               'state' :'IL',
@@ -10,7 +12,23 @@ locations = [{'name': 'Bondville',
               'lon': -88.37309,
               'lat': 40.05192,
               'alt' :230,
-              'timezone': 6}]
+              'timezone': -6}]
+
+_col_label_trans_dict = {'OD414': 414,
+                         'OD416': 414,
+                         'OD495': 500,
+                         'OD497': 500,
+                         'OD499': 500,
+                         'OD501': 500,
+                         'OD612': 614,
+                         'OD614': 614,
+                         'OD615': 614,
+                         'OD671': 673,
+                         'OD672': 673,
+                         'OD673': 673,
+                         'OD869': 867,
+                         'OD1623': 1622.9}
+
 
 def _path2files(path, site, window, perform_header_test, verbose):
     # folder or single file .... or list
@@ -83,10 +101,11 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
         df.index = _pd.to_datetime(datetimestr, format="%Y%m%d%H%M%Z")
         if UTC:
             timezone = [l for l in locations if header['site'] in l['name']][0]['timezone']
-            df.index += _pd.to_timedelta(timezone, 'h')
+            df.index += _pd.to_timedelta(-1 * timezone, 'h')
             df.index.name = 'Time (UTC)'
         else:
             df.index.name = 'Time (local)'
+        df.rename(columns=_col_label_trans_dict, inplace=True)
         return df
 
     if verbose:
@@ -106,8 +125,9 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
             print('done')
 
     # concatinate and sort Dataframes and create Timeseries instance
-    data = _pd.concat(data_list)
+    data = _pd.concat(data_list, sort=True)
     data[data == -999.0] = _np.nan
+    data[data == -9.999] = _np.nan
     data = _timeseries.TimeSeries(data, sampling_period=1 * 60)
     data.header = header_first
 
@@ -117,17 +137,70 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
         print('done')
     return data
 
-class Surfrad_AOD(object):
+class Surfrad_AOD(_column_optical_properties.AOD_AOT):
     pass
+#     def __init__(self, lat, lon, elevation = 0, name = None, name_short = None, timezone = 0):
+#         self._aot = None
+#         self._aot = None
+#         self._sunposition = None
+#         self._timezone = timezone
+#
+#         self.site = _measurement_site.Site(lat, lon, elevation, name=name, abbriviation=name_short)
+#
+#
+#     @property
+#     def sun_position(self):
+#         if not self._sunposition:
+#             if self._timezone != 0:
+#                 date = self.AOD.data.index +  _pd.to_timedelta(-1 * self._timezone, 'h')
+#             else:
+#                 date = self.AOD.data.index
+#             self._sunposition = _solar.get_sun_position(self.site.lat, self.site.lon, date)
+#             self._sunposition.index = self.AOD.data.index
+#             self._sunposition = _timeseries.TimeSeries(self._sunposition)
+#         return self._sunposition
+#
+#     @property
+#     def AOT(self):
+#         if not self._aot:
+#             if not self._aod:
+#                 raise AttributeError('Make sure either AOD or AOT is set.')
+#             aot = self.AOD.data.mul(self.sun_position.data.airmass, axis='rows')
+#             aot.columns.name = 'AOT@wavelength(nm)'
+#             aot = _timeseries.TimeSeries(aot)
+#             self._aot = aot
+#         return self._aot
+#
+#     @ AOT.setter
+#     def AOT(self,value):
+#         self._aot = value
+#
+#     @property
+#     def AOD(self):
+#         if not self._aod:
+#             if not self._aot:
+#                 raise AttributeError('Make sure either AOD or AOT is set.')
+#             aod = self.AOT.data.dif(self.sun_position.data.airmass, axis='rows')
+#             aod.columns.name = 'AOD@wavelength(nm)'
+#             aod = _timeseries.TimeSeries(aod)
+#             self._aod = aod
+#         return self._aod
+#
+#     @ AOD.setter
+#     def AOD(self,value):
+#         self._aod = value
 
-def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon/2017',
+
+
+def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
               site = 'bon',
               window = ('2017-01-01', '2017-01-02'),
               cloud_sceened = True,
               local2UTC = False,
               perform_header_test = False,
               verbose = False,
-              fill_gaps= False):
+              fill_gaps= False,
+              keep_original_data = False):
 
 
     files, folder = _path2files(path, site, window, perform_header_test, verbose)
@@ -141,25 +214,42 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon/2017',
         if verbose:
             print('done')
 
+
+    # add Site class to surfrad_aod
+    site = [l for l in locations if data.header['site'] in l['name']][0]
+    lon = site['lon']
+    lat = site['lat']
+    alt = site['alt']
+    timezone = site['timezone']
+    site_name = site['name']
+    abb = site['abbriviations'][0]
+    # saod.site = _measurement_site.Site(lat, lon, alt, name=site_name, abbriviation=abb)
+
     # generate Surfrad_aod and add AOD to class
-    saod = Surfrad_AOD()
+    saod = Surfrad_AOD(lat, lon, alt, name=site_name, name_short=abb, timezone = timezone)
+    if keep_original_data:
+        saod.original_data = data
 
+    if local2UTC:
+        saod._timezone = 0
+    else:
+        saod._timezone = timezone
     ## select columns that show AOD
-    aodcols = [col for col in data.data.columns if 'OD' in col]
-    data_aod = data._del_all_columns_but(aodcols)
-    aodcols.sort(key = lambda x: int(x.replace('OD' ,'')))
-
-    newcol = _np.array(data.header['channels']).astype(float)
-    newcol.sort()
+    # aodcols = [col for col in data.data.columns if 'OD' in col]
+    data_aod = data._del_all_columns_but(_np.unique(_np.array(list(_col_label_trans_dict.values()))))
+    # aodcols.sort(key = lambda x: int(x.replace('OD' ,'')))
+    #
+    # newcol = _np.array(data.header['channels']).astype(float)
+    # newcol.sort()
 
     # test if something will go  wrong with the renaming
-    aodcolstest = _np.array([int(c.replace('OD' ,'')) for c in aodcols])
+    # aodcolstest = _np.array([int(c.replace('OD' ,'')) for c in aodcols])
 
-    if _np.any((aodcolstest - newcol) > 1):
-        raise ValueError('Something went wrong with the renaming of the labels ... programming required')
+    # if _np.any((aodcolstest - newcol) > 1):
+    #     raise ValueError('Something went wrong with the renaming of the labels ... programming required')
 
     ## rename columns
-    data_aod.data.rename(columns=dict(zip(aodcols, newcol)), inplace=True)
+    # data_aod.data.rename(columns=dict(zip(aodcols, newcol)), inplace=True)
     data_aod.data.columns.name = 'AOD@wavelength(nm)'
     data_aod.data.sort_index(axis = 1, inplace=True)
     # data_aod.data.dropna(axis=1, how='all', inplace=True)
@@ -168,13 +258,6 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon/2017',
 
     saod.AOD = data_aod
 
-    # add Site class to surfrad_aod
-    site = [l for l in locations if data.header['site'] in l['abbriviations']][0]
-    lon = site['lon']
-    lat = site['lat']
-    alt = site['alt']
-    site_name = site['name']
-    abb = site['abbriviations'][0]
-    saod.site = _measurement_site.Site(lat, lon, alt, name=site_name, abbriviation=abb)
+
 
     return saod
