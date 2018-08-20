@@ -6,7 +6,7 @@ from atmPy.general import timeseries as _timeseries
 
 
 class AOD_AOT(object):
-    def __init__(self, lat, lon, elevation = 0, name = None, name_short = None, timezone = 0):
+    def __init__(self, lat, lon, elevation = 0, name = None, name_short = None, timezone = 0, site_info = None):
         """This class is for column AOD or AOT meausrements at a fixed site. This class is most usfull for aerosol
         optical properties from a CIMEL (AERONET) or a MFRSR (SURFRAD)
         Parameters
@@ -29,7 +29,7 @@ class AOD_AOT(object):
         self._sunposition = None
         self._timezone = timezone
 
-        self.site = _measurement_site.Site(lat, lon, elevation, name=name, abbriviation=name_short)
+        self.site = _measurement_site.Site(lat, lon, elevation, name=name, abbriviation=name_short, info = site_info)
 
 
     @property
