@@ -484,8 +484,8 @@ def rolling_correlation_old(data, correlant, window, data_column = False, correl
 
 
 def correlate_rolling(ts_data, ts_correlant,
-                         data_column=500,
-                         correlant_column=500,
+                         data_column=None,
+                         correlant_column=None,
                          window=(30, 'D'),
                          steps=30,
                          minvalidvalues=400,
@@ -524,8 +524,14 @@ def correlate_rolling(ts_data, ts_correlant,
 
     # make one dataframe from the two inputs
     df = _pd.DataFrame()
-    df['data'] = ts_data.data.loc[:, data_column]
-    df['correlant'] = ts_correlant.data.loc[:, correlant_column]
+    if data_column:
+        df['data'] = ts_data.data.loc[:, data_column]
+    else:
+        df['data'] = ts_data.data.iloc[:,0]
+    if correlant_column:
+        df['correlant'] = ts_correlant.data.loc[:, correlant_column]
+    else:
+        df['correlant'] = ts_correlant.data.iloc[:, 0]
 
     # dropna because we want only to count valid datapoints
     df.dropna(inplace=True)
