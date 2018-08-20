@@ -41,13 +41,15 @@ def _header_tests(folder, fname, version='3', level='2.0', data_product='AOD', s
     # product correct?
     isproduct = head[2].split(':')[1].split()[0] == data_product
     # site correct?
-    issite = head[1].strip() == site
+    site_from_fname = head[1].strip()
+    issite = site_from_fname == site
 
     if raise_error:
         assert (isversion)
         assert (islevel)
         assert (isproduct)
-        assert (issite)
+        if not issite:
+            raise KeyError('{} does not macht the site requirement of {}'.format(site_from_fname, site))
 
     return _np.all(_np.array([isversion, islevel, isproduct, issite]))
 
@@ -79,7 +81,7 @@ def _path2files(path, site, window, perform_header_test, verbose):
             print('{} of remaining files are in the selected time window.'.format(len(files)))
 
     if perform_header_test:
-        files = [f for f in files if _header_tests(folder, f)]
+        files = [f for f in files if _header_tests(folder, f, site = site)]
         if verbose:
             print('{} of remaining files passed the header test.'.format(len(files)))
     return files, folder
@@ -149,7 +151,8 @@ def open_path(path='/Volumes/HTelg_4TB_Backup/AERONET/',
 
     if window:
         data = data.zoom_time(window[0], window[1])
-
+    if data.data.shape[0] == 0:
+        raise ValueError('There is no data in the selected time window.')
     # add Site class to Aeronet_AOD class
     lon = data.data['Site_Longitude(Degrees)'].dropna().iloc[0]
     lat = data.data['Site_Latitude(Degrees)'].dropna().iloc[0]
@@ -171,6 +174,6 @@ def open_path(path='/Volumes/HTelg_4TB_Backup/AERONET/',
     data_aot.data.dropna(axis=1, how='all', inplace=True)
 
     ## add the resulting Timeseries to the class
-    aaot.AOT = data_aot
+    aaot.AOD = data_aot
 
     return aaot
