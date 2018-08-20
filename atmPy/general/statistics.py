@@ -27,7 +27,12 @@ class Climatology(object):
         self._parent_stats = parent_stats
         self._parent_ts = parent_stats._parent_ts
         self._frequency = frequency
+        self._reset()
+        self._timezone = None
+
+    def _reset(self):
         self._percentiles = None
+
 
     @property
     def frequency(self):
@@ -71,6 +76,8 @@ class Climatology(object):
             #                                    # closed = 'left'
             #                                    )
             data = self._parent_ts.data.copy()
+            if self._timezone:
+                data.index += _pd.Timedelta(self._timezone, 'h')
             if self.frequency == 'H':
                 data.index = data.index.hour
             elif self.frequency == 'M':
@@ -138,7 +145,8 @@ class Climatology(object):
             self._percentiles = out
         return self._percentiles
 
-    def plot_percentiles(self, ax=None, box_width=0.2, wisker_size=20, mean_size=10, median_size = 10 , line_width=1.5, xoffset=0,
+    def plot_percentiles(self, ax=None, box_width=0.2, wisker_size=20, mean_size=10, median_size = 10 , line_width=1.5,
+                         xoffset=0,
                          color=0, tickbase = 1):
         """
 
@@ -148,7 +156,11 @@ class Climatology(object):
         box_width
         wisker_size
         mean_size
+        median_size
+        line_width
+        xoffset
         color
+        tickbase
 
         Returns
         -------
@@ -156,6 +168,8 @@ class Climatology(object):
         """
         if type(color) == int:
             color = _plt.rcParams['axes.prop_cycle'].by_key()['color'][color]
+            col = _plt_tools.colors.Color(color, model='hex')
+        elif type(color) == str:
             col = _plt_tools.colors.Color(color, model='hex')
         else:
             col = _plt_tools.colors.Color(color, model='rgb')
@@ -241,10 +255,16 @@ class Climatology(object):
 
         # a.xaxis.set_major_locator(_MonthLocator())
         # a.xaxis.set_major_formatter(_DateFormatter('%b'))
+        try:
+            a.set_ylim(_np.nanmin(self.percentiles.drop(['n_valid'], axis=1)),
+                       _np.nanmax(self.percentiles.drop(['n_valid'], axis=1)))
+        except:
+            pass
 
-        a.set_ylim(_np.nanmin(self.percentiles.drop(['n_valid'], axis=1)),
-                   _np.nanmax(self.percentiles.drop(['n_valid'], axis=1)))
-        a.set_xlim(self.percentiles.index.min(), self.percentiles.index.max())
+        try:
+            a.set_xlim(self.percentiles.index.min(), self.percentiles.index.max())
+        except:
+            pass
 
         mjl = _MultipleLocator(tickbase)
         a.xaxis.set_major_locator(mjl)
@@ -367,7 +387,7 @@ class Seasonality(Climatology):
         if self.frequency == 'M':
             a.xaxis.set_major_formatter(_FuncFormatter(num2month))
             a.set_xlim(0.5, 12.5)
-
+        a.set_xlabel('Month of year')
         return out
 
 class Diurnality(Climatology):
@@ -381,4 +401,16 @@ class Diurnality(Climatology):
         if self.frequency == 'H':
             a.set_xlim(-0.5,23.5)
 
+        a.set_xlabel('Hour of day')
         return out
+
+    @property
+    def timezone(self):
+        return self._timezone
+
+    @timezone.setter
+    def timezone(self, value):
+        self._reset()
+        self._timezone = value
+
+
