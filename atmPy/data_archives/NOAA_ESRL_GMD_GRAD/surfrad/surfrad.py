@@ -12,22 +12,62 @@ locations = [{'name': 'Bondville',
               'lon': -88.37309,
               'lat': 40.05192,
               'alt' :230,
-              'timezone': -6}]
+              'timezone': -6},
+             {'name': 'Sioux Falls',
+              'state': 'SD',
+              'abbriviations': ['SXF', 'sxf'],
+              'lon': -96.62328,
+              'lat': 43.73403,
+              'alt': 473,
+              'timezone': -6},
+             {'name': 'Table Mountain',
+              'state': 'CO',
+              'abbriviations': ['TBL', 'tbl'],
+              'lon': -105.23680,
+              'lat': 40.12498,
+              'alt': 1689,
+              'timezone': -7}
+             ]
 
-_col_label_trans_dict = {'OD414': 414,
-                         'OD416': 414,
+_col_label_trans_dict = {'OD413': 415,
+                         'OD414': 415,
+                         'OD415': 415,
+                         'OD416': 415,
                          'OD495': 500,
+                         'OD496': 500,
                          'OD497': 500,
                          'OD499': 500,
+                         'OD500': 500,
                          'OD501': 500,
+                         'OD609': 614,
                          'OD612': 614,
                          'OD614': 614,
                          'OD615': 614,
+                         'OD664': 673,
+                         'OD670': 673,
                          'OD671': 673,
                          'OD672': 673,
                          'OD673': 673,
-                         'OD869': 867,
-                         'OD1623': 1622.9}
+                         'OD674': 673,
+                         'OD676': 673,
+                         'OD861': 870,
+                         'OD868': 870,
+                         'OD869': 870,
+                         'OD870': 870,
+                         'OD1623': 1625,
+                         'OD1624': 1625,
+                         ### sometime AOD was used instead of OD =>
+                         'AOD414': 415,
+                         'AOD415': 415,
+                         'AOD497': 500,
+                         'AOD501': 500,
+                         'AOD609': 614,
+                         'AOD615': 614,
+                         'AOD664': 673,
+                         'AOD673': 673,
+                         'AOD861': 870,
+                         'AOD870': 870,
+                         }
 
 
 def _path2files(path, site, window, perform_header_test, verbose):
@@ -107,6 +147,9 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
             df.index.name = 'Time (local)'
         df.rename(columns=_col_label_trans_dict, inplace=True)
         return df
+
+    if len(files) == 0:
+        raise ValueError('no Files to open')
 
     if verbose:
         print('Reading files:')
@@ -202,9 +245,11 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
               fill_gaps= False,
               keep_original_data = False):
 
+    if site:
+        if len([loc for loc in locations if site in loc['abbriviations']]) == 0:
+            raise ValueError('The site {} has not been set up yet. Add relevant data to the location dictionary'.format(site))
 
     files, folder = _path2files(path, site, window, perform_header_test, verbose)
-
     data = _read_files(folder, files, verbose, UTC=local2UTC, cloud_sceened=cloud_sceened)
 
     if fill_gaps:
@@ -214,9 +259,12 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
         if verbose:
             print('done')
 
-
     # add Site class to surfrad_aod
-    site = [l for l in locations if data.header['site'] in l['name']][0]
+    try:
+        site = [l for l in locations if data.header['site'] in l['name']][0]
+    except IndexError:
+        raise ValueError('Looks like the site you trying to open is not set up correctly yet in "location"')
+
     lon = site['lon']
     lat = site['lat']
     alt = site['alt']
@@ -226,7 +274,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     # saod.site = _measurement_site.Site(lat, lon, alt, name=site_name, abbriviation=abb)
 
     # generate Surfrad_aod and add AOD to class
-    saod = Surfrad_AOD(lat, lon, alt, name=site_name, name_short=abb, timezone = timezone)
+    saod = Surfrad_AOD(lat, lon, alt, name=site_name, name_short=abb, timezone = timezone, site_info = site)
     if keep_original_data:
         saod.original_data = data
 
@@ -235,29 +283,13 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     else:
         saod._timezone = timezone
     ## select columns that show AOD
-    # aodcols = [col for col in data.data.columns if 'OD' in col]
     data_aod = data._del_all_columns_but(_np.unique(_np.array(list(_col_label_trans_dict.values()))))
-    # aodcols.sort(key = lambda x: int(x.replace('OD' ,'')))
-    #
-    # newcol = _np.array(data.header['channels']).astype(float)
-    # newcol.sort()
-
-    # test if something will go  wrong with the renaming
-    # aodcolstest = _np.array([int(c.replace('OD' ,'')) for c in aodcols])
-
-    # if _np.any((aodcolstest - newcol) > 1):
-    #     raise ValueError('Something went wrong with the renaming of the labels ... programming required')
 
     ## rename columns
-    # data_aod.data.rename(columns=dict(zip(aodcols, newcol)), inplace=True)
     data_aod.data.columns.name = 'AOD@wavelength(nm)'
     data_aod.data.sort_index(axis = 1, inplace=True)
-    # data_aod.data.dropna(axis=1, how='all', inplace=True)
 
     ## add the resulting Timeseries to the class
-
     saod.AOD = data_aod
-
-
 
     return saod
