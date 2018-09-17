@@ -1,6 +1,6 @@
 from atmPy.general import measurement_site as _measurement_site
 import pandas as _pd
-# import numpy as _np
+import numpy as _np
 from atmPy.radiation import solar as _solar
 from atmPy.general import timeseries as _timeseries
 
@@ -77,3 +77,25 @@ class AOD_AOT(object):
         self._aod = value
         self._aod.data.columns.name = 'AOD@wavelength(nm)'
         self._timestamp_index = self._aod.data.index
+
+    @property
+    def ang_exp(self):
+        return self._ang_exp
+
+    @ang_exp.setter
+    def ang_exp(self, value):
+        self._ang_exp = value
+
+    def aod2angstrom_exponent(self, column_1=500, column_2=870, wavelength_1=None, wavelength_2=None):
+        if wavelength_1 == None:
+            wavelength_1 = column_1
+        if wavelength_2 == None:
+            wavelength_2 = column_2
+        c1 = column_1
+        c2 = column_2
+        c1ex = wavelength_1
+        c2ex = wavelength_2
+        out = - _np.log10(self.AOD.data.loc[:, c1] / self.AOD.data.loc[:, c2]) / _np.log10(c1ex / c2ex)
+        out = _timeseries.TimeSeries(_pd.DataFrame(out))
+        return out
+
