@@ -39,6 +39,10 @@ _col_label_trans_dict = {'OD413': 415,
                          'OD499': 500,
                          'OD500': 500,
                          'OD501': 500,
+                         'OD502': 500,
+                         'OD503': 500,
+                         'OD504': 500,
+                         'OD505': 500,
                          'OD609': 614,
                          'OD612': 614,
                          'OD614': 614,
@@ -292,4 +296,5 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     ## add the resulting Timeseries to the class
     saod.AOD = data_aod
 
+    saod.ang_exp = data._del_all_columns_but('Ang_exp')
     return saod
