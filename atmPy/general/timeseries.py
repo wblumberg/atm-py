@@ -28,6 +28,9 @@ import os as _os
 from matplotlib import dates as _dates
 import atmPy.general.statistics as _statistics
 
+from atmPy.atmosphere import standards as _atm_std
+from atmPy.atmosphere import atmosphere as _atmosphere
+
 
 _unit_time = 'days since 1900-01-01'
 
@@ -2015,3 +2018,35 @@ class TimeSeries_3D(TimeSeries):
 #         a.set_xlabel('Altitude')
 #
 #     return ax
+
+
+def get_altitude(ts,
+                 standard_atmosphere = False,
+                 pressure_ref = None,
+                 altitude_ref = None,
+                 laps_rate = 0.0065,
+                 col_name_press = 'Barometric_pressure',
+                 col_name_temp = 'Temperature'):
+    """Calculates the altitude from the measured barometric pressure
+    Arguments
+    ---------
+    temperature: bool or array-like, optional
+        False: temperature according to international standard is assumed.
+        arraylike: actually measured temperature in Kelvin.
+
+    Returns
+    -------
+    returns altitude and adds it to this instance
+    """
+    if standard_atmosphere:
+        alt, tmp = _atm_std.standard_atmosphere(ts.data.loc[:, 'Barometric_pressure'], quantity='pressure')
+    else:
+        bf = _atmosphere.Barometric_Formula(pressure=ts.data.loc[:, col_name_press],
+                                            pressure_ref= pressure_ref,
+                                            alt_ref= altitude_ref,
+                                            temp=ts.data.loc[:, col_name_temp],
+                                            laps_rate=laps_rate)
+        alt = bf.altitude
+
+    ts.data['Altitude'] = alt
+    return alt
