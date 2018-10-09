@@ -149,6 +149,7 @@ class Climatology(object):
                          xoffset=0,
                          color=0, tickbase = 1):
         """
+        This will plot the percentiles of the data ([5, 25, 50, 75, 95]. In addition, the mean (o) and median (_) are shown.
 
         Parameters
         ----------
