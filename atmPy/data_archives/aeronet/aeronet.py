@@ -229,5 +229,6 @@ def open_path(path='/Volumes/HTelg_4TB_Backup/AERONET/',
     aaot.AOD = data_aot
 
     aaot.ang_exp = data._del_all_columns_but([col for col in data.data.columns if 'Angstrom' in col])
-    aaot.ang_exp.data.columns = [col.replace('Angstrom', '_Angstrom_Exponent') for col in aaot.ang_exp.data.columns]
+    # The following might be different for different files, otherwise why would I have put it there in the first place?!?
+    # aaot.ang_exp.data.columns = [col.replace('Angstrom', '_Angstrom_Exponent') for col in aaot.ang_exp.data.columns]
     return aaot
