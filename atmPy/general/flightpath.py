@@ -1,7 +1,12 @@
 from geopy.distance import vincenty
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-from mpl_toolkits.basemap import Basemap
+import warnings
+try:
+    from mpl_toolkits.basemap import Basemap
+except KeyError:
+    warnings.warn("An error accured while trying to import mpl_toolkits.basemap.Basemap. Plotting of maps will not work!")
+
 import matplotlib.pylab as plt
 # import pandas as pd
 # import atmPy.general.timeseries as timeseries
