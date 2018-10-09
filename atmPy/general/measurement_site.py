@@ -1,4 +1,8 @@
-from mpl_toolkits.basemap import Basemap as _Basemap
+import warnings
+try:
+    from mpl_toolkits.basemap import Basemap as _Basemap
+except:
+    warnings.warn('There seams to be an issue with importing mpl_toolkits.basemap. Make sure it is installed and working (try: "from mpl_toolkits.basemap import Basemap as _Basemap"). For now plotting on map will not be possible')
 import matplotlib.pylab as _plt
 
 colors = _plt.rcParams['axes.prop_cycle'].by_key()['color']

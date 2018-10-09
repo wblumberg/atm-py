@@ -5,7 +5,11 @@ __author__ = 'mrichardson, Hagen Telg'
 import ephem as _ephem
 import numpy as _np
 import pandas as _pd
-from Pysolar import solar as _solar
+import warnings
+try:
+    from Pysolar import solar as _solar
+except:
+    warnings.warn('There seams to be an issue with importing the pysolar library. Make sure it is installed and running correctly (try: "from Pysolar import solar as _solar"). For now conversion of the Atmospheric mass factor will not work.')
 # from atmPy.general.constants import a2r, r2a
 
 __julian = {"day": 0., "cent": 0.}
