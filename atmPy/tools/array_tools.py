@@ -122,7 +122,11 @@ def weighted_quantile(values, quantiles, sample_weight=None, values_sorted=False
     return _np.interp(quantiles, weighted_quantiles, values)
 
 class Correlation(object):
-    def __init__(self, data, correlant, remove_zeros = True, index = False, odr_function = 'linear',
+    def __init__(self, data, correlant,
+                 differenciate = None,
+                 remove_zeros = True,
+                 index = False,
+                 odr_function = 'linear',
                  # sx = 1, sy = 1,
                  weights = 'scaled',
                  poly_order = 1
@@ -133,6 +137,8 @@ class Correlation(object):
         ----------
         data and correlant: 1D arry
             These are the two data set which are compared
+        differenciate: array like
+
         remove_zeros: bool
             If zeros ought to be deleted. Datasets often contain zeros that are the
             result of invalid data. If there is the danger that this introduces a
@@ -169,26 +175,36 @@ class Correlation(object):
             correlant = correlant[data != 0]
             if type(index) != bool:
                 index = index[data != 0]
+            if differenciate:
+                differenciate = differenciate[data != 0]
             data = data[data != 0]
+
 
             data = data[correlant != 0]
             if type(index) != bool:
                 index = index[correlant != 0]
+            if differenciate:
+                differenciate = differenciate[correlant != 0]
             correlant = correlant[correlant != 0]
 
         # nans have to be removed
         correlant = correlant[~ _np.isnan(data)]
         if type(index) != bool:
             index = index[~ _np.isnan(data)]
+        if differenciate:
+            differenciate = differenciate[~ _np.isnan(data)]
         data = data[~ _np.isnan(data)]
 
         data = data[~ _np.isnan(correlant)]
         if type(index) != bool:
             index = index[~ _np.isnan(correlant)]
+        if differenciate:
+            differenciate = differenciate[~ _np.isnan(correlant)]
         correlant = correlant[~ _np.isnan(correlant)]
 
         self._data = data
         self._correlant = correlant
+
         self._maxvalue = max([data.max(),correlant.max()])
         self._minvalue = min([data.min(), correlant.min()])
         self._index = index
@@ -448,7 +464,8 @@ class Correlation(object):
                 elif fr == 's':
                     txtl.append(txt_s)
                 else:
-                    raise
+                    pass
+                    # raise
 
             txt = '\n'.join(txtl)
 
