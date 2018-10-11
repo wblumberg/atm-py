@@ -9,7 +9,7 @@ from atmPy.tools import plt_tools as _plt_tools
 from atmPy.tools import pandas_tools as _pandas_tools
 import os as _os
 from atmPy.tools import git as _git_tools
-
+from atmPy.tools import array_tools as _array_tools
 
 # _unit_time = 'days since 1900-01-01'
 
@@ -59,6 +59,47 @@ def save_netCDF(vp, fname, leave_open = False):
     else:
         ni.close()
 
+def correlate(data,correlant, data_column = False, correlant_column = False, remove_zeros=True, data_lim = None, correlant_lim = None):
+    data = data.copy()
+    correlant = correlant.copy()
+
+    if not _np.array_equal(data.data.index, correlant.data.index):
+        raise ValueError('The indexes of the two columns are not identical, there is no align for vertical profiles yet ... programm an align function')
+
+    if data_column:
+        data_values = data.data[data_column].values
+    elif data.data.shape[1] > 1:
+        raise ValueError('Data contains more than 1 column. Specify which to correlate. Options: %s'%(list(data.data.keys())))
+    else:
+        data_values = data.data.iloc[:,0].values
+
+    if correlant_column:
+        correlant_values = correlant.data[correlant_column].values
+    elif correlant.data.shape[1] > 1:
+        raise ValueError('''Correlant contains more than 1 column. Specify which to correlate. Options:
+%s'''%(list(correlant.data.keys())))
+    else:
+        correlant_values = correlant.data.iloc[:,0].values
+
+
+    if data_lim:
+        if data_lim[0]:
+            data_values[data_values < data_lim[0]] = _np.nan
+        if data_lim[1]:
+            data_values[data_values > data_lim[1]] = _np.nan
+
+    if correlant_lim:
+        if correlant_lim[0]:
+            correlant_values[correlant_values < correlant_lim[0]] = _np.nan
+        if correlant_lim[1]:
+            correlant_values[correlant_values > correlant_lim[1]] = _np.nan
+
+    # import pdb
+    # pdb.set_trace()
+    out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
+#     out._x_label_orig = 'DataTime'
+    return out
+
 
 class VerticalProfile(object):
     def __init__(self, data):
@@ -88,7 +129,10 @@ class VerticalProfile(object):
             a = ax
 
         for e,k in enumerate(self.data.keys()):
-            a.plot(self.data[k].values, self.data.index, label = k, **kwargs)
+            kwt = kwargs.copy()
+            if 'label' not in kwt.keys():
+                kwt['label'] = k
+            a.plot(self.data[k].values, self.data.index, **kwt)
 
         if len(self.data.keys()) > 1:
             a.legend(loc = 'best')
@@ -120,6 +164,8 @@ class VerticalProfile(object):
         cat_sort_int.index = cat_sort_int.TimeUTC
         cat_sort_int = cat_sort_int.drop('TimeUTC', axis=1)
         return atmPy.general.timeseries.TimeSeries(cat_sort_int)
+
+    correlate_to = correlate
 
     def drop_all_columns_but(self, keep, inplace = False):
         if inplace:

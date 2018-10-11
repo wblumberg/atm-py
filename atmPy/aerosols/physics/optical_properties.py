@@ -89,6 +89,10 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
         scattering_coefficient = _get_coefficients(mie.scattering_crossection, laydata)
         absorption_coefficient = _get_coefficients(mie.absorption_crossection, laydata)
 
+        out['test.extcross'] = mie.extinction_crossection.copy()
+        out['test.extcoeff'] = extinction_coefficient.copy()
+        out['test.laydata'] = laydata
+
         if aod:
             layerThickness = sdls.layerbounderies[i][1] - sdls.layerbounderies[i][0]
             AOD_perBin = extinction_coefficient * layerThickness
@@ -125,14 +129,14 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
 
     # if dist_class == 'SizeDist_TS':
     #     out['extCoeff_perrow_perbin'] = timeseries.TimeSeries_2D(extCoeff_perrow_perbin)
-    if dist_class == 'SizeDist':
-        out['extCoeff_perrow_perbin'] = _timeseries.TimeSeries(extCoeff_perrow_perbin)
-        out['scattCoeff_perrow_perbin'] = _timeseries.TimeSeries(scattCoeff_perrow_perbin)
-        out['absCoeff_perrow_perbin'] = _timeseries.TimeSeries(absCoeff_perrow_perbin)
-    else:
-        out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
-        out['scattCoeff_perrow_perbin'] = scattCoeff_perrow_perbin
-        out['absCoeff_perrow_perbin'] = absCoeff_perrow_perbin
+    # if dist_class == 'SizeDist':
+    #     out['extCoeff_perrow_perbin'] = _timeseries.TimeSeries(extCoeff_perrow_perbin)
+    #     out['scattCoeff_perrow_perbin'] = _timeseries.TimeSeries(scattCoeff_perrow_perbin)
+    #     out['absCoeff_perrow_perbin'] = _timeseries.TimeSeries(absCoeff_perrow_perbin)
+    # else:
+    out['extCoeff_perrow_perbin'] = extCoeff_perrow_perbin
+    out['scattCoeff_perrow_perbin'] = scattCoeff_perrow_perbin
+    out['absCoeff_perrow_perbin'] = absCoeff_perrow_perbin
 
     out['parent_type'] = dist_class
     out['asymmetry_param'] = _pd.DataFrame(asymmetry_parameter_LS, index=index,
@@ -146,7 +150,11 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
     out['distType'] = sdls.distributionType
     out['angular_scatt_func'] = angular_scatt_func_effective.transpose()
 
+    ### test values
+    out['mie_curve_ext'] = mie.extinction_crossection
+    out['mie_inst'] = mie
     return out
+
 
 def DEPRECATED_size_dist2optical_properties(sd, aod=False, noOfAngles=100):
     """
@@ -397,34 +405,6 @@ class OpticalProperties(object):
         self.distributionType = parent.distributionType
         # self._data_period = self.parent_sizedist._data_period
 
-
-    # @property
-    # def mean_effective_diameter(self):
-    #     if not self.__mean_effective_diameter:
-
-
-    # # todo: remove
-    # @property
-    # def extinction_coeff_sum_along_d(self):
-    #     _warnings.warn('extinction_coeff_sum_along_d is deprecated and will be removed in future versions. Use extingction_coeff instead')
-    #     if not _np.any(self.__extinction_coeff_sum_along_d):
-    #         data = self.extinction_coeff_per_bin.data.sum(axis = 1)
-    #         df = _pd.DataFrame()
-    #         df['ext_coeff_m^1'] = data
-    #         if self._parent_type == 'SizeDist_TS':
-    #             self.__extinction_coeff_sum_along_d = _timeseries.TimeSeries(df)
-    #         elif self._parent_type == 'SizeDist':
-    #             self.__extinction_coeff_sum_along_d = df
-    #         else:
-    #             raise TypeError('not possible for this distribution type')
-    #         self.__extinction_coeff_sum_along_d._data_period = self._data_period
-    #     return self.__extinction_coeff_sum_along_d
-    #
-    # # todo: remove
-    # @extinction_coeff_sum_along_d.setter
-    # def extinction_coeff_sum_along_d(self, data):
-    #     self.__extinction_coeff_sum_along_d = data
-
     @property
     def extinction_coeff_per_bin(self):
         self._optical_porperties
@@ -466,48 +446,6 @@ class OpticalProperties(object):
             self._angular_scatt_func = data['angular_scatt_func']
         return self._optical_porperties_pv
 
-    # @property
-    # def extinction_coeff(self):
-    #     self._optical_porperties
-    #     if not _np.any(self._extinction_coeff_sum_along_d):
-    #         data = self.extinction_coeff_per_bin.sum(axis=1)
-    #         df = _pd.DataFrame()
-    #         df['ext_coeff_m^1'] = data
-    #         if self._parent_type == 'SizeDist_TS':
-    #             self._extinction_coeff_sum_along_d = _timeseries.TimeSeries(df)
-    #             self._extinction_coeff_sum_along_d._data_period = self._data_period
-    #         elif self._parent_type == 'SizeDist_LS':
-    #             self._extinction_coeff_sum_along_d = _vertical_profile.VerticalProfile(df)
-    #         elif self._parent_type == 'SizeDist':
-    #             self._extinction_coeff_sum_along_d = df
-    #         else:
-    #             raise TypeError('not possible for this distribution type')
-    #     return self._extinction_coeff_sum_along_d
-
-    # @extinction_coeff.setter
-    # def extinction_coeff(self, data):
-    #     self._extinction_coeff_sum_along_d = data
-
-    # @property
-    # def scattering_coeff(self):
-    #     if not _np.any(self._scattering_coeff_sum_along_d):
-    #         data = self.scattering_coeff_per_bin.sum(axis=1)
-    #         df = _pd.DataFrame()
-    #         df['scatt_coeff_m^1'] = data
-    #         if self._parent_type == 'SizeDist_TS':
-    #             self._scattering_coeff_sum_along_d = _timeseries.TimeSeries(df)
-    #         elif self._parent_type == 'SizeDist':
-    #             self._scattering_coeff_sum_along_d = df
-    #         else:
-    #             raise TypeError('not possible for this distribution type')
-    #         self._scattering_coeff_sum_along_d._data_period = self._data_period
-    #     return self._scattering_coeff_sum_along_d
-
-    # @scattering_coeff.setter
-    # def scattering_coeff(self, data):
-    #     self._scattering_coeff_sum_along_d = data
-
-
     @property
     def absorption_coeff(self):
         self._optical_porperties
@@ -522,10 +460,6 @@ class OpticalProperties(object):
     def scattering_coeff(self):
         self._optical_porperties
         return self._scattering_coeff
-
-    # @absorption_coeff.setter
-    # def absorption_coeff(self, data):
-    #     self.__absorption_coeff_sum_along_d = data
 
 
     @property

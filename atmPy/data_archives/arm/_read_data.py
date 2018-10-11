@@ -1,3 +1,6 @@
+# This module was written under the assumption that the arm data is extremely uniform ... whell its not, so its bett
+# to write an opener for each separately
+#
 # from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
 from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1, _aipfitrh1ogrenC1
@@ -59,7 +62,7 @@ def check_availability(folder,
         else:
             df[product_id][date] = 1
 
-    df = df.sort(axis=1)
+    df = df.sort_index(axis=1)
 
     for e,col in enumerate(df.columns):
         df[col].values[df[col].values == 1] = e+1
@@ -86,6 +89,7 @@ def read_cdf(fname,
              time_window = None,
              data_quality = 'good',
              data_quality_flag_max = None,
+             check_in_subfolder = False,
              concat = True,
              ignore_unknown = False,
              leave_cdf_open = False,
@@ -105,6 +109,8 @@ def read_cdf(fname,
     time_window: tuple of str.
         e.g. ('2016-01-25 15:22:40','2016-01-29 15:00:00').
         Currently the entire day is considered, no need to use exact times.
+    check_in_subfolder: bool
+        if to check for files in subfolder. If True only files in subfolders are considered and only one level deep!
     concat
     ignore_unknown
     verbose
@@ -115,10 +121,26 @@ def read_cdf(fname,
     """
 
     # list or single file
+    # if type(fname) == str:
+    #     if _os.path.isdir(fname):
+    #         f = _os.listdir(fname)
+    #         fname = [fname + i for i in f]
+    #     else:
+    #         fname = [fname]
+
     if type(fname) == str:
-        if fname[-1] == '/':
-            f = _os.listdir(fname)
-            fname = [fname + i for i in f]
+        if _os.path.isdir(fname):
+
+            if check_in_subfolder:
+                fnames = []
+                for fol in _os.listdir(fname):
+                    if _os.path.isdir(fname + fol):
+                        f = _os.listdir(fname + fol)
+                        fnames += [fname + fol + '/' + i for i in f]
+                fname = fnames
+            else:
+                f = _os.listdir(fname)
+                fname = [fname + i for i in f]
         else:
             fname = [fname]
 

@@ -26,6 +26,7 @@ from scipy.interpolate import interp1d
 
 from atmPy.aerosols.instruments.POPS import tools
 from atmPy.radiation.mie_scattering import bhmie
+import pandas as _pd
 
 
 ###########################
@@ -40,7 +41,8 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             mirrorJetDist = 10.,
             scale = 'log',
             #below: added 20141030
-            broadened = False
+            broadened = False,
+            doreturn = 'tuple'
             ):
     """
     Performs mie_scattering calculations as a function of particle radius
@@ -52,10 +54,13 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
     broadened: {"style": 'gauss',
                  'center': 0.405,
                  'fwhm': 0.005,
+                 'cutoff': 2, number of fwhm
                  'noOfwl': 10}
                {'style': 'custom',
                  'spectrum': (wl,intens),
                  'interpolate': 100}
+    doreturn: str (['tuple'], 'dict')
+
 
     Returns
     -------
@@ -92,8 +97,10 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
             wc = broadened['center'] 
             fwhm = broadened['fwhm']
             noOfwl = broadened['noOfwl']
-            fwxm = 2*np.sqrt(2*np.log(10))* fwhm /(2*np.sqrt(2*np.log(10)))
-            exWavelengthInUm = np.linspace(wc - fwxm, wc+ fwxm, noOfwl)
+            cutoff = broadened['cutoff']
+            # fwxm = wc / ()
+            # fwxm = sigmas*np.sqrt(sigmas*np.log(2))* sigma /(sigmas*np.sqrt(sigmas*np.log(10)))
+            exWavelengthInUm = np.linspace(wc - (cutoff * fwhm), wc+ (cutoff * fwhm), noOfwl)
             normalizer = tools.gauss_function(exWavelengthInUm, wc, fwhm)
         if broadened['style'] == 'custom':
             exWavelengthInUm = broadened['spectrum'][0]
@@ -104,6 +111,7 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
                 wl_new = np.linspace(exWavelengthInUm.min(),exWavelengthInUm.max(),noOfwl)
                 exWavelengthInUm = wl_new
                 normalizer = spectrum(wl_new)
+        lightsource_spectrum = _pd.DataFrame(normalizer, index = exWavelengthInUm)
                 
     
     else:
@@ -132,9 +140,12 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
         elif e == int(len(exWavelengthInUm)/2): #why am I doing that?
             output[1] = scatteringIntensity
         
-    if broadened:
-        return diameter,output#,(exWavelengthInUm,normalizer)
-    else:
+    if doreturn == 'dict':
+        out = {'diameter': diameter,
+               'scattering_int': output[0],
+               'lightsource_spectrum': lightsource_spectrum}
+        return out #diameter,output#,(exWavelengthInUm,normalizer)
+    elif doreturn == 'tuple':
         return diameter, output
     
 ###########################################################    

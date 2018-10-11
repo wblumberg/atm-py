@@ -6,10 +6,180 @@ import numpy as _np
 from atmPy.tools import decorators
 from atmPy.aerosols.physics import hygroscopicity as hygrow
 from atmPy.aerosols.physics import hygroscopicity
+import atmPy.aerosols.instruments.nephelometer.nephelometer as nephelometer
+import atmPy.aerosols.instruments.photometer.photometer as photometer
+
+import xarray as _xr
+import os as _os
+from atmPy.data_archives.arm import _tools
+# data_archives.arm._tools as _tools
 
 # import pdb as _pdb
 
 
+def read_noaaaos(fname, in_time_window = None, keep_xr_dataset = False, verbose = False):
+    noaaaos = Noaaaos()
+
+    noaaaos.nephelometer_1um = nephelometer.Nephelometer()
+    noaaaos.nephelometer_10um = nephelometer.Nephelometer()
+    noaaaos.psap_1um = photometer.Photometer()
+    noaaaos.psap_10um = photometer.Photometer()
+
+
+    def get_scatt_coeff(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_1um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_1um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_1um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_10um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_10um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_10um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    def get_scatt_coeff_variability(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_1um_PSAP1W_1_std.to_pandas()
+        df['550 nm'] = ds.Bs_G_1um_PSAP1W_1_std.to_pandas()
+        df['700 nm'] = ds.Bs_R_1um_PSAP1W_1_std.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bs_B_Dry_10um_PSAP1W_1_std.to_pandas()
+        df['550 nm'] = ds.Bs_G_Dry_10um_PSAP1W_1_std.to_pandas()
+        df['700 nm'] = ds.Bs_R_Dry_10um_PSAP1W_1_std.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    def get_hembackscatt(ds):
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bbs_B_Dry_1um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bbs_G_Dry_1um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bbs_R_Dry_1um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_1um_dry = df
+
+        df = _pd.DataFrame()
+        df['450 nm'] = ds.Bbs_B_Dry_10um_Neph3W_1.to_pandas()
+        df['550 nm'] = ds.Bbs_G_Dry_10um_Neph3W_1.to_pandas()
+        df['700 nm'] = ds.Bbs_R_Dry_10um_Neph3W_1.to_pandas()
+        df[df == -9999.0] = _np.nan
+        scatt_coeff_10um_dry = df
+        return scatt_coeff_1um_dry, scatt_coeff_10um_dry
+
+    if type(fname) == str:
+        if _os.path.isdir(fname):
+            # fname = fname + _os.listdir(fname)
+            fname = [fname + i for i in _os.listdir(fname)]
+        elif _os.path.isfile(fname):
+            fname = [fname]
+
+    neph_scatt_coeff_1um = []
+    neph_scatt_coeff_10um = []
+    neph_scatt_coeff_1um_std = []
+    neph_scatt_coeff_10um_std = []
+    neph_back_scatt_coeff_1um = []
+    neph_back_scatt_coeff_10um = []
+    neph_RH = []
+    psap_abs_1um = []
+    psap_abs_10um = []
+
+    found_one_in_window = False
+    for fn in fname:
+        if verbose:
+            print('reading: {}'.format(fn))
+        if in_time_window:
+            if not _tools.is_in_time_window(fn, in_time_window, verbose = verbose):
+                continue
+            else:
+                found_one_in_window = True
+        ds = _xr.open_dataset(fn)
+        version = ds.attrs['zeb_platform']
+
+        sc1, sc10 = get_scatt_coeff(ds)
+        neph_scatt_coeff_1um.append(sc1)
+        neph_scatt_coeff_10um.append(sc10)
+
+        if version in []:
+            sc1, sc10 = get_scatt_coeff_variability(ds)
+            neph_scatt_coeff_1um_std.append(sc1)
+            neph_scatt_coeff_10um_std.append(sc10)
+
+        sc1, sc10 = get_hembackscatt(ds)
+        neph_back_scatt_coeff_1um.append(sc1)
+        neph_back_scatt_coeff_10um.append(sc10)
+
+        df = _pd.DataFrame()
+        df['565 nm'] = ds.Ba_G_Dry_1um_PSAP1W_1.to_pandas()
+        psap_abs_1um.append(df)
+
+        df = _pd.DataFrame()
+        df['565 nm'] = ds.Ba_G_Dry_10um_PSAP1W_1.to_pandas()
+        psap_abs_10um.append(df)
+
+    if in_time_window and not found_one_in_window:
+        raise KeyError('No file found in defind time window (in_time_window = {})'.format(in_time_window))
+
+    noaaaos.nephelometer_1um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um).sort_index())
+    noaaaos.nephelometer_10um.scattering_coeff = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um).sort_index())
+
+    if version in []:
+        noaaaos.nephelometer_1um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_1um_std).sort_index())
+        noaaaos.nephelometer_10um.scattering_coeff.standard_diviation = _timeseries.TimeSeries(_pd.concat(neph_scatt_coeff_10um_std).sort_index())
+
+    noaaaos.nephelometer_1um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_1um).sort_index())
+    noaaaos.nephelometer_10um.hemisphericbackscatt_coeff = _timeseries.TimeSeries(_pd.concat(neph_back_scatt_coeff_10um).sort_index())
+
+    noaaaos.psap_1um.absorbtion_coeff = _timeseries.TimeSeries(_pd.concat(psap_abs_1um).sort_index())
+    noaaaos.psap_10um.absorbtion_coeff = _timeseries.TimeSeries(_pd.concat(psap_abs_10um).sort_index())
+    if keep_xr_dataset:
+        noaaaos.xr_dataset = ds
+    return noaaaos
+
+
+class Noaaaos(object):
+    def __init__(self):
+        self._nephelometer_1um = None
+        self._nephelometer_10um = None
+        self._psap_1um = None
+        self._psap_10um = None
+        self._cpc = None
+
+    @property
+    def psap_1um(self):
+        return self._psap_1um
+
+    @psap_1um.setter
+    def psap_1um(self, value):
+        self._psap_1um = value
+
+    @property
+    def psap_10um(self):
+        return self._psap_10um
+
+    @psap_10um.setter
+    def psap_10um(self, value):
+        self._psap_10um = value
+
+    @property
+    def cpc(self):
+        return self._cpc
+
+    @cpc.setter
+    def cpc(self, value):
+        self._cpc = value
+
+#######################################################################################
+######## Older stuff
+#######################################################################################
 def calculate_f_RH(noaaaos, RH_center, RH_tolerance, which):
     """
 
@@ -95,6 +265,8 @@ class ArmDatasetSub(_ArmDataset):
         self.__sup_kappa_sizedist = None
         self.__sup_kappa_wavelength = None
         self.__hygroscopicity = None
+        self.__hygroscopicity_red = None
+        self.__hygroscopicity_blue = None
 
 
 
@@ -192,8 +364,8 @@ class ArmDatasetSub(_ArmDataset):
                 raise IndexError(
                     "The indeces doe not seam to match, that should not be possible!")
 
-            bdf = self.back_scatt.data
-            sdf = self.scatt_coeff.data
+            bdf = self.back_scatt.data.copy()
+            sdf = self.scatt_coeff.data.copy()
 
             bk = [i.replace('Bbs_', '') for i in bdf.keys()]
             sk = [i.replace('Bs_', '') for i in sdf.keys()]
@@ -269,6 +441,26 @@ class ArmDatasetSub(_ArmDataset):
                                                                                  self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
                                                                                  return_fits = False)
         return self.__hygroscopicity
+
+    @property
+    def hygroscopicity_10um_red(self):
+        if not self.__hygroscopicity_red:
+            self.__hygroscopicity_red = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_R_Dry_10um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_R_Wet_10um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits = False)
+        return self.__hygroscopicity_red
+
+    @property
+    def hygroscopicity_10um_blue(self):
+        if not self.__hygroscopicity_blue:
+            self.__hygroscopicity_blue = hygroscopicity.fofRH_from_dry_wet_scattering(self.scatt_coeff._del_all_columns_but('Bs_B_Dry_10um_Neph3W_1'),
+                                                                                 self.scatt_coeff._del_all_columns_but('Bs_B_Wet_10um_Neph3W_2'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Dry'),
+                                                                                 self.RH_nephelometer._del_all_columns_but('RH_NephVol_Wet'),
+                                                                                 return_fits = False)
+        return self.__hygroscopicity_blue
 
     @property
     def hygroscopicity_1um(self):

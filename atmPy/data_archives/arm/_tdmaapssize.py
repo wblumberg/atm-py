@@ -59,7 +59,9 @@ class ArmDatasetSub(ArmDataset):
         d = self._read_variable('diameter')['data']
         bins, colnames = diameter_binning.bincenters2binsANDnames(d[:]*1000)
 
-        self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp')
+        self.size_distribution = sizedistribution.SizeDist_TS(df,bins,'dNdlogDp', ignore_data_gap_error = True,
+                                                              # fill_data_gaps_with = np.nan
+                                                              )
         self.size_distribution._data_period = self._data_period
         self.size_distribution.flag_info = self.flag_info
         availability = pd.DataFrame(data['availability'], index = self.time_stamps)

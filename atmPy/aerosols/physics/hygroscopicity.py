@@ -15,7 +15,7 @@ from  atmPy.aerosols.size_distribution import sizedistribution as _sizedistribut
 
 def kappa_simple(k, RH, refractive_index = None, inverse = False):
     """Returns the growth factor as a function of kappa and RH.
-    This function is based on the simplified model introduced by Rissler et al. (2006).
+    This function is based on a simplified version of a model originally introduced by Rissler et al. (2005).
     It ignores the curvature effect and is therefore independend of the exact particle diameter.
     Due to this simplification this function is valid only for particles larger than 100 nm
     Patters and Kreidenweis (2007).
@@ -27,7 +27,10 @@ def kappa_simple(k, RH, refractive_index = None, inverse = False):
     Size distribution and hygroscopic properties of aerosol particles from dry-season biomass burning
     in Amazonia. Atmospheric Chemistry and Physics Discussions, 5(5), 8149-8207. doi:10.5194/acpd-5-8149-2005
 
-    latex expression: $\sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}$
+    latex expression:
+        gf = \left(1 + \kappa \cdot \frac{RH}{100 - RH}\right)^{\frac{1}{3}}
+        gf = \sqrt[3]{1 + \kappa \cdot \frac{RH}{100 - RH}}
+
 
     Arguments
     ---------
@@ -182,11 +185,32 @@ def kappa_from_fofrh_and_sizedist(f_of_RH, dist, wavelength, RH, verbose = False
 ##### f of RH
 
 def f_RH_kappa(RH, k, RH0 = 0):
+    """
+    References:
+        Petters, M.D., Kreidenweis, S.M., 2007. A single parameter representation of hygroscopic growth and cloud condensation nucleus activity. Atmos. Chem. Phys. 7, 1961–1971. doi:10.5194/acp-7-1961-2007
+    Latex:
+        f_{RH,\kappa} = \frac{\sigma_{wet}}{\sigma_{dry}} = \frac{1 + k \frac{RH_{wet}}{100 - RH_{wet}}}{1 + k \frac{RH_{dry}}{100 - RH_{dry}}}
+    Args:
+        RH:
+        k:
+        RH0:
+
+    Returns:
+
+    """
     f_RH = (1 + (k * (RH/(100 - RH)))) / (1 + (k * (RH0/(100 - RH0))))
     return f_RH
 
 def f_RH_gamma(RH, g, RH0 = 0):
-    """"Doherty et al., 2005"""
+    """"
+
+    Latex:
+        f_{RH,\gamma} = \frac{\left( 1 - \frac{RH_{wet\phantom{j}}}{100}\right) ^{-\gamma}}{ \left( 1 - \frac{RH_{dry}}{100}\right) ^{-\gamma}}
+
+    References:
+        Kasten, F., 1969. Visibility forecast in the phase of pre-condensation. Tellus 21, 631–635. doi:10.3402/tellusa.v21i5.10112
+
+    """
     # f_RH = ((1 - (RH / 100))**(-g)) / ((1 - (RH0 / 100))**(-g))
     f_RH = ((100 - RH0) / (100 - RH))**(g)
     return f_RH
@@ -514,6 +538,8 @@ def _fit_normals(sd):
         bound_h.append(wult)
 
     # sometimes fits don't work, following tries to fix it
+    x = x.astype(float)
+    y = y.astype(float)
     try:
         param, pcov = _curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
     except RuntimeError:
@@ -593,7 +619,6 @@ def calc_mixing_state(growth_modes):
     return ms
 
 
-#### try to make this work with changin gf
 def apply_growth2sizedist(sd, gf):
     def apply_growth_factor_gf_const(data, gf, bins):
         if gf == 1.:
@@ -603,11 +628,27 @@ def apply_growth2sizedist(sd, gf):
             data.iloc[:, :] = _np.nan
             return data, bins.copy()
 
+        # In case gf smaller then
+        inverted = False
+        if gf < 1:
+            inverted = True
+            gf = 1 / gf
+            binst = bins[::-1]
+            data = data.iloc[:, ::-1]
+            dividx = binst.shape[0] // 2
+            binslog = _np.log10(binst)
+            tmp = binslog.max() + binslog.min()
+            transform = lambda x: -1 * (x - tmp)
+            binslogn = transform(binslog)
+            binsn = 10 ** binslogn
+            bins = binsn
+
         gfp = gf - 1
         width = bins[1:] - bins[:-1]
         widthlog = _np.log10(bins[1:]) - _np.log10(bins[:-1])
         width_in_percent_of_low_bin_edge = width / bins[:-1]
         no_extra_bins = int(_np.ceil(gfp / width_in_percent_of_low_bin_edge[-1]))
+
 
         # new / extra bins
         extra_bins = _np.zeros(no_extra_bins)
@@ -662,7 +703,12 @@ def apply_growth2sizedist(sd, gf):
         data_t = _pd.concat([df, dffsb])
         data_new = _pd.DataFrame(data_t)
         data_new.index = data.index
-        return data_new.astype(float), bins_new
+        data_new = data_new.astype(float)
+
+        if inverted:
+            bins_new = 10 ** transform(_np.log10(bins_new))[::-1]
+            data_new = data_new.iloc[:, ::-1]
+        return data_new, bins_new
 
     sd = sd.convert2numberconcentration()
 
@@ -702,9 +748,10 @@ def apply_growth2sizedist(sd, gf):
 
     if type(sd).__name__ == "SizeDist_LS":
         sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', sd.layerbounderies)
-
-    else:
+    elif type(sd).__name__ == "SizeDist":
         sd_grown = type(sd)(data_new, bins_new, 'numberConcentration')
+    else:
+        sd_grown = type(sd)(data_new, bins_new, 'numberConcentration', ignore_data_gap_error = True)
 
     sd_grown.optical_properties.parameters.wavelength = sd.parameters4reductions.wavelength.value
 
@@ -1053,7 +1100,7 @@ class SizeDistGrownByGrowthDistribution(object):
         #         break
 
         # import pdb; pdb.set_trace()
-        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sd.distributionType)
+        sdtsout = _sizedistribution.SizeDist_TS(sdtsumall, binsall, sd.distributionType, ignore_data_gap_error = True)
         out = {}
         out['grown_size_dists_sum'] = sdtsout
         self._sum_of_all_sizeditributions = sdtsout
@@ -1160,7 +1207,7 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
         self._fit_results
         return self._mixing_state
 
-    def plot(hgfd, growth_modes=True, **kwargs):
+    def plot(hgfd, growth_modes=True, scatter_kw = {}, **kwargs):
         f, a, pc, cb = super().plot(**kwargs)
         #             pc_kwargs={
         #         #                                 'cmap': plt_tools.get_colorMap_intensity_r(),
@@ -1170,6 +1217,7 @@ class HygroscopicGrowthFactorDistributions(_timeseries.TimeSeries_2D):
         #         cols = plt_tools.color_cycle[1]
         if growth_modes:
             a.scatter(hgfd.growth_modes_gf.index, hgfd.growth_modes_gf.gf, s=hgfd.growth_modes_gf.ratio * 200,
-                      color=_plt_tools.color_cycle[1]
+                      **scatter_kw
+                      # color=_plt_tools.color_cycle[1]
                       )
         return f, a, pc, cb

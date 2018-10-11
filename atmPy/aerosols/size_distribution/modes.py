@@ -29,7 +29,6 @@ def fit_normal_dist(sd, log=True, p0=[10, 180, 0.2]):
         med = np.median(x[1:] - x[:-1])
 
         low = np.floor((start_w * (1 - tol)) / med)
-        cent = int(start_w / med)
         top = np.ceil((start_w * (1 + tol)) / med)
 
         widths = np.arange(low, top)
@@ -94,8 +93,11 @@ def fit_normal_dist(sd, log=True, p0=[10, 180, 0.2]):
         bound_l.append(0.1)
         bound_h.append(0.3)
 
-    param, cm = optimize.curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
-
+    try:
+        param, cm = optimize.curve_fit(multi_gauss, x, y, p0=param, bounds=(bound_l, bound_h))
+    except RuntimeError:
+        print('Runtime error!')
+        return False
     y_fit = multi_gauss(x, *param)
 
     param = param.reshape(len(peak_args), 3).transpose()
@@ -205,9 +207,12 @@ class ModeAnalysis(object):
         boundary_aiken_accu = 100
 
         sdts_aiken = sizedist.copy()
+        sdts_aiken._update()
         sdts_aiken.data[:] = np.nan
         sdts_accu = sdts_aiken.copy()
+        sdts_accu._update()
         sdts_coarse = sdts_aiken.copy()
+        sdts_coarse._update()
 
         fit_res_all = pd.DataFrame(columns=['amp', 'pos', 'sig', 'area'])
 
@@ -249,11 +254,11 @@ class ModeAnalysis(object):
         #     break
         # df
 
-        volumes = sdts_aiken.particle_volume_concentration.data.copy()
-        volumes.columns = ['aiken']
-        volumes['acccu'] = sdts_accu.particle_volume_concentration.data
-        volumes['coarse'] = sdts_coarse.particle_volume_concentration.data
-        volume_ratios = volumes.truediv(volumes.sum(axis = 1), axis=0)
+        # volumes = sdts_aiken.particle_volume_concentration.data.copy()
+        # volumes.columns = ['aiken']
+        # volumes['acccu'] = sdts_accu.particle_volume_concentration.data
+        # volumes['coarse'] = sdts_coarse.particle_volume_concentration.data
+        # volume_ratios = volumes.truediv(volumes.sum(axis = 1), axis=0)
 
         self.__size_dist_aiken = sdts_aiken
         self.__size_dist_accu = sdts_accu
