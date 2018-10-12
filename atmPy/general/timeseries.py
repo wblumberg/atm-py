@@ -379,7 +379,7 @@ def concat(ts_list):
     return ts
 
 
-def correlate(data, correlant, data_column = False, correlant_column = False, remove_zeros=True, data_lim = None,
+def correlate(data, correlant, data_column = False, correlant_column = False, differenciate = None, remove_zeros=True, data_lim = None,
               correlant_lim = None,
               align_timeseries = True):
     """Correlates data in correlant to that in data. In the process the data in correlant
@@ -401,7 +401,11 @@ def correlate(data, correlant, data_column = False, correlant_column = False, re
     """
     data = data.copy()
     correlant = correlant.copy()
-
+    assert(type(differenciate).__name__ in ['Series', 'NoneType'])
+    if type(differenciate).__name__ == 'Series':
+        differenciate = differenciate.values
+        if any([align_timeseries, data_lim, correlant_lim]):
+            raise ValueError('Sorry differencieate and any of align_timeseries, data_lim, or correlant_lim do not work at the same time .... programming required')
 
 
     if data_column:
@@ -439,7 +443,7 @@ def correlate(data, correlant, data_column = False, correlant_column = False, re
 
     # import pdb
     # pdb.set_trace()
-    out = _array_tools.Correlation(data_values, correlant_values, remove_zeros=remove_zeros, index = data.data.index)
+    out = _array_tools.Correlation(data_values, correlant_values, differenciate, remove_zeros=remove_zeros, index = data.data.index)
     out._x_label_orig = 'DataTime'
     return out
 

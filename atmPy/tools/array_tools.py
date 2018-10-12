@@ -1,6 +1,7 @@
 __author__ = 'htelg'
 
 import numpy as _np
+import pandas as _pd
 from scipy import stats as _stats
 import matplotlib.pylab as _plt
 from atmPy.tools import plt_tools as _plt_tools
@@ -164,7 +165,7 @@ class Correlation(object):
 
         data = data.copy()
         correlant = correlant.copy()
-        self.__pearson_r = None
+        self._pearson_r = None
         self.__linear_regression = None
         self.__linear_regression_function = None
         self.__linear_regression_zero = None
@@ -175,7 +176,7 @@ class Correlation(object):
             correlant = correlant[data != 0]
             if type(index) != bool:
                 index = index[data != 0]
-            if differenciate:
+            if isinstance(differenciate, _np.ndarray):
                 differenciate = differenciate[data != 0]
             data = data[data != 0]
 
@@ -183,7 +184,7 @@ class Correlation(object):
             data = data[correlant != 0]
             if type(index) != bool:
                 index = index[correlant != 0]
-            if differenciate:
+            if isinstance(differenciate, _np.ndarray):
                 differenciate = differenciate[correlant != 0]
             correlant = correlant[correlant != 0]
 
@@ -191,19 +192,34 @@ class Correlation(object):
         correlant = correlant[~ _np.isnan(data)]
         if type(index) != bool:
             index = index[~ _np.isnan(data)]
-        if differenciate:
+        if isinstance(differenciate, _np.ndarray):
             differenciate = differenciate[~ _np.isnan(data)]
         data = data[~ _np.isnan(data)]
 
         data = data[~ _np.isnan(correlant)]
         if type(index) != bool:
             index = index[~ _np.isnan(correlant)]
-        if differenciate:
+        if isinstance(differenciate, _np.ndarray):
             differenciate = differenciate[~ _np.isnan(correlant)]
         correlant = correlant[~ _np.isnan(correlant)]
 
         self._data = data
         self._correlant = correlant
+        self._differenciate = differenciate
+
+        if isinstance(differenciate, _np.ndarray):
+            subsets = []
+            for key in _np.unique(differenciate):
+                where = _np.where(differenciate == key)
+                subset = {}
+                subset['data'] = data[where]
+                subset['correlant'] = correlant[where]
+                subset['key'] = key
+                subsets.append(subset)
+            self._subsets = subsets
+        else:
+            self._subsets = None
+
 
         self._maxvalue = max([data.max(),correlant.max()])
         self._minvalue = min([data.min(), correlant.min()])
@@ -223,9 +239,14 @@ class Correlation(object):
 
     @property
     def pearson_r(self):
-        if not self.__pearson_r:
-            self.__pearson_r = _stats.pearsonr(self._data, self._correlant)
-        return self.__pearson_r
+        if isinstance(self._pearson_r, type(None)):
+            if isinstance(self._subsets, list):
+                pear_res = _np.array([[sub['key']] + list(_stats.pearsonr(sub['data'], sub['correlant'])) for sub in self._subsets])
+                pear_res_df = _pd.DataFrame(pear_res[:, 1:], index=pear_res[:, 0], columns=['pearson_r', 'pearson_s'])
+                self._pearson_r = pear_res_df
+            else:
+                self._pearson_r = _stats.pearsonr(self._data, self._correlant)
+        return self._pearson_r
 
     @property
     def linear_regression(self):
@@ -255,36 +276,85 @@ class Correlation(object):
 
     @property
     def orthogonla_distance_regression(self):
-        if not self.__orthogonal_distance_regression:
-            if self.weights == 'scaled':
+        def fit_odr(data, correlant, odr_function, poly_order, weights):
+            if weights == 'scaled':
                 std = 0.1
-                mydata = _odr.RealData(self._data, self._correlant, sx=self._data * std,
-                                         sy=self._correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
-            elif self.weights == 'constant':
-                mydata = _odr.Data(self._data, self._correlant, wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+                mydata = _odr.RealData(data, correlant, sx=data * std,
+                                       sy=correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            elif weights == 'constant':
+                sx, sy = 1
+                mydata = _odr.Data(data, correlant, wd=1. / sx ** 2, we=1. / sy ** 2)
             else:
                 raise ValueError('weights has to be scalar or constant')
-            if self.odr_function!= 'linear':
+            if odr_function!= 'linear':
                 raise('only "linear" allowed at this point, programming required!')
-            model = _odr.polynomial(self.poly_order)
+            model = _odr.polynomial(poly_order)
             myodr = _odr.ODR(mydata, model)
             myoutput = myodr.run()
-            self.__orthogonal_distance_regression = {'model': myodr,
+            odr_res = {'model': myodr,
                                                      'output': myoutput,
-                                                     'function': _np.polynomial.Polynomial(myoutput.beta)
-#lambda x: _odr.unilinear.fcn(myoutput.beta, x)
-                                                     }
+                                                     'function': _np.polynomial.Polynomial(myoutput.beta)}
+            return odr_res
+
+        if isinstance(self.__orthogonal_distance_regression, type(None)):
+            data, correlant, odr_function, poly_order, weights = [self._data, self._correlant, self.odr_function,
+                                                                    self.poly_order, self.weights]
+            if isinstance(self._subsets, list):
+                odr_res_list = []
+                for subset in self._subsets:
+                    # where = _np.where(self._differenciate == key)
+                    # data = self._data[where]
+                    # correlant = self._correlant[where]
+                    odr_res = fit_odr(subset['data'], subset['correlant'], odr_function, poly_order, weights)
+                    odr_res['diff_key'] = subset['key']
+                    odr_res_list.append(odr_res)
+                odr_res = _np.array([[sub['diff_key'], sub['output'].beta[0], sub['output'].beta[1], sub['output'].res_var] for sub in odr_res_list])
+                odr_res_df = _pd.DataFrame(odr_res[:, 1:], index=odr_res[:, 0], columns=['c', 'm', 'var'])
+                odr_res_df.odr_res_list = odr_res_list
+                self.__orthogonal_distance_regression = odr_res_df
+            else:
+                self.__orthogonal_distance_regression = fit_odr(data, correlant, odr_function, poly_order, weights)
+
+
+            # if self.weights == 'scaled':
+            #     std = 0.1
+            #     mydata = _odr.RealData(self._data, self._correlant, sx=self._data * std,
+            #                              sy=self._correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            # elif self.weights == 'constant':
+            #     mydata = _odr.Data(self._data, self._correlant, wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
+            # else:
+            #     raise ValueError('weights has to be scalar or constant')
+            # if self.odr_function!= 'linear':
+            #     raise('only "linear" allowed at this point, programming required!')
+            # model = _odr.polynomial(self.poly_order)
+            # myodr = _odr.ODR(mydata, model)
+            # myoutput = myodr.run()
+            # self.__orthogonal_distance_regression = {'model': myodr,
+            #                                          'output': myoutput,
+            #                                          'function': _np.polynomial.Polynomial(myoutput.beta)}
+
         return self.__orthogonal_distance_regression
 
-    def plot_regression(self, reg_type = 'odr',zero_intersect=False, gridsize=100, cm='auto', xlim=None,
-                        ylim=None, colorbar=False, ax=None, aspect='equal',
+    def plot_regression(self,
+                        reg_type = 'odr',
+                        style = 'density',
+                        zero_intersect=False,
+                        gridsize=100,
+                        cm='auto',
+                        xlim=None,
+                        ylim=None,
+                        colorbar=False,
+                        ax=None,
+                        aspect='equal',
                         fit_res_kwargs = {},
                         show_slope_1 = True,
                         # 'pos':(0.1, 0.9),
                         #                   'show_params': ['r','r2','p','m', 'c', 's']
                         #                   },
                         # vmin=0.001,
-                        hexbin_kwargs = {}, plot_kwargs = {}):
+                        dots_kwargs = {},
+                        hexbin_kwargs = {},
+                        fit_plot_kwargs = {}):
         """
 
         Parameters
@@ -293,6 +363,9 @@ class Correlation(object):
             which type of regression:
                 - 'simple'
                 - 'odr' -- orthogonlal distance regression (scipy.odr)
+        style: str ['density', 'dots']
+            dots: on dot per datapoint
+            density: plot the density of points rather then each poing
         gridsize:
         cm: matplotlib.color map
         xlim: int or float
@@ -308,200 +381,307 @@ class Correlation(object):
         ax: bool or matplotlib.Axes instance
             If desired to plot on another axes.
         fit_res_kwargs: dict ... allowed keys
+            When None, no fit results will be shown
             pos: tuple of len=2
             show_params: ['r','r2','p','m', 'c', 's']
                 list of fit-parameters to show
             bb_fc: color of box face color
             bb_ec: color of box edge color
             bb_lw: line width of box
+
+        dots_kwargs: dict
+            color_gradient: bool
+                generates gradient based on cm
+        fit_plot_kwargs: dict
+            When None, linear regression is not shown
+            keys in addition to plot kwargs:
+
         Returns
         -------
 
         """
-        if not ax:
-            f, a = _plt.subplots()
-        else:
-            f = ax.get_figure()
-            a = ax
+        def plot_one(data, correlant,
+                     odr_res,
+                     reg_type='odr',
+                     style='density',
+                     zero_intersect=False,
+                     gridsize=100,
+                     cm='auto',
+                     xlim=None,
+                     ylim=None,
+                     colorbar=False,
+                     ax=None,
+                     aspect='equal',
+                     fit_res_kwargs={},
+                     show_slope_1=True,
+                     # 'pos':(0.1, 0.9),
+                     #                   'show_params': ['r','r2','p','m', 'c', 's']
+                     #                   },
+                     # vmin=0.001,
+                     hexbin_kwargs={},
+                     dots_kwargs = {},
+                     fit_plot_kwargs={}):
+            if not ax:
+                f, a = _plt.subplots()
+            else:
+                f = ax.get_figure()
+                a = ax
 
-        if aspect == 'auto':
-            ratio = 14 / 20  # at this ratio hexagons look symmetric at the particular setting
-        elif aspect == 'equal':
-            pass
-        else:
-            ratio = aspect * 20 / 14
+            a.set_xlabel(self._x_label_correlation)
+            a.set_ylabel(self._y_label_correlation)
 
-        a.set_xlabel(self._x_label_correlation)
-        a.set_ylabel(self._y_label_correlation)
+
+
+            if style == 'density':
+
+
+                if type(gridsize) == tuple:
+                    gridsize_x, gridsize_y = gridsize
+                else:
+                    if xlim:
+                        if type(xlim).__name__ in ['int', 'float']:
+                            xmax = xlim
+                            xmin = data.min()
+                            xlim = (xmin, xmax)
+                        elif type(xlim).__name__ == 'tuple''':
+                            xmax = xlim[1]
+                            xmin = xlim[0]
+                    else:
+                        xmax = self._maxvalue
+                        xmin = self._minvalue
+
+                    xratio = (data.max() - data.min()) / (xmax - xmin)
+                    gridsize_x = int(gridsize * xratio)
+
+                    if ylim:
+                        if type(ylim).__name__ in ['int', 'float']:
+                            ymax = ylim
+                            ymin = correlant.min()
+                            ylim = (ymin, ymax)
+                        elif type(ylim).__name__ == 'tuple''':
+                            ymax = ylim[1]
+                            ymin = ylim[0]
+                    else:
+                        ymax = self._maxvalue
+                        ymin = self._minvalue
+                    yratio = (correlant.max() - correlant.min()) / (ymax - ymin)
+                    gridsize_y = int(gridsize * yratio)
+
+
+                if type(gridsize) == tuple:
+                    gridsize_new = gridsize
+                else:
+                    gridsize_new = (gridsize_x, gridsize_y)
+
+
+                hb = a.hexbin(data, correlant, gridsize=gridsize_new, **hexbin_kwargs)
+                hb.set_clim(0.01) # this is so every empty bin results to get the color defined in cm.set_under() -> transparent
+
+                if colorbar:
+                    f.colorbar(hb, ax=a)
+            elif style == 'dots':
+                if 'marker' not in dots_kwargs:
+                    dots_kwargs['marker'] = '.'
+                if ('ls' not in dots_kwargs) or ('linestyle' not in dots_kwargs):
+                    dots_kwargs['linestyle'] = ''
+                # print('dots_kwargs: ', end = '')
+                # print(dots_kwargs)
+                g, = a.plot(data, correlant, **dots_kwargs)
+                # g.set_marker('.')
+                # g.set_linestyle('')
+                hb = g
+            else:
+                raise ValueError('{} is not an option for kwart style. choose among [density, dots]'.format(style))
+
+            if isinstance(fit_plot_kwargs, dict):
+                if 'color' not in fit_plot_kwargs.keys():
+                    fit_plot_kwargs['color'] =  _colors[2]
+
+                if 'simple' in reg_type:
+                    x_reg_func = _np.array([data.min(), data.max()])
+                    if zero_intersect:
+                        y_reg_func = self.linear_regression_zero_intersect_function(x_reg_func)
+                        slope = self.linear_regression_zero_intersect[0]
+                        intersect = 0
+                        std = (correlant - self.linear_regression_zero_intersect_function(data)).std()
+                    else:
+                        y_reg_func = self.linear_regression_function(x_reg_func)
+                        slope = self.linear_regression.slope
+                        intersect = self.linear_regression.intercept
+                        # std = self.linear_regression.stderr
+                        std = (correlant - self.linear_regression_function(data)).std()
+                    a.plot(x_reg_func, y_reg_func, **fit_plot_kwargs)
+
+                if 'odr' in reg_type:
+                    x_reg_func = data
+                    y_reg_func = odr_res['function'](x_reg_func)
+                    slope = odr_res['output'].beta[1]
+                    intersect = odr_res['output'].beta[0]
+                    std = _np.sqrt(odr_res['output'].res_var)
+                    a.plot(x_reg_func, y_reg_func, label = 'odr fit', **fit_plot_kwargs)
+
+            # color = _plt_tools.color_cycle[2]
+
+            if type(fit_res_kwargs) == dict:
+                txt_r = '$r = %0.2f$' % (self.pearson_r[0])
+                txt_r2= '$r^2 = %0.2f$' % ((self.pearson_r[0]) ** 2)
+                # if p_value:
+                txt_p= '$p = %0.2f$' % (self.pearson_r[1])
+                txt_m= '$m = %0.2f$' % (slope)
+                txt_c= '$c = %0.2f$' % (intersect)
+                txt_s= '$s = %0.2f$' % (std)
+
+                txtl = []
+
+                if 'show_params' not in fit_res_kwargs.keys():
+                    fit_res_kwargs['show_params'] = ['r', 'r2', 'p', 'm', 'c', 's']
+
+                if 'pos' not in fit_res_kwargs.keys():
+                    fit_res_kwargs['pos'] = (0.1, 0.9)
+
+                if 'bb_fc' not in fit_res_kwargs.keys():
+                    fit_res_kwargs['bb_fc'] = [1,1,1,0.5]
+
+                if 'bb_ec' not in fit_res_kwargs.keys():
+                    fit_res_kwargs['bb_ec'] = [0,0,0,1]
+
+                if 'bb_lw' not in fit_res_kwargs.keys():
+                    fit_res_kwargs['bb_lw'] = _plt.rcParams['axes.linewidth']
+
+                for fr in fit_res_kwargs['show_params']:
+                    if fr == 'r':
+                        txtl.append(txt_r)
+                    elif fr == 'r2':
+                        txtl.append(txt_r2)
+                    elif fr == 'p':
+                        txtl.append(txt_p)
+                    elif fr == 'm':
+                        txtl.append(txt_m)
+                    elif fr == 'c':
+                        txtl.append(txt_c)
+                    elif fr == 's':
+                        txtl.append(txt_s)
+                    else:
+                        pass
+                        # raise
+
+                txt = '\n'.join(txtl)
+
+
+
+                props = dict(boxstyle='round',
+                             facecolor=fit_res_kwargs['bb_fc'],
+                             edgecolor = fit_res_kwargs['bb_ec'],
+                             lw = fit_res_kwargs['bb_lw']
+                             )
+                pos = fit_res_kwargs['pos']
+                a.text(pos[0], pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
+
+            if xlim:
+                a.set_xlim(xlim)
+            else:
+                a.set_xlim(self._minvalue, self._maxvalue)
+
+            if ylim:
+                a.set_ylim(ylim)
+            else:
+                a.set_ylim(self._minvalue, self._maxvalue)
+
+            if show_slope_1:
+                a.plot([self._minvalue, self._maxvalue], [self._minvalue, self._maxvalue], ls='--', color = _colors[1], label = '1:1')
+
+            if aspect == 'auto':
+                pass
+            elif aspect == 'equal':
+                a.set_aspect('equal')
+            else:
+                x0, x1 = a.get_xlim()
+                y0, y1 = a.get_ylim()
+                a.set_aspect(aspect * (abs(x1 - x0) / abs(y1 - y0)))
+            a.legend()
+            return a, hb
 
         if cm == 'auto':
             cm = _plt.cm.gnuplot
-            cm.set_under([1,1,1,0])
+            cm.set_under([1, 1, 1, 0])
             hexbin_kwargs['cmap'] = cm
 
-        if type(gridsize) == tuple:
-            gridsize_x, gridsize_y = gridsize
+
+        if isinstance(self._subsets, list):
+            if ax == None:
+                f,ax = _plt.subplots()
+            hb = []
+
+            distrange = _np.array([sub['key'] for sub in self._subsets])
+            if cm == 'auto':
+                cm = _plt.cm.viridis
+            # distrange -= distrange.min()
+            # distrange = distrange / distrange.max()
+            for e, subset in enumerate(self._subsets):
+                dots_kwargs_t = dots_kwargs.copy()
+                key = subset['key']
+                if dots_kwargs_t:
+                    if 'color_gradient' in dots_kwargs_t.keys():
+                        dots_kwargs_t['color'] = cm((key - distrange.min()) / (distrange.max() - distrange.min()))
+                        dots_kwargs_t.pop('color_gradient')
+                    else:
+                        dots_kwargs_t['color'] = _colors[e]
+                    dots_kwargs_t['label'] = key
+                if fit_plot_kwargs:
+                    fit_plot_kwargs['color'] = dots_kwargs_t['color']
+
+                odr_res_sub = [subs for subs in self.orthogonla_distance_regression.odr_res_list if subs['diff_key'] == key][0]
+
+                if show_slope_1:
+                    if e == (len(self._subsets) - 1):
+                        show_slope_1_t = True
+                    else:
+                        show_slope_1_t = False
+
+                a,hbt = plot_one(subset['data'], subset['correlant'], odr_res_sub,
+                                 reg_type=reg_type,
+                                 style=style,
+                                 zero_intersect=zero_intersect,
+                                 gridsize=gridsize,
+                                 cm=cm,
+                                 xlim=xlim,
+                                 ylim=ylim,
+                                 colorbar=colorbar,
+                                 ax=ax,
+                                 aspect=aspect,
+                                 fit_res_kwargs=fit_res_kwargs,
+                                 show_slope_1=show_slope_1_t,
+                                 # 'pos':(0.1, 0.9),
+                                 #                   'show_params': ['r','r2','p','m', 'c', 's']
+                                 #                   },
+                                 # vmin=0.001,
+                                 dots_kwargs = dots_kwargs_t,
+                                 hexbin_kwargs=hexbin_kwargs,
+                                 fit_plot_kwargs=fit_plot_kwargs)
+                hb.append(hbt)
+
+
         else:
-            if xlim:
-                if type(xlim).__name__ in ['int', 'float']:
-                    # xratio = self._data.max() / xlim
-                    # gridsize_x = int(gridsize * xratio)
-                    xmax = xlim
-                    xmin = self._data.min()
-                    xlim = (xmin, xmax)
-                elif type(xlim).__name__ == 'tuple''':
-                    xmax = xlim[1]
-                    xmin = xlim[0]
-            else:
-                xmax = self._maxvalue
-                xmin = self._minvalue
-
-            xratio = (self._data.max() - self._data.min()) / (xmax - xmin)
-            gridsize_x = int(gridsize * xratio)
-            # else:
-            #     gridsize_x = gridsize
-
-            if ylim:
-                if type(ylim).__name__ in ['int', 'float']:
-                    # yratio = self._correlant.max() / ylim
-                    # gridsize_y = int(ratio * gridsize * yratio)
-                    ymax = ylim
-                    ymin = self._correlant.min()
-                    ylim = (ymin, ymax)
-                elif type(ylim).__name__ == 'tuple''':
-                    ymax = ylim[1]
-                    ymin = ylim[0]
-            else:
-                ymax = self._maxvalue
-                ymin = self._minvalue
-            yratio = (self._correlant.max() - self._correlant.min()) / (ymax - ymin)
-            gridsize_y = int(gridsize * yratio)
-        # else:
-        #     if type(gridsize) != tuple:
-        #         gridsize_y = int(gridsize * ratio)
-
-        if type(gridsize) == tuple:
-            gridsize_new = gridsize
-        else:
-            gridsize_new = (gridsize_x, gridsize_y)
-
-        # import pdb
-        # pdb.set_trace()
-        hb = a.hexbin(self._data, self._correlant, gridsize=gridsize_new, **hexbin_kwargs)
-        hb.set_clim(0.01) # this is so every empty bin results to get the color defined in cm.set_under() -> transparent
-
-        if colorbar:
-            f.colorbar(hb, ax=a)
-            #         linreg_func = lambda x: x * linreg.slope + linreg.intercept
-        # data.min()
-
-        if 'color' not in plot_kwargs.keys():
-            plot_kwargs['color'] =  _colors[2]
-        if 'simple' in reg_type:
-            x_reg_func = _np.array([self._data.min(), self._data.max()])
-            if zero_intersect:
-                y_reg_func = self.linear_regression_zero_intersect_function(x_reg_func)
-                slope = self.linear_regression_zero_intersect[0]
-                intersect = 0
-                std = (self._correlant - self.linear_regression_zero_intersect_function(self._data)).std()
-            else:
-                y_reg_func = self.linear_regression_function(x_reg_func)
-                slope = self.linear_regression.slope
-                intersect = self.linear_regression.intercept
-                # std = self.linear_regression.stderr
-                std = (self._correlant - self.linear_regression_function(self._data)).std()
-            a.plot(x_reg_func, y_reg_func, **plot_kwargs)
-
-        if 'odr' in reg_type:
-            x_reg_func = self._data #_np.array([self._data.min(), self._data.max()])
-            y_reg_func = self.orthogonla_distance_regression['function'](x_reg_func)
-            slope = self.orthogonla_distance_regression['output'].beta[1]
-            intersect = self.orthogonla_distance_regression['output'].beta[0]
-            std = _np.sqrt(self.orthogonla_distance_regression['output'].res_var)
-            a.plot(x_reg_func, y_reg_func, label = 'odr fit', **plot_kwargs)
-            # a.set_xlim((self._data.min(), self._data.max()))
-            # a.set_ylim((self._correlant.min(), self._correlant.max()))
-
-        # color = _plt_tools.color_cycle[2]
-
-        if type(fit_res_kwargs) == dict:
-            txt_r = '$r = %0.2f$' % (self.pearson_r[0])
-            txt_r2= '$r^2 = %0.2f$' % ((self.pearson_r[0]) ** 2)
-            # if p_value:
-            txt_p= '$p = %0.2f$' % (self.pearson_r[1])
-            txt_m= '$m = %0.2f$' % (slope)
-            txt_c= '$c = %0.2f$' % (intersect)
-            txt_s= '$s = %0.2f$' % (std)
-
-            txtl = []
-
-            if 'show_params' not in fit_res_kwargs.keys():
-                fit_res_kwargs['show_params'] = ['r', 'r2', 'p', 'm', 'c', 's']
-
-            if 'pos' not in fit_res_kwargs.keys():
-                fit_res_kwargs['pos'] = (0.1, 0.9)
-
-            if 'bb_fc' not in fit_res_kwargs.keys():
-                fit_res_kwargs['bb_fc'] = [1,1,1,0.5]
-
-            if 'bb_ec' not in fit_res_kwargs.keys():
-                fit_res_kwargs['bb_ec'] = [0,0,0,1]
-
-            if 'bb_lw' not in fit_res_kwargs.keys():
-                fit_res_kwargs['bb_lw'] = _plt.rcParams['axes.linewidth']
-
-            for fr in fit_res_kwargs['show_params']:
-                if fr == 'r':
-                    txtl.append(txt_r)
-                elif fr == 'r2':
-                    txtl.append(txt_r2)
-                elif fr == 'p':
-                    txtl.append(txt_p)
-                elif fr == 'm':
-                    txtl.append(txt_m)
-                elif fr == 'c':
-                    txtl.append(txt_c)
-                elif fr == 's':
-                    txtl.append(txt_s)
-                else:
-                    pass
-                    # raise
-
-            txt = '\n'.join(txtl)
-
-
-
-            props = dict(boxstyle='round',
-                         facecolor=fit_res_kwargs['bb_fc'],
-                         edgecolor = fit_res_kwargs['bb_ec'],
-                         lw = fit_res_kwargs['bb_lw']
-                         )
-            pos = fit_res_kwargs['pos']
-            a.text(pos[0], pos[1], txt, transform=a.transAxes, horizontalalignment='left', verticalalignment='top', bbox=props)
-
-        if xlim:
-            a.set_xlim(xlim)
-        else:
-            a.set_xlim(self._minvalue, self._maxvalue)
-
-        if ylim:
-            a.set_ylim(ylim)
-        else:
-            a.set_ylim(self._minvalue, self._maxvalue)
-
-        if show_slope_1:
-            a.plot([self._minvalue, self._maxvalue], [self._minvalue, self._maxvalue], ls='--', color = _colors[1], label = '1:1')
-
-        if aspect == 'auto':
-            pass
-        elif aspect == 'equal':
-            a.set_aspect('equal')
-        else:
-            x0, x1 = a.get_xlim()
-            y0, y1 = a.get_ylim()
-            a.set_aspect(aspect * (abs(x1 - x0) / abs(y1 - y0)))
-        a.legend()
-        return a, hb
+            a,hb = plot_one(self._data, self._correlant, self.orthogonla_distance_regression,
+                            reg_type=reg_type,
+                            style=style,
+                            zero_intersect=zero_intersect,
+                            gridsize=gridsize,
+                            cm=cm,
+                            xlim=xlim,
+                            ylim=ylim,
+                            colorbar=colorbar,
+                            ax=ax,
+                            aspect=aspect,
+                            fit_res_kwargs=fit_res_kwargs,
+                            show_slope_1=show_slope_1,
+                            # 'pos':(0.1, 0.9),
+                            #                   'show_params': ['r','r2','p','m', 'c', 's']
+                            #                   },
+                            # vmin=0.001,
+                            hexbin_kwargs=hexbin_kwargs,
+                            fit_plot_kwargs=fit_plot_kwargs)
+        return a,hb
 
     # todo: allow xlim and ylim to be tuples so you can devine a limit range rather then just the upper limit
     def plot_pearson(self, zero_intersect = False, gridsize = 100, cm = 'auto', xlim = None,
@@ -728,3 +908,47 @@ class Correlation(object):
         pc.set_clim(0.01)
         pc.set_cmap(cm)
         return a,pc
+
+    def plot_differenciated_stats(self, ax = None):
+        """
+
+        Parameters
+        ----------
+        ax: list of axes
+
+        Returns
+        -------
+
+        """
+        if isinstance(ax, type(None)):
+            f, aa = _plt.subplots(4, sharex=True, gridspec_kw={'hspace': 0})
+            f.set_figheight(f.get_figheight() * 1.2)
+        else:
+            aa = ax
+
+        a_r = aa[0]
+        a_m = aa[1]
+        a_c = aa[2]
+        a_var = aa[3]
+
+        # r
+        self.pearson_r.pearson_r.plot(ax=a_r)
+        a_r.set_ylabel('r')
+
+        # m
+        self.orthogonla_distance_regression.m.plot(ax=a_m)
+        a_m.set_ylabel('m')
+
+        # c
+        self.orthogonla_distance_regression.c.plot(ax=a_c)
+        a_c.set_ylabel('c')
+
+        # var
+        self.orthogonla_distance_regression['var'].plot(ax=a_var)
+        a_var.set_ylabel('var')
+
+        #####
+        for at in aa:
+            at.yaxis.set_major_locator(_plt.MaxNLocator(5, prune='both'))
+
+        return aa
