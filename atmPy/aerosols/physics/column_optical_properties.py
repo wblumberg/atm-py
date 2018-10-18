@@ -29,7 +29,7 @@ class AOD_AOT(object):
         self._sunposition = None
         self._timezone = timezone
 
-        self.site = _measurement_site.Site(lat, lon, elevation, name=name, abbriviation=name_short, info = site_info)
+        self.site = _measurement_site.Station(lat, lon, elevation, name=name, abbreviation=name_short, info = site_info)
 
 
     @property
