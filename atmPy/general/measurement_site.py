@@ -63,6 +63,7 @@ class Network(object):
             if isinstance(network_stations[0], dict):
                 network_stations = network_stations.copy()
                 for station in network_stations:
+                    station = station.copy()
                     if isinstance(station['abbreviation'], list):
                         station['abbreviation'] = station['abbreviation'][0]
                     # else:

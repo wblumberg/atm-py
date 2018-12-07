@@ -4,6 +4,7 @@ import os as _os
 from atmPy.general import timeseries as _timeseries
 from atmPy.aerosols.physics import column_optical_properties as _column_optical_properties
 from atmPy.general import measurement_site as _measurement_site
+import warnings as _warnings
 
 # from atmPy.general import measurement_site as _measurement_site
 # from atmPy.radiation import solar as _solar
@@ -15,21 +16,21 @@ _locations = [{'name': 'Bondville',
               'lat': 40.05192,
               'alt' :230,
               'timezone': -6},
-             {'name': 'Sioux Falls',
+              {'name': 'Sioux Falls',
               'state': 'SD',
               'abbreviation': ['SXF', 'sxf'],
               'lon': -96.62328,
               'lat': 43.73403,
               'alt': 473,
               'timezone': -6},
-             {'name': 'Table Mountain',
+              {'name': 'Table Mountain',
               'state': 'CO',
               'abbreviation': ['TBL', 'tbl'],
               'lon': -105.23680,
               'lat': 40.12498,
               'alt': 1689,
               'timezone': -7},
-             {'name': 'Desert Rock',
+              {'name': 'Desert Rock',
               'state': 'NV',
               'abbreviation': ['DRA', 'dra'],
               'lon': -116.01947,
@@ -37,7 +38,7 @@ _locations = [{'name': 'Bondville',
               'alt': 1007,
               'timezone': 8,
               'type': 'permanent'},
-             {'name': 'Fort Peck',
+              {'name': 'Fort Peck',
               'state': 'MT',
               'abbreviation': ['FPK', 'fpk'],
               'lon': -105.10170,
@@ -45,7 +46,7 @@ _locations = [{'name': 'Bondville',
               'alt': 634,
               'timezone': 7,
               'type': 'permanent'},
-             {'name': 'Goodwin Creek',
+              {'name': 'Goodwin Creek',
               'state': 'MS',
               'abbreviation': ['GWN', 'gwn'],
               'lon': -89.8729,
@@ -53,7 +54,7 @@ _locations = [{'name': 'Bondville',
               'alt': 98,
               'timezone': 6,
               'type': 'permanent'},
-             {'name': 'Penn. State Univ.',
+              {'name': 'Penn. State Univ.',
               'state': 'PA',
               'abbreviation': ['PSU', 'psu'],
               'lon': -77.93085,
@@ -61,7 +62,7 @@ _locations = [{'name': 'Bondville',
               'alt': 376,
               'timezone': 5,
               'type': 'permanent'},
-             {'name': 'ARM Southern Great Plains Facility',
+              {'name': 'ARM Southern Great Plains Facility',
               'state': 'OK',
               'abbreviation': ['SGP', 'sgp'],
               'lon': -97.48525,
@@ -69,15 +70,15 @@ _locations = [{'name': 'Bondville',
               'alt': 314,
               'timezone': 6,
               'type': 'permanent'},
-             # {'name': '',
-             #  'state': '',
-             #  'abbriviations': ['', ''],
-             #  'lon': -,
-             #  'lat': ,
-             #  'alt': ,
-             #  'timezone': ,
-             #  'type': 'permanent'}
-             ]
+              # {'name': '',
+              #  'state': '',
+              #  'abbriviations': ['', ''],
+              #  'lon': -,
+              #  'lat': ,
+              #  'alt': ,
+              #  'timezone': ,
+              #  'type': 'permanent'}
+              ]
 
 
 network = _measurement_site.Network(_locations)
@@ -198,7 +199,7 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
             (lambda x: '{0:0>4}'.format(x)) + 'UTC'  # '+0000'
         df.index = _pd.to_datetime(datetimestr, format="%Y%m%d%H%M%Z")
         if UTC:
-            timezone = [l for l in locations if header['site'] in l['name']][0]['timezone']
+            timezone = [l for l in _locations if header['site'] in l['name']][0]['timezone']
             df.index += _pd.to_timedelta(-1 * timezone, 'h')
             df.index.name = 'Time (UTC)'
         else:
@@ -219,7 +220,13 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
         header = _read_header(folder, fname)
         # make sure that all the headers are identical
         if header_first['site'] != header['site']:
-            raise ValueError('The site name changed from {} to {}!'.format(header_first['site'], header['site']))
+            site = [site for site in _locations if header_first['site'] in site['name']]
+            site = site[0]
+            if  header['site'] in site['abbreviation']:
+                header['site'] = header_first['site']
+                # _warnings.warn('The site name changed from {} to {}! Since its the same site we march on.'.format(header_first['site'], header['site']))
+            else:
+                raise ValueError('The site name changed from {} to {}!'.format(header_first['site'], header['site']))
         data = read_data(folder, fname, UTC = UTC, header=header)
         data_list.append(data)
         if verbose:
@@ -304,7 +311,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
               keep_original_data = False):
 
     if site:
-        if len([loc for loc in locations if site in loc['abbreviation']]) == 0:
+        if len([loc for loc in _locations if site in loc['abbreviation']]) == 0:
             raise ValueError('The site {} has not been set up yet. Add relevant data to the location dictionary'.format(site))
 
     files, folder = _path2files(path, site, window, perform_header_test, verbose)
@@ -319,7 +326,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
 
     # add Site class to surfrad_aod
     try:
-        site = [l for l in locations if data.header['site'] in l['name']][0]
+        site = [l for l in _locations if data.header['site'] in l['name']][0]
     except IndexError:
         raise ValueError('Looks like the site you trying to open is not set up correctly yet in "location"')
 
