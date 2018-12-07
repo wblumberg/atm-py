@@ -91,7 +91,13 @@ def read_file(fname,
     first = True
 
     if os.path.isdir(fname):
+        foldername = fname
         fname = os.listdir(fname)
+    else:
+        foldername = ''
+
+    print('fname is of unknown type: {}'.format(type(fname).__name__))
+    print(fname)
 
     if type(fname).__name__ == 'list':
         for file in fname:
@@ -105,23 +111,29 @@ def read_file(fname,
                     print('%s is not a housekeeping file ... continue'%file)
 
             if is_hk:
-                hktmp = read(file, verbose=verbose)
+                hktmp = read(foldername+file, verbose=verbose)
                 if not hktmp:
                     print('%s is empty ... next one' % file)
                 elif first:
-                    data = hktmp.data.copy()
+                    print('first')
+                    # data = hktmp.data.copy()
                     first = False
-                    hk = POPSHouseKeeping(data)
+                    hk = hktmp #POPSHouseKeeping(data)
                     # continue
                 else:
-                    data = pd.concat((data, hktmp.data))
+                    print('not first')
+                    data = pd.concat((hk.data, hktmp.data))
                     hk = POPSHouseKeeping(data)
         if first:
             txt = """Either the prvided list of names is empty, the files are empty, or none of the file names end on
 the required ending (*HK.csv)"""
             raise ValueError(txt)
-    else:
+    elif isinstance(fname, str):
         hk = read(fname)
+
+    else:
+        txt = 'fname is of unknown type: {}'.format(type(fname).__name__)
+        raise TypeError(txt)
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
 
     if ('P_Baro' in hk.data.keys()) or ('P_Ambient' in hk.data.keys()):
