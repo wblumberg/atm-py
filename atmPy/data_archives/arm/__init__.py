@@ -6,5 +6,5 @@ from .kazrgeM1 import read_kazr_nc
 from .aosuhsas import read_netCDF as read_uhsas
 from .sondewnpnM1 import read_netCDF as read_sonding
 from ._noaaaos import read_noaaaos
-
+from .sites import sgp_sites
 # __all__ = ['arm_products']

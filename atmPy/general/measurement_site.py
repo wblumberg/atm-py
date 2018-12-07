@@ -12,6 +12,7 @@ _image.MAX_IMAGE_PIXELS = None
 
 from matplotlib import path as _path
 
+import geopy as _geopy
 
 default_colors = _plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -56,8 +57,25 @@ class SubNetworks(object):
         return a, bmap
 
 class Network(object):
-    def __init__(self, network_stations, generate_subnetworks = True):
+    def __init__(self, network_stations, generate_subnetworks = True, by_keys = ['name']):
+        """Generate a network of stations
+        Parameters
+        ----------
+        network_stations: list of dicts
+            make sure keys of dicts follow the rules outlined in the Station class which is called for
+            each station in network_stations
+        by_key: str
+            stations within the network are givin by name by the self.stations attribute. In addition stations can be
+            given by a given key which must be a key in network_stations"""
+
         self.stations = NetworkStations()
+        self._networkstation_by_key_list = [{'networkstation_inst': self.stations, 'key': 'name'}]
+        if len(by_keys) > 1:
+            for key in by_keys:
+                nwsinst_name = 'station_by_{}'.format(key)
+                setattr(self, nwsinst_name, NetworkStations())
+                nwsinst = getattr(self, nwsinst_name)
+                self._networkstation_by_key_list.append({'networkstation_inst': nwsinst, 'key':key, 'name': nwsinst_name})
 
         if isinstance(network_stations, list):
             if isinstance(network_stations[0], dict):
@@ -77,6 +95,9 @@ class Network(object):
                     #                info=None)
                     site = Station(**station)
                     self.add_station(site)
+                    # if len(by_keys) > 1:
+                    #     for key in by_keys:
+                    #         self.add_station(site, key = key)
 
             else:
                 for station in network_stations:
@@ -85,10 +106,33 @@ class Network(object):
         if generate_subnetworks:
             self._operation_period2sub_network_active()
 
+    @property
+    def extend(self):
+        extend = {}
+        st_lat_max = max(self.stations._stations_list, key=lambda x: x.lat)
+        st_lat_min = min(self.stations._stations_list, key=lambda x: x.lat)
+        st_lon_max = max(self.stations._stations_list, key=lambda x: x.lon)
+        st_lon_min = min(self.stations._stations_list, key=lambda x: x.lon)
+        center = (st_lat_max.lat + st_lat_min.lat) / 2, (st_lon_max.lon + st_lon_min.lon) / 2
+        extend['center'] = center
 
-    def add_station(self, site_instance):
-        setattr(self.stations, site_instance.name, site_instance)
+        height = _geopy.distance.vincenty((st_lat_min.lat, center[1]), (st_lat_max.lat, center[1]))
+        width = _geopy.distance.vincenty((center[0], st_lon_min.lon), (center[0], st_lon_max.lon))
+
+        extend['width_m'] = width.m
+        extend['height_m'] = height.m
+        return extend
+
+    def add_station(self, site_instance, key = 'name'):
+
+        setattr(self.stations, getattr(site_instance,key), site_instance)
         self.stations._stations_list.append(site_instance)
+
+        for network in self._networkstation_by_key_list:
+            inst = network['networkstation_inst']
+            key = network['key']
+            # name = network['name']
+            setattr(inst, getattr(site_instance,key), site_instance)
 
     def add_subnetwork(self, network_instance):
         if not hasattr(self, 'subnetworks'):
@@ -96,10 +140,35 @@ class Network(object):
         setattr(self.subnetworks, network_instance.name, network_instance)
         self.subnetworks._network_list.append(network_instance)
 
-    def plot(self, **kwargs):
+    def plot(self, zoom = 1.1, **kwargs):
         stl = self.stations._stations_list
         # a, bmap = stl[0].plot(plot_only_if_on_map = True, **kwargs)
         # kwargs['bmap'] = bmap
+
+        if 'center' not in kwargs.keys():
+            kwargs['center'] = 'auto'
+        if kwargs['center'] == 'auto':
+            # st = self.stations._stations_list[0]
+            # lat_max, lat_min = max([st.lat for st in self.stations._stations_list]), min(
+            #     [st.lat for st in self.stations._stations_list])
+            # lon_max, lon_min = max([st.lon for st in self.stations._stations_list]), min(
+            #     [st.lon for st in self.stations._stations_list])
+            # kwargs['center'] = ((lat_max+lat_min)/2, (lon_max+lon_min)/2)
+            kwargs['center'] = self.extend['center']
+
+        if 'width' not in kwargs.keys():
+            kwargs['width'] = 'auto'
+        if kwargs['width'] == 'auto':
+            kwargs['width'] = self.extend['width_m'] * zoom
+
+        if 'height' not in kwargs.keys():
+            kwargs['height'] = 'auto'
+        if kwargs['height'] == 'auto':
+            kwargs['height'] = self.extend['height_m'] * zoom
+
+        if 'station_symbol_kwargs' not in kwargs.keys():
+            kwargs['station_symbol_kwargs'] = {}
+
         for e, station in enumerate(stl):
             if 'color' not in kwargs['station_symbol_kwargs']:
                 kwargs['station_symbol_kwargs']['color'] = default_colors[1]
@@ -132,6 +201,20 @@ class Network(object):
 
 class Station(object):
     def __init__(self, lat = None, lon = None, alt = None, name = None, abbreviation = None, active = None, operation_period = None, info = None, **kwargs):
+        """
+        Generates a Station instance
+        Parameters
+        ----------
+        lat
+        lon
+        alt
+        name
+        abbreviation
+        active
+        operation_period
+        info
+        kwargs
+        """
         self.lat = lat
         self.lon = lon
         self.alt = alt
@@ -145,6 +228,8 @@ class Station(object):
             self.operation_period = operation_period
         for key in kwargs:
             setattr(self, key, kwargs[key])
+
+        self.name = self.name.strip().replace(',','_').replace('(','_').replace(')','_').strip('_')
 
     def plot(self,
              projection='lcc',
@@ -168,6 +253,7 @@ class Station(object):
         Parameters
         ----------
         projection
+        center: 'auto' or (lat, lon)
         width
         height
         abbriviate_name
