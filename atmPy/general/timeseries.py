@@ -1425,8 +1425,10 @@ class TimeSeries(object):
         ts._data_period = _np.timedelta64(window[0], window[1]) / _np.timedelta64(1, 's')
 
         if window[1] == 'm':
-            window = (window[0],'min')
-        resample = ts.data.resample(window,
+            window_rs = (window[0],'min')
+        else:
+            window_rs = window
+        resample = ts.data.resample(window_rs,
                             label = 'left',
                             # loffset = toff,
                            )
@@ -1441,6 +1443,7 @@ class TimeSeries(object):
                 ts.data['envelope_high'] = ts.data.iloc[:,0] + std_tmp.iloc[:,0]
 
         ts._start_time = ts.data.index[0]
+        # ts._data_period = _pd.Timedelta(*window) / _pd.Timedelta(1,'s')
         return ts
 
 

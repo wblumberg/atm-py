@@ -3,13 +3,16 @@
 #
 # from atmPy.data_archives.arm._netCDF import ArmDataset as _Dataset
 import os as _os
-from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1, _aipfitrh1ogrenC1
+from atmPy.data_archives.arm import _tdmasize,_tdmaapssize,_tdmahyg,_aosacsm, _noaaaos, _1twr10xC1, _aipfitrh1ogrenC1, aosaps, aossmps
 import pandas as _pd
 import pylab as _plt
 import warnings
-import pdb as _pdb
+from . import _tools
+# import pdb as _pdb
 
-arm_products = {'tdmasize':   {'module': _tdmasize},
+arm_products = {'aosaps':     {'module': aosaps},
+                'aossmps':     {'module': aossmps},
+                'tdmasize':   {'module': _tdmasize},
                 'tdmaapssize':{'module': _tdmaapssize},
                 'tdmahyg':    {'module': _tdmahyg},
                 'aosacsm':    {'module': _aosacsm},
@@ -18,6 +21,24 @@ arm_products = {'tdmasize':   {'module': _tdmasize},
                 'aipfitrh1ogrenC1': {'module': _aipfitrh1ogrenC1}
                 }
 
+def open_path(path, **kwargs):
+    """
+
+    Parameters
+    ----------
+    path: str
+    window: tuple
+        e.g. ('1990-01-01','2030-01-01')
+    kwargs: all other kwargs the particular file might take, see the module for details
+
+    Returns
+    -------
+
+    """
+    info = _tools.path2info(path)
+    module = arm_products[info['product']]['module']
+    out = module.open_path(path, **kwargs)
+    return out
 
 def check_availability(folder,
                        data_product = None,
