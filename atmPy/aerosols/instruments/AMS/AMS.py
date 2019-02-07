@@ -10,6 +10,7 @@ import pdb as _pdb
 
 
 def ion2electrolyte_mass_concentration(ion_concentrations, ions, electrolytes):
+    """From ﻿Zaveri, R.A., Easter, R.C., Wexler, A.S., 2005. A new method for multicomponent activity coefficients of electrolytes in aqueous atmospheric aerosols. J. Geophys. Res. D Atmos. 110, 1–23. doi:10.1029/2004JD004681 """
     def sulfat_poor():
         cations = ions.loc[ions['ion'] == 'cat']
         anions = ions.loc[ions['ion'] == 'an']
