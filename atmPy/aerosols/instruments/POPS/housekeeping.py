@@ -11,19 +11,25 @@ import os
 # from atmPy.tools import conversion_tools as ct
 from atmPy.general import timeseries
 from atmPy.atmosphere import standards as atm_std
+import pathlib
 
-def read_file(fname,
+
+
+def read_file(path,
               version = 'BBB_01',
-              ignore_colums = [],#['Flow_Rate_ccps', 'LED_P_MON', 'AI_4', 'AI_5', 'AI_7', 'AI_8', 'AI_9', 'AI_10', 'AI_11', 'LED_P_Mon_Therm', 'AO_Flow', 'AO_LaserPower', 'No_Pts', 'ValidParts', 'writeTime', 'currMax'],
+              pattern = 'HK',
+              ignore_colums = [],  #['Flow_Rate_ccps', 'LED_P_MON', 'AI_4', 'AI_5', 'AI_7', 'AI_8', 'AI_9', 'AI_10', 'AI_11', 'LED_P_Mon_Therm', 'AO_Flow', 'AO_LaserPower', 'No_Pts', 'ValidParts', 'writeTime', 'currMax'],
               verbose = False):
     """
     Parameters
     ----------
-    fname: string or list of strings.
+    path: string or list of strings.
         This can either be a file name, a list of filenames or a folder.
     version: string ['BBB_01']
         BBB_01: Beagle bone
         sbRio: sbRio
+    pattern: str
+        if folder is given than this is the pattern housekeeping files will be identified by
     verbose: bool
     Returns
     -------
@@ -86,42 +92,99 @@ def read_file(fname,
     else:
         raise ValueError('Housekeeping version {} is unknown!'.format(version))
 
-    houseKeeping_file_endings = ['HK.csv', 'HK.txt']
+
+    path = pathlib.Path(path)
+    if path.is_dir():
+        file_paths = sorted(list(path.glob('*{}*'.format(pattern))))
+    elif path.is_file():
+        file_paths = [path]
+    elif type(path) == list:
+        file_paths = path
+    else:
+        raise TypeError('fname is of unknown type: {}'.format(type(path).__name__))
+        # print(path)
+
+    file_paths.sort()
 
     first = True
+    hk_data = []
+    for file in file_paths:
+        # for i in houseKeeping_file_endings:
+        #     if i in file:
+        #         is_hk = True
+        #         break
+        #     else:
+        #         is_hk = False
+        #     if verbose and not is_hk:
+        #         print('%s is not a housekeeping file ... continue' % file)
 
-    if os.path.isdir(fname):
-        fname = os.listdir(fname)
+        # if is_hk:
+        hktmp = read(file, verbose=verbose)
+        if not hktmp:
+            print('%s is empty ... next one' % file)
+        hk_data.append(hktmp.data)
 
-    if type(fname).__name__ == 'list':
-        for file in fname:
-            for i in houseKeeping_file_endings:
-                if i in file:
-                    is_hk = True
-                    break
-                else:
-                    is_hk = False
-                if verbose and not is_hk:
-                    print('%s is not a housekeeping file ... continue'%file)
+        # elif first:
+        #     print('first')
+        #     # data = hktmp.data.copy()
+        #     first = False
+        #     hk = hktmp  # POPSHouseKeeping(data)
+        #     # continue
+        # else:
+        #     print('not first')
+    data = pd.concat(hk_data)
+    hk = POPSHouseKeeping(data)
 
-            if is_hk:
-                hktmp = read(file, verbose=verbose)
-                if not hktmp:
-                    print('%s is empty ... next one' % file)
-                elif first:
-                    data = hktmp.data.copy()
-                    first = False
-                    hk = POPSHouseKeeping(data)
-                    # continue
-                else:
-                    data = pd.concat((data, hktmp.data))
-                    hk = POPSHouseKeeping(data)
-        if first:
-            txt = """Either the prvided list of names is empty, the files are empty, or none of the file names end on
-the required ending (*HK.csv)"""
-            raise ValueError(txt)
-    else:
-        hk = read(fname)
+
+
+
+
+
+
+
+#     if type(path).__name__ == 'list':
+#         for file in path:
+#             for i in houseKeeping_file_endings:
+#                 if i in file:
+#                     is_hk = True
+#                     break
+#                 else:
+#                     is_hk = False
+#                 if verbose and not is_hk:
+#                     print('%s is not a housekeeping file ... continue'%file)
+#
+#             if is_hk:
+#                 hktmp = read(foldername+file, verbose=verbose)
+#                 if not hktmp:
+#                     print('%s is empty ... next one' % file)
+#                 elif first:
+#                     print('first')
+#                     # data = hktmp.data.copy()
+#                     first = False
+#                     hk = hktmp #POPSHouseKeeping(data)
+#                     # continue
+#                 else:
+#                     print('not first')
+#                     data = pd.concat((hk.data, hktmp.data))
+#                     hk = POPSHouseKeeping(data)
+#         if first:
+#             txt = """Either the prvided list of names is empty, the files are empty, or none of the file names end on
+# the required ending (*HK.csv)"""
+#             raise ValueError(txt)
+#     elif isinstance(path, str):
+#         hk = read(path)
+#
+#     else:
+#         txt = 'fname is of unknown type: {}'.format(type(path).__name__)
+#         raise TypeError(txt)
+
+
+
+
+
+
+
+
     hk.data = hk.data.dropna(how='all')  # this is necessary to avoid errors in further processing
 
     if ('P_Baro' in hk.data.keys()) or ('P_Ambient' in hk.data.keys()):
