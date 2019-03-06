@@ -215,7 +215,7 @@ class POPSHouseKeeping(timeseries.TimeSeries):
         -------
         returns altitude and adds it to this instance
         """
-        alt, tmp = atm_std.standard_atmosphere(self.data.loc[:,'Barometric_pressure'], quantity='pressure')
+        alt, tmp = atm_std.standard_atmosphere(self.data.loc[:,'Barometric_pressure'].copy(), quantity='pressure')
         self.data['Altitude'] = alt
         return alt
 
