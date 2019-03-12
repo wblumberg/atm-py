@@ -18,6 +18,7 @@ import pathlib
 def read_file(path,
               version = 'BBB_01',
               pattern = 'HK',
+              skip_histogram = False,
               ignore_colums = [],  #['Flow_Rate_ccps', 'LED_P_MON', 'AI_4', 'AI_5', 'AI_7', 'AI_8', 'AI_9', 'AI_10', 'AI_11', 'LED_P_Mon_Therm', 'AO_Flow', 'AO_LaserPower', 'No_Pts', 'ValidParts', 'writeTime', 'currMax'],
               verbose = False):
     """
@@ -39,7 +40,7 @@ def read_file(path,
     # test_data_folder = '20150419_000_POPS_HK.csv'
 
 
-    def read_sbRio(fname, verbose=False):
+    def read_sbRio(fname, skip_histogram = False, verbose=False):
         """Reads housekeeping file (test_data_folder; csv-format) returns a pandas data frame instance.
         """
         if verbose:
@@ -63,14 +64,18 @@ def read_file(path,
         #     df['altitude'] = ct.p2h(df.barometric_pressure)
         return POPSHouseKeeping(df)
 
-    def read_BBB(fname, verbose = False):
+    def read_BBB(fname, skip_histogram = False, verbose = False):
         col_names = pd.read_csv(fname, sep=',', nrows=1, header=None,
                                 #             index_col=1,
                                 #             usecols=np.arange()
                                 ).values[0][:-1].astype(str)
         col_names = _np.char.strip(col_names)
 
-        data = pd.read_csv(fname, sep=',', skiprows=1, header=None,
+        if skip_histogram:
+            usecols = list(range(27))
+        else:
+            usecols = None
+        data = pd.read_csv(fname, sep=',', skiprows=1, header=None, usecols = usecols
                            #             index_col=1,
                            #             usecols=np.arange()
                            )
@@ -119,7 +124,7 @@ def read_file(path,
         #         print('%s is not a housekeeping file ... continue' % file)
 
         # if is_hk:
-        hktmp = read(file, verbose=verbose)
+        hktmp = read(file, skip_histogram=skip_histogram, verbose=verbose)
         if not hktmp:
             print('%s is empty ... next one' % file)
         hk_data.append(hktmp.data)
