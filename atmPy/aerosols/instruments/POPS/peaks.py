@@ -10,6 +10,8 @@ import matplotlib.pylab as plt
 from atmPy.aerosols.size_distribution import sizedistribution
 from atmPy.tools import miscell_tools as misc
 from atmPy.general import timeseries as _timeseries
+
+import pathlib
 #from StringIO import StringIO as io
 #from POPS_lib import calibration
 
@@ -19,14 +21,17 @@ defaultBins = np.logspace(np.log10(140), np.log10(3000), 30)
 
 #######
 #### Peak file
-def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites = 20):
+def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites = 20, verbose = False):
     """returns a peak instance
     test_data_folder: ..."""
+    assert(type(fname).__name__ == 'PosixPath')
     if version == 'current':
         version = 'BBB'
 
+    if verbose:
+        print('_read_PeakFile_Binary (version = {})'.format(version))
     directory, filename = os.path.split(fname)
-    if version == 'current':
+    if version == 'labview':
         data = _binary2array_labview_clusters(fname, skip = skip_bites)
         if not np.any(data):
             return False
@@ -35,11 +40,12 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites =
         data = _BinaryFile2Array(fname)
         dataFrame = _PeakFileArray2dataFrame(data,filename,time_shift)
     elif version == 'BBB': # Beaglebone system running POPS_BBB.c
-        data = _bbb_binary2array(fname, 1)
-        dataFrame = _PeakFileArray2dataFrame(data, filename, time_shift,
+        data = _bbb_binary2array(fname, 1, verbose = verbose)
+        dataFrame = _PeakFileArray2dataFrame(data, fname, time_shift,
                                              log=False,
                                              since_midnight=False,
-                                             BBBtype=1)
+                                             BBBtype=1,
+                                             verbose = verbose)
     elif version == 'BBB_dt': # Beaglebone system running POPS_BBB_dt.c
         data = _bbb_binary2array(fname, 2)
         dataFrame = _PeakFileArray2dataFrame(data, filename, time_shift,
@@ -54,7 +60,7 @@ def _read_PeakFile_Binary(fname, version = 'current', time_shift=0, skip_bites =
     return peakInstance
 
 
-def read_binary(fname, time_shift = False ,version = 'current', ignore_error = False, skip_bites= 20):
+def read_binary(fname, pattern='Peak', time_shift = False ,version = 'current', ignore_error = False, skip_bites= 20, verbose = False):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
@@ -73,13 +79,26 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
     m = None
 
     if type(fname) == str:
-        if os.path.isdir(fname):
-            fname = os.listdir(fname)
+        # if os.path.isdir(fname):
+            # fname = os.listdir(fname)
+        fname = pathlib.Path(fname)
+
+    elif type(fname).__name__ == 'PosixPath':
+        if fname.is_file():
+            if verbose:
+                print('fname is file')
+            pass
+        elif fname.is_dir():
+            if verbose:
+                print('fname is folder', end = ' ... ')
+            fname = list(fname.glob('*{}*'.format(pattern)))
 
     if type(fname).__name__ == 'list':
+        if len(fname) == 0:
+            raise ValueError('There are no files to be processed!')
         first = True
         for file in fname:
-            if 'Peak' not in file: # changed by GM because BBB file names slightly different than sbRIO
+            if pattern not in file.name: # changed by GM because BBB file names slightly different than sbRIO
                 print('%s is not a peak file ... skipped' % file)
                 continue
             print('%s ... processed' % file)
@@ -102,7 +121,7 @@ def read_binary(fname, time_shift = False ,version = 'current', ignore_error = F
                 m.data = pd.concat((m.data, mt.data))
 
     else:
-        m = _read_PeakFile_Binary(fname, version = version, time_shift=time_shift, skip_bites=skip_bites)
+        m = _read_PeakFile_Binary(fname, version = version, time_shift=time_shift, skip_bites=skip_bites, verbose = verbose)
 
     return m
 
@@ -251,8 +270,9 @@ def _BinaryFile2Array(fname):
     rein.close()
     return data
 
-def _bbb_binary2array(fname, bbbtype):
-
+def _bbb_binary2array(fname, bbbtype, verbose = False):
+    if verbose:
+        print('_bbb_binary2array', end = ' ... ')
     def read_time(file, entry_format='<d'):
         entry_size = calcsize(entry_format)
         record = file.read(entry_size)
@@ -297,6 +317,8 @@ def _bbb_binary2array(fname, bbbtype):
 
     full_array = np.concatenate(array_list)
     rein.close()
+    if verbose:
+        print('done')
     return full_array
 
 def _binary2array_labview_clusters(fname, skip = 20):
@@ -373,14 +395,20 @@ def _binary2array_labview_clusters(fname, skip = 20):
     return full_array
 
 
-def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, since_midnight = True):
+def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, since_midnight = True, verbose = False):
+    print(fname)
+    print(type(fname))
+    assert(type(fname).__name__ == 'PosixPath')
+    if verbose:
+        print('_PeakFileArray2dataFrame', end = ' ... ')
     data = data.copy()
 
     # GRM added to deal with different binary file naming format between BBB and sbRIO
     if BBBtype == 0:
-        dateString = fname.split('_')[0]
+        dateString = fname.name.split('_')[0]
     else:
-        dateString = fname.split('_')[1][0:8]
+        pass
+        # dateString = fname.split('_')[1][0:8]
 
     if since_midnight and BBBtype == 0:
         dt = datetime.datetime.strptime(dateString, "%Y%m%d") - datetime.datetime.strptime('19700101', "%Y%m%d")
@@ -451,7 +479,8 @@ def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, sin
         dataTable.Width = dataTable.Width.astype(np.int16)
     elif BBBtype == 2:
         dataTable.Width = dataTable.Width.astype(np.int16)
-        
+    if verbose:
+        print('done')
     return dataTable
 
 def _cleanPeaksArray(PeakArray):
@@ -594,7 +623,7 @@ class peaks(object):
 
     
     
-    def _peak2Distribution(self, bins=defaultBins, distributionType = 'number', differentialStyle = False):
+    def _peak2Distribution(self, bins=defaultBins, distributionType = 'number', differentialStyle = False, fill_data_gaps_with = None, ignore_data_gap_error = False):
         """Action required: clean up!
         Returns the particle size distribution normalized in various ways
         distributionType
@@ -655,7 +684,7 @@ class peaks(object):
         if distributionType == 'calibration':
             return sizedistribution.SizeDist_TS(dataFrame, bins, 'calibration')
         else:
-            dist = sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp')
+            dist = sizedistribution.SizeDist_TS(dataFrame, bins, 'dNdDp',fill_data_gaps_with = fill_data_gaps_with, ignore_data_gap_error = ignore_data_gap_error)
             dist = dist.convert2dNdlogDp()
             dist.particle_number_concentration_outside_range = too_big
             return dist
@@ -669,12 +698,12 @@ class peaks(object):
         """see doc-string of _peak2Distribution"""
         return self._peak2Distribution(bins = bins,distributionType = 'calibration',differentialStyle = 'dNdDp')
         
-    def peak2sizedistribution(self, bins = 'default'):
+    def peak2sizedistribution(self, bins = 'default', fill_data_gaps_with = None, ignore_data_gap_error = False):
         """see doc-string of _peak2Distribution"""
         if type(bins) == str:
             if bins == 'default':
                 bins = defaultBins
-        dist = self._peak2Distribution(bins=bins, differentialStyle='dNdDp')
+        dist = self._peak2Distribution(bins=bins, differentialStyle='dNdDp', fill_data_gaps_with = fill_data_gaps_with, ignore_data_gap_error = ignore_data_gap_error)
         return dist
         
 #    def peak2calibration(self, bins = 200, ampMin = 20):

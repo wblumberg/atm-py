@@ -360,7 +360,7 @@ class Calibration:
         cal_function = lambda amp: 10**us(np.log10(amp))
         return cal_function
         
-    def plot_calibration(self):
+    def plot_calibration(self, ax=None):
         """Plots the calibration function and data
         Arguments
         ------------
@@ -376,8 +376,12 @@ class Calibration:
         cal_function = self.calibrationFunction
         amp = np.logspace(np.log10(self.data.amp.min()), np.log10(self.data.amp.max()), 500)
         d = cal_function(amp)
-    
-        f,a = plt.subplots()
+
+        if type(ax).__name__ == 'AxesSubplot':
+            a = ax
+            f = a.get_figure()
+        else:
+            f,a = plt.subplots()
         
         cal_data, = a.plot(self.data.d,  self.data.amp, 'o',label = 'data',)
         cal_func, = a.plot(d,amp, label = 'function')

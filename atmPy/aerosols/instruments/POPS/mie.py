@@ -373,8 +373,8 @@ class Mie():
             print(i, ' , ', self.YNatural[i])
             
     def get_mirror_grid(self):
-        np.set_printoptions(threshold=np.nan)
-        np.set_printoptions(precision=2)
+        # np.set_printoptions(threshold=np.nan)
+        # np.set_printoptions(precision=2)
         
         
         dm = self.POPSdimensions['mirror diameter (mm)']
