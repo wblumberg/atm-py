@@ -4,6 +4,7 @@ import os as _os
 from atmPy.general import timeseries as _timeseries
 from atmPy.aerosols.physics import column_optical_properties as _column_optical_properties
 from atmPy.general import measurement_site as _measurement_site
+import pathlib
 import warnings as _warnings
 
 # from atmPy.general import measurement_site as _measurement_site
@@ -129,28 +130,69 @@ _col_label_trans_dict = {'OD413': 415,
                          }
 
 
-def _path2files(path, site, window, perform_header_test, verbose):
-    # folder or single file .... or list
-    if _os.path.isdir(path):
-        folder = path
-        files = _os.listdir(folder)
-        if verbose:
-            print('{} files in folder'.format(len(files)))
-    elif _os.path.isfile(path):
-        folder, file = _os.path.split(path)
-        files = [file]
+def _path2files(path2aod, site, window, perform_header_test, verbose):
+    if type(path2aod) == str:
+        path2aod = pathlib.Path(path2aod)
+
+    elif type(path2aod) == list:
+        for path in path2aod:
+            assert (type(path).__name__ == 'PosixPath')
+            assert (path.is_file())
+        paths = path2aod
+
+    elif type(path2aod).__name__ == 'PosixPath':
+        pass
+
     else:
-        raise ValueError('currently only folder and single files are allowed for the files argument')
+        raise ValueError('{} is nknown type for path2surfrad (str, list, PosixPath)'.format(path2aod))
+
+    if type(path2aod).__name__ == 'PosixPath':
+        if not (path2aod.is_file() or path2aod.is_dir()):
+            raise ValueError('File or directory not found: {}'.format(path2aod))
+        if path2aod.is_file():
+            paths = [path2aod]
+        elif path2aod.is_dir():
+            paths = list(path2aod.glob('*'))
+            keep_going = True
+            while keep_going:
+                keep_going = False
+                for path in paths:
+                    if path.is_file():
+                        continue
+                    elif path.is_dir():
+                        dropped = paths.pop(paths.index(path))
+                        paths += list(dropped.glob('*'))
+                        keep_going = True
+        else:
+            raise ValueError
+    files = paths
+
+
+
+
+
+
+    # folder or single file .... or list
+    # if _os.path.isdir(path):
+    #     folder = path
+    #     files = _os.listdir(folder)
+    #     if verbose:
+    #         print('{} files in folder'.format(len(files)))
+    # elif _os.path.isfile(path):
+    #     folder, file = _os.path.split(path)
+    #     files = [file]
+    # else:
+    #     raise ValueError('Provided path is neither folder nor file. Currently only folder and single files are allowed for the files argument. Provided path: {}'.format(path))
 
     # select sites
     if site:
-        files = [f for f in files if site in f]
+        files = [f for f in files if site in f.name]
         if verbose:
             print('{} files match site specifications.'.format(len(files)))
     # select time window
     if window:
         start, end = window
-        files = [f for f in files if (start.replace('-', '') <= f.split('_')[1].split('.')[0] and end.replace('-', '') > f.split('_')[1].split('.')[0])]
+        files = [f for f in files if (start.replace('-', '') <= f.name.split('_')[1].split('.')[0] and end.replace('-', '') > f.name.split('_')[1].split('.')[0])]
         if verbose:
             print('{} of remaining files are in the selected time window.'.format(len(files)))
 
@@ -158,12 +200,12 @@ def _path2files(path, site, window, perform_header_test, verbose):
     #     files = [f for f in files if _header_tests(folder, f)]
     #     if verbose:
     #         print('{} of remaining files passed the header test.'.format(len(files)))
-    return files, folder
+    return files#, folder
 
-def _read_header(folder, fname):
+def _read_header(fname):
     """Read the header of file in folder and reterns a dict with relevant data"""
     header_size = 5
-    with open(folder + '/' + fname) as myfile:
+    with fname.open() as myfile:
         head = [next(myfile) for x in range(header_size)]
 
     out = {}
@@ -180,15 +222,15 @@ def _read_header(folder, fname):
     #     return head
     return out
 
-def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
-    def read_data(folder, fname, UTC = False, header=None):
+def _read_files(files, verbose, UTC = False, cloud_sceened = True):
+    def read_data(fname, UTC = False, header=None):
         """Reads the file takes care of the timestamp and returns a Dataframe
         """
         if not header:
-            header = _read_header(folder, fname)
+            header = _read_header(fname)
 
         # dateparse = lambda x: _pd.datetime.strptime(x, "%d:%m:%Y %H:%M:%S")
-        df = _pd.read_csv(folder + '/' + fname, skiprows=header['header_size'],
+        df = _pd.read_csv(fname, skiprows=header['header_size'],
                          delim_whitespace=True,
                          #                      na_values=['N/A'],
                          #                   parse_dates={'times': [0, 1]},
@@ -213,11 +255,11 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
     if verbose:
         print('Reading files:')
     data_list = []
-    header_first = _read_header(folder, files[0])
+    header_first = _read_header(files[0])
     for fname in files:
         if verbose:
             print('\t{}'.format(fname), end=' ... ')
-        header = _read_header(folder, fname)
+        header = _read_header(fname)
         # make sure that all the headers are identical
         if header_first['site'] != header['site']:
             site = [site for site in _locations if header_first['site'] in site['name']]
@@ -227,13 +269,14 @@ def _read_files(folder, files, verbose, UTC = False, cloud_sceened = True):
                 # _warnings.warn('The site name changed from {} to {}! Since its the same site we march on.'.format(header_first['site'], header['site']))
             else:
                 raise ValueError('The site name changed from {} to {}!'.format(header_first['site'], header['site']))
-        data = read_data(folder, fname, UTC = UTC, header=header)
+        data = read_data(fname, UTC = UTC, header=header)
         data_list.append(data)
         if verbose:
             print('done')
 
     # concatinate and sort Dataframes and create Timeseries instance
-    data = _pd.concat(data_list, sort=True)
+    data = _pd.concat(data_list)#, sort=True)
+    data.sort_index(inplace=True)
     data[data == -999.0] = _np.nan
     data[data == -9.999] = _np.nan
     data = _timeseries.TimeSeries(data, sampling_period=1 * 60)
@@ -314,8 +357,8 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
         if len([loc for loc in _locations if site in loc['abbreviation']]) == 0:
             raise ValueError('The site {} has not been set up yet. Add relevant data to the location dictionary'.format(site))
 
-    files, folder = _path2files(path, site, window, perform_header_test, verbose)
-    data = _read_files(folder, files, verbose, UTC=local2UTC, cloud_sceened=cloud_sceened)
+    files = _path2files(path, site, window, perform_header_test, verbose)
+    data = _read_files(files, verbose, UTC=local2UTC, cloud_sceened=cloud_sceened)
 
     if fill_gaps:
         if verbose:
