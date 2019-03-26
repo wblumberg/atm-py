@@ -151,7 +151,8 @@ def _read_files(folder, files, verbose):
             print('done')
 
     # concatinate and sort Dataframes and create Timeseries instance
-    data = _pd.concat(data_list)
+    data = _pd.concat(data_list)#, sort=True)
+    data.sort_index(inplace=True)
     data[data == -999.0] = _np.nan
     data = _timeseries.TimeSeries(data, sampling_period=15 * 60)
     data.header = header_first
