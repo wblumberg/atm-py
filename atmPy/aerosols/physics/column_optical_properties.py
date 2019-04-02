@@ -6,11 +6,25 @@ from atmPy.general import timeseries as _timeseries
 
 
 class AOD_AOT(object):
-    def __init__(self, site = None, lat = None, lon = None, elevation = 0, name = None, name_short = None, timezone = 0, site_info = None):
+    def __init__(self,
+                 wavelengths = None,
+                 site = None,
+                 lat = None,
+                 lon = None,
+                 elevation = 0,
+                 name = None,
+                 name_short = None,
+                 timezone = 0,
+                 site_info = None):
         """This class is for column AOD or AOT meausrements at a fixed site. This class is most usfull for aerosol
         optical properties from a CIMEL (AERONET) or a MFRSR (SURFRAD)
+
         Parameters
         ----------
+        wavelengths: dict
+            Column names are often not reflecting the precise wavelength in the channel, but the typical wavelength.
+            The dictionary translates column names to exact wavelength. If AOD is calculated and wavelengths is set
+            wavelengths from this will be used instead of column names.
         site: atmPy.general.station instance
         lat, lon: location of site
             lat: deg north, lon: deg east
@@ -29,6 +43,7 @@ class AOD_AOT(object):
         self._aod = None
         self._sunposition = None
         self._timezone = timezone
+        self.wavelength = wavelengths
 
         if not isinstance(site, type(None)):
             self.site = site
@@ -92,16 +107,48 @@ class AOD_AOT(object):
     def ang_exp(self, value):
         self._ang_exp = value
 
-    def aod2angstrom_exponent(self, column_1=500, column_2=870, wavelength_1=None, wavelength_2=None):
-        if wavelength_1 == None:
+    def aod2angstrom_exponent(self, column_1=500, column_2=870,
+                              use_wavelength_from_column_names = None,
+                              # wavelength_1=None, wavelength_2=None
+                              ):
+        """
+        Calculates the angstrom exponents based on the AOD data.
+
+        Parameters
+        ----------
+        column_1: type of column name
+            column name of one of the two points used for the AOD calculation
+        column_2: type of column name
+            column name of the other of the two points used for the AOD calculation
+        use_wavelength_from_column_names: bool [None]
+            When the wavelength dictionary is set. Wavelengths from the dictionary are used instead of column names.
+            Set this kwarg to True to ignore the wavelengths dictionary and use column names instead.
+
+        Parameters (deprecated)
+        -----------------------
+        wavelength_1: float
+            if the column name of column_1 is not accurate enough set the wavelenth used to calculate AOD here.
+        wavelength_2: float
+            as above for column_2
+
+        Returns
+        -------
+
+        """
+        if isinstance(self.wavelengths, type(None)) or use_wavelength_from_column_names:
+            # if wavelength_1 == None:
             wavelength_1 = column_1
-        if wavelength_2 == None:
+            # if wavelength_2 == None:
             wavelength_2 = column_2
+        else:
+            wavelength_1 = self.wavelength[column_1]
+            wavelength_2 = self.wavelength[column_2]
         c1 = column_1
         c2 = column_2
         c1ex = wavelength_1
         c2ex = wavelength_2
         out = - _np.log10(self.AOD.data.loc[:, c1] / self.AOD.data.loc[:, c2]) / _np.log10(c1ex / c2ex)
         out = _timeseries.TimeSeries(_pd.DataFrame(out))
+        setattr(self, 'ang_exp_{}_{}'.format(column_1, column_2))
         return out
 

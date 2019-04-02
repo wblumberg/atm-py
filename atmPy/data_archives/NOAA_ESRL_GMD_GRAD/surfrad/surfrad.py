@@ -1,16 +1,16 @@
 import numpy as _np
 import pandas as _pd
 import os as _os
-from atmPy.general import timeseries as _timeseries
-from atmPy.aerosols.physics import column_optical_properties as _column_optical_properties
-from atmPy.general import measurement_site as _measurement_site
+import atmPy.general.timeseries as _timeseries
+import atmPy.aerosols.physics.column_optical_properties as _column_optical_properties
+import atmPy.general.measurement_site as _measurement_site
 import pathlib
 import warnings as _warnings
 
 # from atmPy.general import measurement_site as _measurement_site
 # from atmPy.radiation import solar as _solar
 
-_locations = [{'name': 'Bondville',
+_deprecated_locations = [{'name': 'Bondville',
               'state' :'IL',
               'abbreviation': ['BND', 'bon'],
               'lon': -88.37309,
@@ -81,6 +81,7 @@ _locations = [{'name': 'Bondville',
               #  'type': 'permanent'}
               ]
 
+_channel_labels = [415, 500, 614, 673, 870, 1625]
 
 network = _measurement_site.Network(_locations)
 network.name = 'surfrad'
@@ -89,6 +90,8 @@ _col_label_trans_dict = {'OD413': 415,
                          'OD414': 415,
                          'OD415': 415,
                          'OD416': 415,
+                         'OD417': 415,
+                         'AOD417':415,
                          'OD495': 500,
                          'OD496': 500,
                          'OD497': 500,
@@ -103,6 +106,8 @@ _col_label_trans_dict = {'OD413': 415,
                          'OD612': 614,
                          'OD614': 614,
                          'OD615': 614,
+                         'OD616': 614,
+                         'AOD616':614,
                          'OD664': 673,
                          'OD670': 673,
                          'OD671': 673,
@@ -113,6 +118,7 @@ _col_label_trans_dict = {'OD413': 415,
                          'OD861': 870,
                          'OD868': 870,
                          'OD869': 870,
+                         'AOD869':870,
                          'OD870': 870,
                          'OD1623': 1625,
                          'OD1624': 1625,
@@ -222,32 +228,46 @@ def _read_header(fname):
     #     return head
     return out
 
-def _read_files(files, verbose, UTC = False, cloud_sceened = True):
-    def read_data(fname, UTC = False, header=None):
-        """Reads the file takes care of the timestamp and returns a Dataframe
-        """
-        if not header:
-            header = _read_header(fname)
+def _read_data(fname, UTC = False, header=None):
+    """Reads the file takes care of the timestamp and returns a Dataframe
+    """
+    if not header:
+        header = _read_header(fname)
 
-        # dateparse = lambda x: _pd.datetime.strptime(x, "%d:%m:%Y %H:%M:%S")
-        df = _pd.read_csv(fname, skiprows=header['header_size'],
-                         delim_whitespace=True,
-                         #                      na_values=['N/A'],
-                         #                   parse_dates={'times': [0, 1]},
-                         #                   date_parser=dateparse
-                         )
+    # dateparse = lambda x: _pd.datetime.strptime(x, "%d:%m:%Y %H:%M:%S")
+    df = _pd.read_csv(fname, skiprows=header['header_size'],
+                     delim_whitespace=True,
+                     #                      na_values=['N/A'],
+                     #                   parse_dates={'times': [0, 1]},
+                     #                   date_parser=dateparse
+                     )
 
-        datetimestr = '{0:0>4}{1:0>2}{2:0>2}'.format(header['date'].year, header['date'].month, header['date'].day)+ df.ltime.apply \
-            (lambda x: '{0:0>4}'.format(x)) + 'UTC'  # '+0000'
-        df.index = _pd.to_datetime(datetimestr, format="%Y%m%d%H%M%Z")
-        if UTC:
+    datetimestr = '{0:0>4}{1:0>2}{2:0>2}'.format(header['date'].year, header['date'].month, header['date'].day)+ df.ltime.apply \
+        (lambda x: '{0:0>4}'.format(x)) + 'UTC'  # '+0000'
+    df.index = _pd.to_datetime(datetimestr, format="%Y%m%d%H%M%Z")
+    if UTC:
+        try:
             timezone = [l for l in _locations if header['site'] in l['name']][0]['timezone']
-            df.index += _pd.to_timedelta(-1 * timezone, 'h')
-            df.index.name = 'Time (UTC)'
-        else:
-            df.index.name = 'Time (local)'
-        df.rename(columns=_col_label_trans_dict, inplace=True)
-        return df
+        except IndexError:
+            try:
+                timezone = [l for l in _locations if header['site'] in l['abbreviation']][0]['timezone']
+            except IndexError:
+                raise ValueError('Site name {} not found in _locations (neither in name not in abbreviation)'.format(header['site']))
+        df.index += _pd.to_timedelta(-1 * timezone, 'h')
+        df.index.name = 'Time (UTC)'
+    else:
+        df.index.name = 'Time (local)'
+    for col in df.columns:
+        if col in ['ltime', '0=good', 'p_mb', 'Ang_exp']:
+            continue
+        elif 'E' in col:
+            continue
+        elif col not in _col_label_trans_dict.keys():
+            print('not in transdict: {}'.format(col))
+    df.rename(columns=_col_label_trans_dict, inplace=True)
+    return df
+
+def _read_files(files, verbose, UTC = False, cloud_sceened = True):
 
     if len(files) == 0:
         raise ValueError('no Files to open')
@@ -255,38 +275,72 @@ def _read_files(files, verbose, UTC = False, cloud_sceened = True):
     if verbose:
         print('Reading files:')
     data_list = []
+    wl_match_list = []
     header_first = _read_header(files[0])
     for fname in files:
         if verbose:
             print('\t{}'.format(fname), end=' ... ')
         header = _read_header(fname)
+
         # make sure that all the headers are identical
         if header_first['site'] != header['site']:
-            site = [site for site in _locations if header_first['site'] in site['name']]
-            site = site[0]
+            try:
+                site = [site for site in _locations if header_first['site'] in site['name']][0]
+            except IndexError:
+                try:
+                    site = [site for site in _locations if header_first['site'] in site['abbreviation']][0]
+                except IndexError:
+                    raise ValueError(
+                        'Site name {} not found in _locations (neither in name not in abbreviation)'.format(
+                            header['site']))
+
             if  header['site'] in site['abbreviation']:
                 header['site'] = header_first['site']
+            elif header['site'] in site['name']:
+                header_first['site'] = header['site']
                 # _warnings.warn('The site name changed from {} to {}! Since its the same site we march on.'.format(header_first['site'], header['site']))
             else:
                 raise ValueError('The site name changed from {} to {}!'.format(header_first['site'], header['site']))
-        data = read_data(fname, UTC = UTC, header=header)
+        # read the data
+        data = _read_data(fname, UTC = UTC, header=header)
         data_list.append(data)
+
+        # matching table that gives the exact wavelength as a function of time (identical for
+        # cols = [col for col in data.columns if str(col).isnumeric()]
+        cols = [int(str(col).replace('AOD', '').replace('OD', '')) for col in data.columns if
+                str(str(col).replace('AOD', '').replace('OD', '')).isnumeric()]
+
+        wls = header['channels']
+        try:
+            wl_match_list.append(_pd.DataFrame([wls] * data.shape[0], columns=cols, index=data.index))
+        except:
+            pass
+
         if verbose:
             print('done')
 
     # concatinate and sort Dataframes and create Timeseries instance
-    data = _pd.concat(data_list)#, sort=True)
+    data = _pd.concat(data_list, sort=False)
     data.sort_index(inplace=True)
     data[data == -999.0] = _np.nan
     data[data == -9.999] = _np.nan
     data = _timeseries.TimeSeries(data, sampling_period=1 * 60)
-    data.header = header_first
-
     if cloud_sceened:
         data.data[data.data['0=good'] == 1] = _np.nan
+    out = {'data': data}
+    out['header_first'] = header_first
+
+    # concatenate wavelength match dataframe
+    wl_match = _pd.concat(wl_match_list,sort=False)
+    wl_match.sort_index(inplace=True)
+    wl_match = wl_match.astype(float)
+    wl_match = _timeseries.TimeSeries(wl_match, sampling_period=60)
+    out['wavelength_match'] = wl_match
+
     if verbose:
         print('done')
-    return data
+
+    return out
 
 class Surfrad_AOD(_column_optical_properties.AOD_AOT):
     pass
@@ -358,20 +412,26 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
             raise ValueError('The site {} has not been set up yet. Add relevant data to the location dictionary'.format(site))
 
     files = _path2files(path, site, window, perform_header_test, verbose)
-    data = _read_files(files, verbose, UTC=local2UTC, cloud_sceened=cloud_sceened)
-
+    file_content = _read_files(files, verbose, UTC=local2UTC, cloud_sceened=cloud_sceened)
+    data = file_content['data']
+    wl_match = file_content['wavelength_match']
+    header_first = file_content['header_first']
     if fill_gaps:
         if verbose:
             print('filling gaps', end=' ... ')
         data.data_structure.fill_gaps_with(what=_np.nan, inplace=True)
+        wl_match.data_structure.fill_gaps_with(what = _np.nan, inplace = True)
         if verbose:
             print('done')
 
     # add Site class to surfrad_aod
     try:
-        site = [l for l in _locations if data.header['site'] in l['name']][0]
+        site = [l for l in _locations if header_first['site'] in l['name']][0]
     except IndexError:
-        raise ValueError('Looks like the site you trying to open is not set up correctly yet in "location"')
+        try:
+            site = [l for l in _locations if header_first['site'] in l['abbreviation']][0]
+        except IndexError:
+            raise ValueError('Looks like the site you trying to open ({}) is not set up correctly yet in "location"'.format(header_first['site']))
 
     lon = site['lon']
     lat = site['lat']
@@ -401,4 +461,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     saod.AOD = data_aod
 
     saod.ang_exp = data._del_all_columns_but('Ang_exp')
+
+    # wavelength matching table
+    saod.wavelength_matching_table = wl_match
     return saod
