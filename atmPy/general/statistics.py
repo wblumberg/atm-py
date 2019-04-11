@@ -38,36 +38,6 @@ class Climatology(object):
     def frequency(self):
         return self._frequency
 
-    # @property
-    # def percentiles(self):
-    #     if type(self._percentiles) == type(None):
-    #         rs = self._parent_ts.data.resample(self.frequency, label='left',
-    #                                            # convention = 'start',
-    #                                            # closed = 'left'
-    #                                            )
-    #
-    #         def percentile(x, q):
-    #             x = x.dropna()
-    #             if x.shape[0] == 0:
-    #                 pct = _np.nan
-    #             else:
-    #                 pct = _np.percentile(x, q)
-    #             return pct
-    #
-    #         def number_of_valid_data_points(x):
-    #             x = x.dropna()
-    #             return x.shape[0]
-    #
-    #         out = _pd.DataFrame()
-    #         out['mean'] = rs.mean().iloc[:, 0]
-    #         perc_list = [5, 25, 50, 75, 95]
-    #         for perc in perc_list:
-    #             out[perc] = rs.apply(lambda x: percentile(x, perc)).iloc[:, 0]
-    #         out['n_valid'] = rs.apply(number_of_valid_data_points)
-    #         out.index += _np.timedelta64(1, 'D')
-    #         self._percentiles = out
-    #     return self._percentiles
-
     @property
     def percentiles(self):
         if type(self._percentiles) == type(None):

@@ -138,8 +138,8 @@ def get_sun_position(lat, lon, date, elevation=0):
     """
     def getpos(lat, lon, date, elevation=0):
         date = _pd.to_datetime(date)
-        alt = _np.deg2rad(_solar.GetAltitude(lat, lon, date, elevation=elevation))
-        azi = _np.deg2rad(_np.mod(abs(_solar.GetAzimuth(lat, lon, date, elevation=elevation)) - 180, 360))
+        alt = _np.deg2rad(_solar.get_altitude(lat, lon, date, elevation=elevation))
+        azi = _np.deg2rad(_np.mod(abs(_solar.get_azimuth(lat, lon, date, elevation=elevation)) - 180, 360))
         airmass = 1 / _np.sin(alt)
         return alt, azi, airmass
 

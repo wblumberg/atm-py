@@ -10,7 +10,7 @@ import warnings as _warnings
 # from atmPy.general import measurement_site as _measurement_site
 # from atmPy.radiation import solar as _solar
 
-_deprecated_locations = [{'name': 'Bondville',
+_locations = [{'name': 'Bondville',
               'state' :'IL',
               'abbreviation': ['BND', 'bon'],
               'lon': -88.37309,
@@ -81,12 +81,13 @@ _deprecated_locations = [{'name': 'Bondville',
               #  'type': 'permanent'}
               ]
 
-_channel_labels = [415, 500, 614, 673, 870, 1625]
+_channel_labels = _np.array([415, 500, 614, 673, 870, 1625])
 
 network = _measurement_site.Network(_locations)
 network.name = 'surfrad'
 
-_col_label_trans_dict = {'OD413': 415,
+#todo: remove the following dictionary ... its not used anymore
+_deprecated_col_label_trans_dict = {'OD413': 415,
                          'OD414': 415,
                          'OD415': 415,
                          'OD416': 415,
@@ -257,14 +258,28 @@ def _read_data(fname, UTC = False, header=None):
         df.index.name = 'Time (UTC)'
     else:
         df.index.name = 'Time (local)'
-    for col in df.columns:
-        if col in ['ltime', '0=good', 'p_mb', 'Ang_exp']:
+    # for col in df.columns:
+    #     if col in ['ltime', '0=good', 'p_mb', 'Ang_exp']:
+    #         continue
+    #     elif 'E' in col:
+    #         continue
+    #     elif col not in _col_label_trans_dict.keys():
+    #         print('not in transdict: {}'.format(col))
+
+    trans_dict = {}
+    for key in df.columns:
+        if not (('OD' in key) or ('E' in key)):
             continue
-        elif 'E' in col:
-            continue
-        elif col not in _col_label_trans_dict.keys():
-            print('not in transdict: {}'.format(col))
-    df.rename(columns=_col_label_trans_dict, inplace=True)
+        wl = int(key.replace('AOD', '').replace('OD', '').replace('E', ''))
+        col_lab = _channel_labels[abs(_channel_labels - wl).argmin()]
+        #     print('{} -> {}'.format(key, col_lab))
+        #     print('{}\t -> {}\t -> {}\t -> {}'.format(key, wl, col_lab, key.replace(str(wl), str(col_lab))))
+        if 'E' in key:
+            col_lab = '{}E'.format(col_lab)
+        trans_dict[key] = col_lab
+
+
+    df.rename(columns=trans_dict, inplace=True)
     return df
 
 def _read_files(files, verbose, UTC = False, cloud_sceened = True):
@@ -442,7 +457,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     # saod.site = _measurement_site.Site(lat, lon, alt, name=site_name, abbreviation=abb)
 
     # generate Surfrad_aod and add AOD to class
-    saod = Surfrad_AOD(lat, lon, alt, name=site_name, name_short=abb, timezone = timezone, site_info = site)
+    saod = Surfrad_AOD(lat = lat, lon = lon, elevation = alt, name=site_name, name_short=abb, timezone = timezone, site_info = site)
     if keep_original_data:
         saod.original_data = data
 
@@ -451,7 +466,7 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     else:
         saod._timezone = timezone
     ## select columns that show AOD
-    data_aod = data._del_all_columns_but(_np.unique(_np.array(list(_col_label_trans_dict.values()))))
+    data_aod = data._del_all_columns_but(_channel_labels)
 
     ## rename columns
     data_aod.data.columns.name = 'AOD@wavelength(nm)'
@@ -460,8 +475,13 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/SURFRAD/aftp/aod/bon',
     ## add the resulting Timeseries to the class
     saod.AOD = data_aod
 
+    #Angstrom exponent
     saod.ang_exp = data._del_all_columns_but('Ang_exp')
 
     # wavelength matching table
     saod.wavelength_matching_table = wl_match
+
+    # errors
+    saod.AODerrors = data._del_all_columns_but([col for col in data.data.columns if 'E' in str(col)])
+    saod.AODerrors.data.columns = [int(col.replace('E', '')) for col in saod.AODerrors.data.columns]
     return saod

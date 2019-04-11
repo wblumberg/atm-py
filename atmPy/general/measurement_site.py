@@ -200,7 +200,8 @@ class Network(object):
 
 
 class Station(object):
-    def __init__(self, lat = None, lon = None, alt = None, name = None, abbreviation = None, active = None, operation_period = None, info = None, **kwargs):
+    def __init__(self, lat = None, lon = None, alt = None, name = None, abbreviation = None, active = None,
+                 operation_period = None, info = None, **kwargs):
         """
         Generates a Station instance
         Parameters
