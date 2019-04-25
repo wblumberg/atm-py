@@ -128,9 +128,9 @@ class Correlation(object):
                  remove_zeros = True,
                  index = False,
                  odr_function = 'linear',
+                 poly_order = 1,
                  # sx = 1, sy = 1,
-                 weights = 'scaled',
-                 poly_order = 1
+                 weights = 'relative',
                  ):
         """This object is for testing correlation in two two data sets.
 
@@ -146,11 +146,11 @@ class Correlation(object):
             bias set it to False
         odr_function: string
             currently 'linear' only (odr only)
-        weights: 'str' ([scaled], constant)
+        weights: 'str' ([relative], absolute)
             odr only!
-            scaled: the weights will scale with the x-data. Since we usually assume uncertainties to be relative to
+            relative: the weights will scale with the x-data. Since we usually assume uncertainties to be relative to
                     the data rather then absolute this is the standard setting
-            constant:   bsically this means not weighted ... in principle you could apply different for x and y ... not
+            absolute:   bsically this means not weighted ... in principle you could apply different for x and y ... not
                         implemented yet
         poly_order: int [1]
             odr only
@@ -277,15 +277,15 @@ class Correlation(object):
     @property
     def orthogonla_distance_regression(self):
         def fit_odr(data, correlant, odr_function, poly_order, weights):
-            if weights == 'scaled':
+            if weights == 'relative':
                 std = 0.1
                 mydata = _odr.RealData(data, correlant, sx=data * std,
                                        sy=correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
-            elif weights == 'constant':
-                sx, sy = 1
+            elif weights == 'absolute':
+                sx, sy = (1,1)
                 mydata = _odr.Data(data, correlant, wd=1. / sx ** 2, we=1. / sy ** 2)
             else:
-                raise ValueError('weights has to be scalar or constant')
+                raise ValueError('weights has to be scalar or absolute')
             if odr_function!= 'linear':
                 raise('only "linear" allowed at this point, programming required!')
             model = _odr.polynomial(poly_order)
@@ -314,24 +314,6 @@ class Correlation(object):
                 self.__orthogonal_distance_regression = odr_res_df
             else:
                 self.__orthogonal_distance_regression = fit_odr(data, correlant, odr_function, poly_order, weights)
-
-
-            # if self.weights == 'scaled':
-            #     std = 0.1
-            #     mydata = _odr.RealData(self._data, self._correlant, sx=self._data * std,
-            #                              sy=self._correlant * std)  # , wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
-            # elif self.weights == 'constant':
-            #     mydata = _odr.Data(self._data, self._correlant, wd=1. / self.sx ** 2, we=1. / self.sy ** 2)
-            # else:
-            #     raise ValueError('weights has to be scalar or constant')
-            # if self.odr_function!= 'linear':
-            #     raise('only "linear" allowed at this point, programming required!')
-            # model = _odr.polynomial(self.poly_order)
-            # myodr = _odr.ODR(mydata, model)
-            # myoutput = myodr.run()
-            # self.__orthogonal_distance_regression = {'model': myodr,
-            #                                          'output': myoutput,
-            #                                          'function': _np.polynomial.Polynomial(myoutput.beta)}
 
         return self.__orthogonal_distance_regression
 

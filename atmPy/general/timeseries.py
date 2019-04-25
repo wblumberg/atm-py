@@ -381,7 +381,8 @@ def concat(ts_list):
 
 def correlate(data, correlant, data_column = False, correlant_column = False, differenciate = None, remove_zeros=True, data_lim = None,
               correlant_lim = None,
-              align_timeseries = True):
+              align_timeseries = True,
+              weights = 'relative'):
     """Correlates data in correlant to that in data. In the process the data in correlant
     will be aligned to that in data. Make sure that data has the lower period (less data per period of time).
 
@@ -395,6 +396,12 @@ def correlate(data, correlant, data_column = False, correlant_column = False, di
             lower and upper limit of data values
         correlant_lim:
             lower and upper limit of correlant values
+        weights: 'str' ([relative], absolute)
+            odr only!
+            relative: the weights will scale with the x-data. Since we usually assume uncertainties to be relative to
+                    the data rather then absolute this is the standard setting
+            absolute:   bsically this means not weighted ... in principle you could apply different for x and y ... not
+                        implemented yet
 
     Returns:
 
@@ -443,7 +450,7 @@ def correlate(data, correlant, data_column = False, correlant_column = False, di
 
     # import pdb
     # pdb.set_trace()
-    out = _array_tools.Correlation(data_values, correlant_values, differenciate, remove_zeros=remove_zeros, index = data.data.index)
+    out = _array_tools.Correlation(data_values, correlant_values, differenciate, remove_zeros=remove_zeros, index = data.data.index, weights = weights)
     out._x_label_orig = 'DataTime'
     return out
 
