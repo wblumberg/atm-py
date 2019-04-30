@@ -101,7 +101,9 @@ def read_binary(fname, pattern='Peak', time_shift = False ,version = 'current', 
             if pattern not in file.name: # changed by GM because BBB file names slightly different than sbRIO
                 print('%s is not a peak file ... skipped' % file)
                 continue
-            print('%s ... processed' % file)
+            if verbose:
+                print('%s ... processed' % file)
+
             mt = _read_PeakFile_Binary(file, version = version, time_shift=time_shift, skip_bites=skip_bites)
 
             # skipping if above returned False and ignore_error = True
@@ -183,7 +185,7 @@ def _read_peak_file_csv(fname, deltaTime=0, log = True, since_midnight = True):
     return peakInstance
 
 
-def read_csv(fname, log = True, since_midnight = True):
+def read_csv(fname, log = True, since_midnight = True, verbose = False):
     """Generates a single Peak instance from a file or list of files
 
     Arguments
@@ -200,9 +202,11 @@ def read_csv(fname, log = True, since_midnight = True):
         first = True
         for file in fname:
             if ('Peak.txt' not in file) and ('Peak.csv' not in file):
-                print('%s is not a peak file ... skipped' % file)
+                if verbose:
+                    print('%s is not a peak file ... skipped' % file)
                 continue
-            print('%s ... processed' % file)
+            if verbose:
+                print('%s ... processed' % file)
             mt = _read_peak_file_csv(file, log = log, since_midnight = since_midnight)
             if first:
                 m = mt
@@ -396,8 +400,8 @@ def _binary2array_labview_clusters(fname, skip = 20):
 
 
 def _PeakFileArray2dataFrame(data,fname,time_shift, BBBtype = 0, log = True, since_midnight = True, verbose = False):
-    print(fname)
-    print(type(fname))
+    if verbose:
+        print(fname)
     assert(type(fname).__name__ == 'PosixPath')
     if verbose:
         print('_PeakFileArray2dataFrame', end = ' ... ')
@@ -549,7 +553,7 @@ class peaks(object):
         if 'Masked' not in self.data.columns:
             self.data['Masked'] = 0
         
-    def apply_calibration(self,calibrationInstance):
+    def apply_calibration(self,calibrationInstance, verbose = False):
         self.data['Diameter'] = pd.Series(calibrationInstance.calibrationFunction(self.data.Amplitude.values), index = self.data.index)
         
         where_tooBig = np.where(self.data.Amplitude > calibrationInstance.data.amp.max())
@@ -558,9 +562,10 @@ class peaks(object):
         too_big = len(where_tooBig[0])
         self.data.Masked.values[where_tooBig] = 2
         self.data.Masked.values[where_tooSmall] = 1
-        misc.msg('\t %s from %s peaks (%.1i %%) are outside the calibration range (amplitude = [%s, %s], diameter = [%s, %s])'%(too_small + too_big, len(self.data.Amplitude),100 * float(too_small + too_big)/float(len(self.data.Amplitude)) , calibrationInstance.data.amp.min(),  calibrationInstance.data.amp.max(), calibrationInstance.data.d.min(), calibrationInstance.data.d.max()))
-        misc.msg('\t\t %s too small'%(too_small))
-        misc.msg('\t\t %s too big'%(too_big))
+        if verbose:
+            misc.msg('\t %s from %s peaks (%.1i %%) are outside the calibration range (amplitude = [%s, %s], diameter = [%s, %s])'%(too_small + too_big, len(self.data.Amplitude),100 * float(too_small + too_big)/float(len(self.data.Amplitude)) , calibrationInstance.data.amp.min(),  calibrationInstance.data.amp.max(), calibrationInstance.data.d.min(), calibrationInstance.data.d.max()))
+            misc.msg('\t\t %s too small'%(too_small))
+            misc.msg('\t\t %s too big'%(too_big))
         self.particles_larger_than_pops_detection_range = too_big
         return
         
