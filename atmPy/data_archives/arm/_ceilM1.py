@@ -1,15 +1,16 @@
 import xarray as xr
 import atmPy.clouds.ceilometry as _ceilometry
 import pandas as _pd
+import numpy as np
 # def read_ceilometer_nc(fname):
 #     ds = xr.open_dataset(fname)
 #     ceil = _ceilometry.Ceilometer()
 #     ceil.backscatter = _ceilometry.Backscatter(ds.backscatter.to_pandas())
 #     return ceil
 
-def read_ceilometer_nc(fname, keep_xr_dataset = False):
+def read_ceilometer_nc(fname, timezone = None, keep_xr_dataset = False):
 
-    ceil = _ceilometry.Ceilometer()
+
     if type(fname) == str:
         fname = [fname]
 
@@ -28,9 +29,14 @@ def read_ceilometer_nc(fname, keep_xr_dataset = False):
 
 
     bsdf = _pd.concat(bs).sort_index()
-    ceil.backscatter = bsdf
-
     cbdf = _pd.concat(cloudbases).sort_index()
+
+    if not isinstance(timezone, type(None)):
+        bsdf.index += np.timedelta64(timezone, 'h')
+        cbdf.index += np.timedelta64(timezone, 'h')
+
+    ceil = _ceilometry.Ceilometer()
+    ceil.backscatter = bsdf
     ceil.cloudbase = cbdf
 
 
