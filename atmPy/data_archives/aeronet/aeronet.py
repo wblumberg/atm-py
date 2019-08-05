@@ -13,7 +13,7 @@ def _read_header(folder, fname):
 
     out = {}
     # version
-    if head[0].split('<p>')[0] == 'Level 2.0. Quality Assured Data.':
+    if head[0].split('<p>')[0] in ('Level 2.0. Quality Assured Data.', 'Level 1.5. Real Time Cloud Screened data.'):
         out['version'] = head[1].split()[1]
     else:
         out['version'] = head[0].replace(';', '').split()[-1]
@@ -38,7 +38,7 @@ def _read_header(folder, fname):
         out['elevation'] = float(dt['elev'])
 
     else:
-        raise ValueError('Version {} unknown. Programming required')
+        raise ValueError('Version {} unknown. Programming required'.format(out['version']))
 
     return out
 
