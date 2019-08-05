@@ -12,6 +12,7 @@ from atmPy.general import vertical_profile as _vertical_profile
 import pandas as pd
 import warnings as _warnings
 import datetime
+import scipy as _sp
 import scipy.optimize as optimization
 from scipy import stats
 from atmPy.aerosols.physics import hygroscopicity as hygroscopicity
@@ -3333,7 +3334,8 @@ def simulate_sizedistribution(diameter=[10, 2500], numberOfDiameters=100, center
     bins = _np.linspace(_np.log10(start), _np.log10(end), noOfD)
     binwidth = bins[1:] - bins[:-1]
     bincenters = (bins[1:] + bins[:-1]) / 2.
-    dNDlogDp = _plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)
+    # dNDlogDp = _plt.mlab.normpdf(bincenters, _np.log10(centerDiameter), width)# normpdf is deprecated in plt
+    dNDlogDp = _sp.stats.norm.pdf(bincenters, _np.log10(centerDiameter), width)
     extraScale = 1
     scale = 1
     while 1:
