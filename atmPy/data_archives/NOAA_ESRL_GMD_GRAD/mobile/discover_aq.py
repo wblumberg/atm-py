@@ -58,6 +58,7 @@ def read_data(folder, fname, header=None):
                      )
     df.columns = [c.strip() for c in df.columns]
     df.index = header['start_time'] +  _pd.to_timedelta(df.Stop_UTC, 's')
+    df.index = df.index.tz_localize('UTC')
     df.index.name = 'Time(UTC)'
     df.drop(['Start_UTC', 'Stop_UTC', 'Mid_UTC'], axis=1, inplace=True)
     df.columns = [int(col.split('_')[1]) for col in df.columns]
@@ -84,7 +85,8 @@ def _read_header(folder, fname):
         raise KeyError('We expected to find "PLATFORM" here, found {} instead'.format(head[21].split(':')[0]))
     out['platform'] = head[21].split(':')[1].strip()
     _site_trans = {'Boulder Atmospheric Observatory, Erie, CO': 'BAO',
-                  'Smith Point, TX': 'SP'}
+                  'Smith Point, TX': 'SP',
+                   'Porterville, CA airport': 'PV'}
     out['abbriviation'] = _site_trans[out['platform']]
     return out
 # folder, fname = '/Volumes/HTelg_4TB_Backup/GRAD/mobile/DISCOVER_AQ/SMITH_POINT/','discoveraq-SURFRAD-aer_GROUND-SMITH-POINT_20130829_R0.ict'
@@ -153,12 +155,13 @@ def open_path(path = '/Volumes/HTelg_4TB_Backup/GRAD/mobile/DISCOVER_AQ/FRAPPE_B
     abb = data.header['abbriviation']
 
     # generate Surfrad_aod and add AOD to class
-    saod = Mobile_AOD(lat, lon, alt, name=site_name, name_short=abb)
+    saod = Mobile_AOD(lat=lat, lon=lon, elevation=alt, name=site_name, name_short=abb)
 
     if keep_original_data:
         saod.original_data = data
 
     ## add the resulting Timeseries to the class
-    data.data.sort_index(axis = 1, inplace=True)
+    data.data.sort_index(axis = 1, inplace=True) #sort columns
+    data.data.sort_index(axis= 0, inplace=True) #sort time axis
     saod.AOD = data
     return saod
