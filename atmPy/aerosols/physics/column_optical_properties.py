@@ -43,7 +43,7 @@ class AOD_AOT(object):
         self._aod = None
         self._sunposition = None
         self._timezone = timezone
-        self.wavelength = wavelengths
+        self.wavelengths = wavelengths
 
         if not isinstance(site, type(None)):
             self.site = site
@@ -141,14 +141,14 @@ class AOD_AOT(object):
             # if wavelength_2 == None:
             wavelength_2 = column_2
         else:
-            wavelength_1 = self.wavelength[column_1]
-            wavelength_2 = self.wavelength[column_2]
+            wavelength_1 = self.wavelengths[column_1]
+            wavelength_2 = self.wavelengths[column_2]
         c1 = column_1
         c2 = column_2
         c1ex = wavelength_1
         c2ex = wavelength_2
         out = - _np.log10(self.AOD.data.loc[:, c1] / self.AOD.data.loc[:, c2]) / _np.log10(c1ex / c2ex)
         out = _timeseries.TimeSeries(_pd.DataFrame(out))
-        setattr(self, 'ang_exp_{}_{}'.format(column_1, column_2))
+        setattr(self, 'ang_exp_{}_{}'.format(column_1, column_2), out)
         return out
 
