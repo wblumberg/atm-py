@@ -1553,10 +1553,12 @@ class TimeSeries(object):
             self.data[which] = data_ft
         return data_ft
 
-    def plot(self, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'matplotlib', **kwargs):
+    def plot(self, columns2plot=None, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'matplotlib', **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
+        columns2plot: column names or list of column names
+            if only some of the columns ought to be plotted. Only effects plot_engine:matplotlib
         times_of_interest: dict or list of dicts
             excepted keys for each dict:
                 datetime: e.g. '2017-04-02 23:50:00'
@@ -1605,7 +1607,17 @@ class TimeSeries(object):
 
         elif plot_engine == 'matplotlib':
             did_plot = False  # had to implement that since matploglib cept crashing when all where nan
-            for k in self.data.keys():
+            for e,k in enumerate(self.data.keys()):
+                if not isinstance(columns2plot, type(None)):
+                    if not isinstance(columns2plot, list):
+                        columns2plot = [columns2plot,]
+                    # if isinstance(columns2plot, str):
+                    if k not in columns2plot:
+                        continue
+                    # else:
+                    #     if e not in columns2plot:
+                    #         continue
+
                 if not label:
                     label_t = k
                 else:
