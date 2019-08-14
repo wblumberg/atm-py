@@ -262,7 +262,7 @@ def open_netcdf(fname):
     data = ds.sizedistribution.to_pandas()
     binedges = ds.binedges.data
     moment = ds.sizedistribution.moment
-    disttype = ds._atmPy.to_pandas().loc['type']
+    disttype = ds.attrs['type']# ds._atmPy.to_pandas().loc['type']
 
     if 'normal_distribution_fits' in ds.variables.keys():
         normfitres = ds.normal_distribution_fits.to_pandas()
@@ -276,7 +276,7 @@ def open_netcdf(fname):
 
     if  disttype == 'SizeDist_TS':
         dist = SizeDist_TS(data, binedges, moment, ignore_data_gap_error=True)
-        dist._data_period = float(ds._atmPy.loc['data_period'].values)
+        dist._data_period = float(ds.attrs['data_period'])#  ds._atmPy.loc['data_period'].values)
         if type(hk) != type(None):
             dist.housekeeping = _timeseries.TimeSeries(hk,
                                                        sampling_period=dist._data_period)
@@ -333,6 +333,8 @@ def get_settings():
                                      'unit': 'nm'},
                 'refractive_index': {'value': None,
                                      'default': None,},
+                'mie_result':       {'value': None,
+                                     'default': None},
                 'particle_density': {'value': 1.8,
                                      'default': 1.8,
                                      'unit': 'g/cc',
@@ -381,32 +383,33 @@ def save_netcdf(sizedist, fname, housekeeping = True, value_added_products = Tru
 
     sizedist.data.columns.name = 'bincenters'
     sizedist = sizedist.convert2dNdlogDp()
-    distdict = {}
+    # distdict = {}
+    ds = _xr.Dataset()
 
     ps = pd.Series(sizedist.bins, name='diameter')
     ps.index.name = 'idx'
-    distdict['binedges'] = ps
+    ds['binedges'] = ps
 
-    atmpy_ps = pd.Series({'type': type(sizedist).__name__})
-    atmpy_ps.index.name = '_atmPy_value'
-
+    # atmpy_ps = pd.Series({'type': type(sizedist).__name__})
+    # atmpy_ps.index.name = '_atmPy_value'
+    ds.attrs['type'] = type(sizedist).__name__
     if type(sizedist).__name__ == 'SizeDist':
-        distdict['sizedistribution'] = sizedist.data.loc[0, :]
+        ds['sizedistribution'] = sizedist.data.loc[0, :]
     elif type(sizedist).__name__ == 'SizeDist_TS':
-        distdict['sizedistribution'] = sizedist.data
-        atmpy_ps.loc['data_period'] = sizedist._data_period
+        ds['sizedistribution'] = sizedist.data
+        ds.attrs['data_period'] = sizedist._data_period
     elif type(sizedist).__name__ == 'SizeDist_LS':
         sizedist.data.index.name = 'altitude'
-        distdict['sizedistribution'] = sizedist.data
+        ds['sizedistribution'] = sizedist.data
         df = pd.DataFrame(sizedist.layerbounderies, index=sizedist.layercenters, columns=['low_lim', 'upper_lim'])
         df.index.name = 'altitude'
-        distdict['layer_boundaries'] = df
+        ds['layer_boundaries'] = df
     else:
         raise KeyError('not implemented yet... fix it')
 
-    distdict['_atmPy'] = atmpy_ps
+    # distdict['_atmPy'] = atmpy_ps
 
-    ds = _xr.Dataset(distdict)
+    # ds = _xr.Dataset(distdict)
 
     ds.attrs['info'] = """Aerosol size distribution data generated with atmPy. For information on variables, e.g. units etc., check the variables attributes."""
     ds.attrs['tags'] = ', '.join(tags)
@@ -525,77 +528,86 @@ class _Parameter(object):
     def value(self):
         return self._dict['value']
 
-class _Deprecated_SettingOpticalProperty(object):
-    def __init__(self, parent):
-        self._parent = parent
-        self._reset()
-
-    def __repr__(self):
-        out = _all_attributes2string(self)
-        return out
-
-    def _reset(self):
-        self._parent.optical_properties = None
-
-    def _check(self, raise_error = True):
-        dependence = ['wavelength', 'refractive_index']
-        passed = True
-        for dep in dependence:
-            value = self._parent._settings[dep]['value']
-            missing = False
-            if type(value) == type(None):
-                missing = True
-            elif not _np.all(~_np.isnan(value)):
-                missing = True
-
-            if missing:
-                if raise_error:
-                    txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(dep)
-                    raise ValueError(txt)
-                else:
-                    passed = False
-        return passed
-
-    @property
-    def refractive_index(self):
-        return _Parameter(self, 'refractive_index')
-
-    @refractive_index.setter
-    def refractive_index(self, n):
-        if type(n).__name__ in ('int','float'):
-            pass
-        elif type(n).__name__  in ('TimeSeries'):
-            if not _np.array_equal(self._parent.data.index, n.data.index):
-                n = n.align_to(self)
-            n = n.data
-
-        if type(n).__name__ in ('DataFrame', 'ndarray'):
-            if n.shape[0] != self.data.shape[0]:
-                txt = """\
-Length of new array has to be the same as that of the size distribution. Use
-sizedistribution.align to align the new array to the appropriate length"""
-                raise ValueError(txt)
-
-            if not _np.array_equal(self.data.index, n.index):
-                txt = """\
-The index of the new DataFrame has to be the same as that of the size distribution. Use
-sizedistribution.align to align the index of the new array."""
-                raise ValueError(txt)
-
-        self._reset()
-        # self._parent._settings['refractive_index']['value'] = n
-        _Parameter(self, 'refractive_index')._set_value(n)
-
-    @property
-    def wavelength(self):
-        # return settings['wavelength']
-        return _Parameter(self, 'wavelength')
-
-    @wavelength.setter
-    def wavelength(self, value):
-        self._reset()
-        # self._parent._settings['wavelength']['value'] = value
-        _Parameter(self, 'wavelength')._set_value(value)
+# class _Deprecated_SettingOpticalProperty(object):
+#     def __init__(self, parent):
+#         self._parent = parent
+#         self._reset()
+#
+#     def __repr__(self):
+#         out = _all_attributes2string(self)
+#         return out
+#
+#     def _reset(self):
+#         self._parent.optical_properties = None
+#
+#     def _check(self, raise_error = True):
+#         dependence_combinations = [['wavelength', 'refractive_index'],  ['mie_results']]
+#         passed = []
+#         for dependence in dependence_combinations:
+#             for dep in dependence:
+#                 value = self._parent._settings[dep]['value']
+#                 missing = False
+#                 if type(value) == type(None):
+#                     missing = True
+#                 elif not _np.all(~_np.isnan(value)):
+#                     missing = True
+#
+#                 if missing:
+#                     # else:
+#                     passed.append(False)
+#                 else:
+#                     passed.append(True)
+#         if True in passed:
+#             passed = True
+#         else:
+#             passed = False
+#         if not passed:
+#             if raise_error:
+#                 # txt = 'Parameter {} in optical_property_settings is not set ... do so!'.format(dep)
+#                 txt = 'Not enough parameter to calculate optical properties (sizedistribution.optical_properties.parameters).'#.format(dep)
+#                 raise ValueError(txt)
+#         return passed
+#
+#     @property
+#     def refractive_index(self):
+#         return _Parameter(self, 'refractive_index')
+#
+#     @refractive_index.setter
+#     def refractive_index(self, n):
+#         if type(n).__name__ in ('int','float'):
+#             pass
+#         elif type(n).__name__  in ('TimeSeries'):
+#             if not _np.array_equal(self._parent.data.index, n.data.index):
+#                 n = n.align_to(self)
+#             n = n.data
+#
+#         if type(n).__name__ in ('DataFrame', 'ndarray'):
+#             if n.shape[0] != self.data.shape[0]:
+#                 txt = """\
+# Length of new array has to be the same as that of the size distribution. Use
+# sizedistribution.align to align the new array to the appropriate length"""
+#                 raise ValueError(txt)
+#
+#             if not _np.array_equal(self.data.index, n.index):
+#                 txt = """\
+# The index of the new DataFrame has to be the same as that of the size distribution. Use
+# sizedistribution.align to align the index of the new array."""
+#                 raise ValueError(txt)
+#
+#         self._reset()
+#         # self._parent._settings['refractive_index']['value'] = n
+#         _Parameter(self, 'refractive_index')._set_value(n)
+#
+#     @property
+#     def wavelength(self):
+#         # return settings['wavelength']
+#         return _Parameter(self, 'wavelength')
+#
+#     @wavelength.setter
+#     def wavelength(self, value):
+#         self._reset()
+#         # self._parent._settings['wavelength']['value'] = value
+#         _Parameter(self, 'wavelength')._set_value(value)
 
 
 
@@ -617,44 +629,65 @@ class _Parameters4Reductions(object):
         self._parent._hygroscopicity = None
 
     def _check_parameter_exists(self, parameters = None, raise_error = True):
-        """Check if each parameter in the list of parameters is set to a value other then None. If a parameter it self
-        is a list of parameters it will be checked if at least one of them is set."""
+        """Check if each parameter in the list of parameters is set to a value other then None.
+        If a parameter it self is a list of parameters each list will be treated as a required combination of parameters.
+        At least one of the combinations has to be met"""
 
-        passed = True
+        passed = False
 
-        for param in parameters:
-            if type(param) != list:
-                param = [param]
-                was_list = False
-            else:
-                was_list = True
-
-            passed_list = []
-            for par in param:
+        for param_list in parameters:
+            if not isinstance(param_list, list):
+                txt = "This error is due to a recent change. Make sure the each entry is a list of required parameters ... this allows for different combinations of parameters"
+                raise ValueError(txt)
+            param_option_passed_list = []
+            for par in param_list:
                 value = self._parent._settings[par]['value']
-                exists = True
                 if type(value) == type(None):
-                    exists = False
-                # elif type(value).__name__ == 'ndarray':
-                #     if not _np.all(~_np.isnan(value)):
-                #         exists = False
-                # elif hasattr(value, 'data'):
-                #     if not _np.any(~_np.isnan(value.data)):
-                #         exists = False
-                # else:
-                #     raise ValueError('sorry, programming requried, this type is not allowed')
-
-                passed_list.append(exists)
-
-            if not _np.any(passed_list):
-                if raise_error:
-                    if was_list:
-                        txt = 'One of the Parameters {} or {} needs to be set ... do so!'.format(','.join(param[:-1]), param[-1])
-                    else:
-                        txt = 'Parameter {} is not set ... do so!'.format(param[0])
-                    raise ValueError(txt)
+                    param_option_passed_list.append(False)
                 else:
-                    passed = False
+                    param_option_passed_list.append(True)
+            if sum(~_np.array(param_option_passed_list)) == 0:
+                passed = True
+
+        if not passed:
+            txt = "Not enough parameters set. Make sure one of the following parameter combinations are set:\n\t - "
+            txt += '\n\t - '.join([', '.join(par) for par in parameters])
+            raise ValueError(txt)
+
+
+        # for param in parameters:
+        #     if type(param) != list:
+        #         param = [param]
+        #         was_list = False
+        #     else:
+        #         was_list = True
+        #
+        #     passed_list = []
+        #     for par in param:
+        #         value = self._parent._settings[par]['value']
+        #         exists = True
+        #         if type(value) == type(None):
+        #             exists = False
+        #         # elif type(value).__name__ == 'ndarray':
+        #         #     if not _np.all(~_np.isnan(value)):
+        #         #         exists = False
+        #         # elif hasattr(value, 'data'):
+        #         #     if not _np.any(~_np.isnan(value.data)):
+        #         #         exists = False
+        #         # else:
+        #         #     raise ValueError('sorry, programming requried, this type is not allowed')
+        #
+        #         passed_list.append(exists)
+        #
+        #     if not _np.any(passed_list):
+        #         if raise_error:
+        #             if was_list:
+        #                 txt = 'One of the Parameters {} or {} needs to be set ... do so!'.format(','.join(param[:-1]), param[-1])
+        #             else:
+        #                 txt = 'Parameter {} is not set ... do so!'.format(param[0])
+        #             raise ValueError(txt)
+        #         else:
+        #             passed = False
 
         return passed
 
@@ -676,14 +709,22 @@ class _Parameters4Reductions(object):
         # return passed
 
     def _check_opt_prop_param_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= ['wavelength', 'refractive_index'], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [['wavelength', 'refractive_index'],['mie_result']], raise_error = raise_error)
 
     def _check_growth_parameters_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= [['kappa','growth_distribution'], 'RH'], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [['kappa', 'RH'],['growth_distribution', 'RH']], raise_error = raise_error)
 
     def _check_mixing_ratio_param_exist(self, raise_error = True):
-        return self._check_parameter_exists(parameters= ['particle_density'], raise_error = raise_error)
+        return self._check_parameter_exists(parameters= [['particle_density']], raise_error = raise_error)
 
+    @property
+    def _prop_mie_result(self):
+        return _Parameter(self, 'mie_result')
+
+    @_prop_mie_result.setter
+    def _prop_mie_result(self,value):
+        self._reset_opt_prop()
+        _Parameter(self, 'mie_result')._set_value(value)
 
     @property
     def _prop_refractive_index(self):
@@ -763,12 +804,15 @@ class _Parameters4Reductions_all(_Parameters4Reductions):
         setattr(_Parameters4Reductions_all, 'kappa', _Parameters4Reductions_all._prop_kappa)
         setattr(_Parameters4Reductions_all, 'growth_distribution', _Parameters4Reductions_all._prop_growth_distribution)
         setattr(_Parameters4Reductions_all, 'RH', _Parameters4Reductions_all._prop_RH)
+        setattr(_Parameters4Reductions_all, 'mie_result', _Parameters4Reductions_all._prop_mie_result)
 
 class _Parameters4Reductions_opt_prop(_Parameters4Reductions):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         setattr(_Parameters4Reductions_opt_prop, 'wavelength', _Parameters4Reductions_opt_prop._prop_wavelength)
         setattr(_Parameters4Reductions_opt_prop, 'refractive_index', _Parameters4Reductions_opt_prop._prop_refractive_index)
+        setattr(_Parameters4Reductions_opt_prop, 'mie_result', _Parameters4Reductions_opt_prop._prop_mie_result)
+
 
 class _Parameters4Reductions_hygro_growth(_Parameters4Reductions):
     def __init__(self, *args, **kwargs):

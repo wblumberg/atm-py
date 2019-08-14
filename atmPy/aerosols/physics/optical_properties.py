@@ -50,6 +50,7 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
     sd.parameters4reductions._check_opt_prop_param_exist()
     wavelength = sd.parameters4reductions.wavelength.value
     n = sd.parameters4reductions.refractive_index.value
+    mie_result = sd.parameters4reductions.mie_result.value
     out = {}
     sdls = sd.convert2numberconcentration()
     index = sdls.data.index
@@ -64,8 +65,14 @@ def size_dist2optical_properties(op, sd, aod=False, noOfAngles=100):
     else:
         n_multi = False
     if not n_multi:
-        mie, angular_scatt_func = _perform_Miecalculations(_np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
-                                                           noOfAngles=noOfAngles)
+        if isinstance(mie_result, type(None)):
+            mie, angular_scatt_func = _perform_Miecalculations(_np.array(sdls.bincenters / 1000.), wavelength / 1000., n,
+                                                               noOfAngles=noOfAngles)
+        else:
+            mie = mie_result['mie']
+            angular_scatt_func = mie_result['angular_scatt_func']
+
+        out['mie_result'] = {'mie': mie, 'angular_scatt_func': angular_scatt_func}
 
     if aod:
         #todo: use function that does a the interpolation instead of the sum?!? I guess this can lead to errors when layers are very thick, since centers are used instea dof edges?
@@ -389,6 +396,7 @@ class OpticalProperties(object):
         self._extinction_coeff = None
         self._scattering_coeff = None
         self._absorption_coeff = None
+        self._mie_result = None
 
         self._hemispheric_backscattering = None
         # self._hemispheric_backscattering_ratio = None
@@ -444,6 +452,9 @@ class OpticalProperties(object):
             self._absorption_coeff = _pd.DataFrame(self._absorption_coeff_per_bin.sum(axis=1), columns=['abs_coeff_m^1'])
             ####
             self._angular_scatt_func = data['angular_scatt_func']
+
+            ####
+            self.parameters.mie_result = data['mie_result']
         return self._optical_porperties_pv
 
     @property
@@ -970,3 +981,211 @@ def vertical_profile2accumulative_AOD(timeseries):
 
     accu_aod._x_label = 'AOD$_{abs}$'
     return accu_aod
+
+from scipy.optimize import curve_fit
+from atmPy.aerosols.size_distribution import sizedistribution as sd
+
+class Inversion2SizeDistribution_scenario(object):
+    """this handles how ..."""
+    def __init__(self, parent, args):
+        self.parent = parent
+        self._args = args
+
+        self.update()
+
+
+    def update(self):
+        # properties
+        self._dist = None
+        self._extcoeff = None
+
+    @property
+    def args(self):
+        return self._args
+
+    @args.setter
+    def args(self, value):
+        self.update()
+        self._args = value
+
+    @property
+    def size_distribution(self):
+        if isinstance(self._dist, type(None)):
+            self._dist = self.args2dist(self.args)
+        return self._dist
+
+
+
+    # generate the initial size dist
+    def args2dist(self, args):
+        positions = args[::2]
+        amplitudes = args[1::2]
+        dist_list = []
+        #     print(args)
+        for pos, amp in zip(positions, amplitudes):
+            dist = sd.simulate_sizedistribution(
+                diameter=self.parent.diameter_range,
+                numberOfDiameters=self.parent.number_of_diameters,
+                centerOfAerosolMode=pos,
+                widthOfAerosolMode=self.parent.width_of_aerosol_mode,
+                numberOfParticsInMode=amp,
+            )
+            dist_list.append(dist)
+
+        # dist_new = sd.simulate_sizedistribution(new=True)
+        # sum em up
+
+        dist = dist_list[0]
+        for sdt in dist_list[1:]:
+            dist += sdt
+        return dist
+
+    @property
+    def extinction_coeff(self):
+        if isinstance(self._extcoeff, type(None)):
+            self.parent.mie_info
+            self._extcoeff = self.AOD_of_simulated_dist(self.parent.wavelengths, *self.args, mie_info=self.parent.mie_info)
+        return self._extcoeff
+
+    def AOD_of_simulated_dist(self, wavelengths, *args, is_initial_run=None, mie_info=None):
+        out = {}
+        ## each size normal distribution separate
+        args = _np.array(args)
+        dist = self.args2dist(args)
+        channels = wavelengths
+        first_run_results = {}
+
+        if isinstance(mie_info, type(None)):
+            if self.parent.verbose:
+                print('doing full mie calculation')
+
+        for wl in channels:
+            res = {}
+            dt = dist.copy()
+            if isinstance(mie_info, type(None)):
+                dt.optical_properties.parameters.refractive_index = self.parent.aerosol_refractive_index
+                dt.optical_properties.parameters.wavelength = wl
+            else:
+                dt.optical_properties.parameters.mie_result = mie_info[wl]
+            res['extcoeff'] = dt.optical_properties.extinction_coeff
+            res['mie_result'] = dt.optical_properties.parameters.mie_result
+            first_run_results[wl] = res
+        #     break
+
+        if is_initial_run:
+            # AOD is the integration ofer the coefficient over the column, since we don't know the structure of the atmosphere we can assume an arbitray factor
+            #         factor = sfr_AOD_test_dp.loc[channels[0]] /first_run_results[channels[0]]['extcoeff'].iloc[0,0]
+
+            bla = _np.array([[ch, first_run_results[ch]['extcoeff'].iloc[0, 0]] for ch in first_run_results])
+            startAOD = _pd.Series(bla[:, 1], index=bla[:, 0])
+            factor = (self.parent.sfr_AOD_test_dp / startAOD).mean()
+            # dist *= factor
+            args[1::2] *= factor
+            out['args'] = args
+            out['first_run_results'] = first_run_results
+            return out
+        else:
+            ext_coeff = [first_run_results[i]['extcoeff'].iloc[0, 0] for i in first_run_results]
+            return ext_coeff
+
+
+
+class Inversion2SizeDistribution(object):
+    def __init__(self, sfr_AOD_test_dp, verbose = False):
+        self.diameter_range = [50, 30000 * 2]
+        self.number_of_diameters = 100
+        self.aerosol_refractive_index = 1.4
+        self.width_of_aerosol_mode = 0.15
+        self.sfr_AOD_test_dp = sfr_AOD_test_dp
+        self.wavelengths = self.sfr_AOD_test_dp.index
+        self.fit_cutoff = 1e-4
+        self.verbose = verbose
+
+        #properties
+        self._start_conditions = None
+        self._fit_result = None
+        self._mie_info = None
+
+    @property
+    def mie_info(self):
+        if isinstance(self._mie_info, type(None)):
+            if self.verbose:
+                print('getting mieinfo')
+            out = self.start_conditions.AOD_of_simulated_dist(self.sfr_AOD_test_dp.index, *self.start_conditions.args, is_initial_run=True)
+            self._mie_info = {i: v['mie_result'] for i, v in out['first_run_results'].items()}
+            self.start_conditions.args = out['args']
+            if self.verbose:
+                print('done mieinfo')
+        return self._mie_info
+
+    @property
+    def start_conditions(self):
+        if isinstance(self._start_conditions, type(None)):
+            args = [400, 2000., 800, 320]
+            self._start_conditions = Inversion2SizeDistribution_scenario(self, args)
+        return self._start_conditions
+
+    @property
+    def fit_result(self):
+        if isinstance(self._fit_result, type(None)):
+            fitrs = self.fit()
+            self._fit_result = Inversion2SizeDistribution_scenario(self, fitrs[0])
+            self._fit_result.full_result = fitrs
+            self._fit_result.sigma = _np.sqrt(((self.sfr_AOD_test_dp.values-_np.array(self.fit_result.extinction_coeff))**2).sum())
+        return self._fit_result
+
+    # def start_conditions(self):
+    #     # args = [400, 2000., 800, 320]
+    #     out = self.AOD_of_simulated_dist(self.sfr_AOD_test_dp.index, *args, is_initial_run=True)
+    #     self.mie_info = {i: v['mie_result'] for i, v in out['first_run_results'].items()}
+    #     args = out['args']
+    #     self.exts = self.AOD_of_simulated_dist(self.sfr_AOD_test_dp.index, *args, mie_info=self.mie_info)
+    #     self.dist_first = self.args2dist(args)
+    #     self.args = args
+
+    #         dist_first.convert2dVdlogDp().plot()
+    def fit(self):
+        # args = [1.8000000e+02, 1.03593678e+06, 2.00000000e+03, 1.03593678e+04]
+        ds = 0.1
+        self.mie_info
+        fit_res = curve_fit(lambda x, *params: self.start_conditions.AOD_of_simulated_dist(x, *params, mie_info=self.mie_info),
+                            self.sfr_AOD_test_dp.index,
+                            self.sfr_AOD_test_dp.values,
+                            p0=self.start_conditions.args,
+                            #                     sigma=None,
+                            #                     absolute_sigma=False,
+                            #                     check_finite=True,
+                            #                     bounds=(-inf, inf),
+                            method='trf',
+                            #                     method='lm',
+                            #                     jac=None,
+                            #                     maxfev=1,
+                            xtol=self.fit_cutoff,
+                            ftol=self.fit_cutoff,
+                            gtol=self.fit_cutoff,
+                            #                     callback=lambda x: print(x)
+                            #                     dict(kwx_scale = 'jac'),
+                            verbose=0,
+                            x_scale='jac',
+                            diff_step=[ds ** 3, ds, ds ** 2, ds]
+                            #                     col_deriv=True
+                            )
+        #         fit_res
+        return fit_res
+        # fit_res_extc = self.AOD_of_simulated_dist(self.wavelength, *fit_res[0], mie_info=self.mie_info)
+        #
+        # a = self.sfr_AOD_test_dp.plot(label='SRFRAD')
+        # a.plot(self.sfr_AOD_test_dp.index, self.exts, label='start')
+        # a.plot(self.sfr_AOD_test_dp.index, fit_res_extc, label='end')
+        # a.legend()
+        #
+        # dist_fit = self.args2dist(fit_res[0])
+        #
+        # f, a = self.dist_first.convert2dVdlogDp().plot(label='start')
+        # dist_fit.convert2dVdlogDp().plot(ax=a, label='fit')
+        # a.legend()
+        # print(args)
+        # print(*fit_res[0])
+
+
+

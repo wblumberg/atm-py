@@ -5,7 +5,7 @@ in a sizedistribution.
 
 import numpy as np
 
-def bincenters2binsANDnames(bincenters):
+def bincenters2binsANDnames(bincenters, round=None):
     """This creates bin edges from bincenters
 
     TODO
@@ -16,6 +16,8 @@ def bincenters2binsANDnames(bincenters):
     Arguments
     ---------
     bincenters: array.
+    round: int
+        if rounding is desired in the returned column names
 
     Returns
     -------
@@ -31,8 +33,13 @@ def bincenters2binsANDnames(bincenters):
     binedges = np.append(binedges,lastEdge)
     minusses = binedges[:-1].copy().astype(str)
     minusses[:] = ' - '
-    a = binedges[:-1].astype(str)
-    b = binedges[1:].astype(str)
+    a = binedges[:-1]
+    b = binedges[1:]
+    if isinstance(round, int):
+        a = a.round(round)
+        b = b.round(round)
+    a = a.astype(str)
+    b = b.astype(str)
     newColnames = np.core.defchararray.add(a,minusses)
     newColnames = np.core.defchararray.add(newColnames,b)
     return binedges,newColnames
