@@ -1553,7 +1553,7 @@ class TimeSeries(object):
             self.data[which] = data_ft
         return data_ft
 
-    def plot(self, columns2plot=None, ax = None, legend = True, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'matplotlib', **kwargs):
+    def plot(self, columns2plot=None, ax = None, label = None, autofmt_xdate = True, times_of_interest = None, plot_engine = 'matplotlib', **kwargs):
         """Plot each parameter separately versus time
         Arguments
         ---------
@@ -1640,9 +1640,7 @@ class TimeSeries(object):
 
         ax.set_xlabel(self._x_label)
         ax.set_ylabel(self._y_label)
-        if legend:
-            if len(self.data.keys()) > 1:
-                ax.legend()
+
 
 
 
