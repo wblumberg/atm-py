@@ -18,8 +18,8 @@ setup(
     license="MIT",
     keywords="atmospheric science tools",
     url="https://github.com/hagne/atm-py",
-    install_requires=['numpy','pandas', 'scipy'],#pysolar
-    extras_require={'plotting': ['matplotlib'],},
+    install_requires=['numpy','pandas', 'scipy', 'matplotlib'],#pysolar
+    # extras_require={'plotting': ['matplotlib'],},
     test_suite='nose.collector',
     tests_require=['nose'],
 )

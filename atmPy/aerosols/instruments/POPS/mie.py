@@ -30,11 +30,11 @@ import pandas as _pd
 
 
 ###########################
-def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
+def makeMie_diameter(diameterRangeInMikroMeter = [0.1,3.],
             noOfdiameters = 200,
             noOfAngles = 100, # number of scatternig angles
             POPSdesign = 'POPS 2',
-            IOR = 1.45,
+            IOR = 1.5,
             WavelengthInUm = .405,
             geometry = "perpendicular",
             #the following was added 20140904
@@ -64,13 +64,14 @@ def makeMie_diameter(radiusRangeInMikroMeter = [0.05,1.5],
 
     Returns
     -------
-    diameter (yes diameter, not like the input, which is in radius ... for historic reasons!)
+    diameter
     array and an array of the intensity of the light scattered onto the detector (this is also 
     not fully correct, since we do not do a decent integration but a sum, at some point it would be nice to change that)
     
     parameters:
 
     """
+    radiusRangeInMikroMeter = np.array(diameterRangeInMikroMeter) / 2
     if scale == 'log':
         dRange = np.logspace(np.log10(radiusRangeInMikroMeter[0]),np.log10(radiusRangeInMikroMeter[1]),noOfdiameters) #radius range 
     elif scale == 'linear':
