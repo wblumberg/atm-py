@@ -5,7 +5,8 @@ from matplotlib.dates import MonthLocator  as _MonthLocator
 from matplotlib.dates import DateFormatter as _DateFormatter
 from matplotlib.ticker import FuncFormatter as _FuncFormatter
 from matplotlib.ticker import MultipleLocator as _MultipleLocator
-import plt_tools as _plt_tools
+from atmPy.tools import plt_tools as _plt_tools
+#import plt_tools as _plt_tools
 from atmPy.tools import array_tools as _array_tools
 
 class Statistics(object):
