@@ -1,0 +1,14 @@
+name: pops
+channels:
+ - conda-forge
+ - anaconda
+dependencies:
+ - numpy
+ - matplotlib
+ - pandas
+ - scipy
+ - ipython
+ - jupyterlab
+ - netcdf4
+ - statsmodels
+ - xarray
