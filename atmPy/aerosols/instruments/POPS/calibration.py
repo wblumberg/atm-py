@@ -65,19 +65,19 @@ def generate_calibration(single_pnt_cali_d=508,
     dr = np.array(dr)
 
     single_pnt_cali_d *= 1e-3
-    rr = dr / 2 / 1000
-    cal_d = pd.Series(index=np.logspace(np.log10(rr[0]), np.log10(rr[1]), no_cal_pts + 2)[1:-1] * 2)
+    rr = dr / 1000.
+    cal_d = pd.Series(index=np.logspace(np.log10(rr[0]), np.log10(rr[1]), no_cal_pts + 2)[1:-1])
     #     cal_d = pd.Series(index = np.logspace(np.log10(rr[0]), np.log10(rr[1]), no_cal_pts) * 2)
 
     if test:
         return cal_d
 
-    d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, radiusRangeInMikroMeter=rr, IOR=ior)
+    d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, diameterRangeInMikroMeter=rr, IOR=ior)
     ds = pd.Series(amp, d)
     if ior == single_pnt_cali_ior:
         ds_spc = ds
     else:
-        d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, radiusRangeInMikroMeter=rr, IOR=single_pnt_cali_ior)
+        d, amp = mie.makeMie_diameter(noOfdiameters=no_pts, diameterRangeInMikroMeter=rr, IOR=single_pnt_cali_ior)
         ds_spc = pd.Series(amp, d)
 
     ampm = ds.rolling(int(no_pts / no_cal_pts), center=True).mean()
@@ -247,7 +247,7 @@ bin centers of logarithms (nm)
 
 def _string2Dataframe(data, log=True):
     sb = io(data)
-    dataFrame = pd.read_csv(sb, sep = ' ', names = ('d','amp')).sort('d')
+    dataFrame = pd.read_csv(sb, sep = ' ', names = ('d','amp')).sort_values('d')
     if log:
         dataFrame.amp = 10 ** dataFrame.amp
     return dataFrame
