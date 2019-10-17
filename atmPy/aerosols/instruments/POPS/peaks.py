@@ -643,10 +643,10 @@ class peaks(object):
             \t dNdlogDp:\t    distribution normalized to the log of the bin width, bincenters are given by 10**((logDn+logDn+1)/2)
     
         """
-        notMasked = np.where(self.data.Masked == 0)
-        print(notMasked, self.data, self.data.shape)
+        notMasked = np.where((self.data.Masked == 1) & (self.data.index.values != np.datetime64("1970-01-01 00:00:00.000000000")))
+        print("Show the data:", notMasked, self.data, self.data.shape)
         # too_big_condi = np.where(self.data.Masked == 2)
-        print(self.data.index.values[notMasked])
+        print("Not masked values:", self.data.index.values[notMasked])
         unique = np.unique(self.data.index.values[notMasked])
         N = np.zeros((unique.shape[0],bins.shape[0]-1))
         too_big = np.zeros(unique.shape[0])
@@ -664,9 +664,10 @@ class peaks(object):
         N = N.astype(np.float)
         too_big = too_big.astype(np.float)
 
+        print("OUTPUT:")
         print(unique, unique[1:], unique[:-1], np.timedelta64(1, 's'))
         deltaT = (unique[1:]-unique[:-1]) / np.timedelta64(1,'s')
-        print(deltaT)
+        print("deltaT:", deltaT)
         deltaT_sl = np.append(deltaT[0],deltaT)
         deltaT = np.repeat(np.array([deltaT_sl]),bins.shape[0]-1, axis=0)
         N/=deltaT.transpose()
